@@ -50,8 +50,23 @@ const SQL_STATEMENTS = [
       next_48h TEXT,
       weekly_plan JSONB,
       full_report TEXT,
+      readiness_score INTEGER,
+      fatigue_score INTEGER,
+      consistency_score INTEGER,
+      suggested_focus TEXT,
+      coach_notes JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+  `,
+
+  // Aggiungi colonne mancanti se non esistono (per aggiornamenti)
+  `
+    ALTER TABLE coach_reports
+    ADD COLUMN IF NOT EXISTS readiness_score INTEGER,
+    ADD COLUMN IF NOT EXISTS fatigue_score INTEGER,
+    ADD COLUMN IF NOT EXISTS consistency_score INTEGER,
+    ADD COLUMN IF NOT EXISTS suggested_focus TEXT,
+    ADD COLUMN IF NOT EXISTS coach_notes JSONB;
   `,
 
   // Indice su activity_id per query join

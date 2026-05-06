@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { AthleteSettings } from './athlete-settings';
+import { CoachingMetrics } from './coaching-metrics';
+import { CoachingRules } from './coaching-rules';
 
 /**
  * Modulo AI Coach per generare report di running con OpenAI
@@ -30,16 +32,22 @@ export interface CoachReport {
   title: string;
   summary: string;
   risk_level: 'basso' | 'medio' | 'alto';
+  readiness_score: number;
+  fatigue_score: number;
+  consistency_score: number;
+  suggested_focus: string;
   next_48h: string;
   weekly_plan: WeeklyPlanItem[];
+  coach_notes: string[];
   full_report: string;
 }
 
 export interface WeeklyPlanItem {
   name: string;
   description: string;
-  intensity: 'easy' | 'medium' | 'quality' | 'recovery';
+  intensity: 'recovery' | 'easy' | 'medium' | 'quality';
   duration: string;
+  reason: string;
 }
 
 /**
@@ -64,9 +72,18 @@ function getOpenAIClient(): OpenAI {
  * Costruisce il prompt per il coach AI
  * @param newRun - La nuova corsa appena completata
  * @param history - Storico delle corse recenti (ultime 10-15)
+ * @param athleteSettings - Impostazioni atleta
+ * @param metrics - Metriche coaching calcolate
+ * @param rules - Regole coaching calcolate
  * @returns Prompt completo per OpenAI
  */
-export function buildCoachPrompt(newRun: DBActivity, history: DBActivity[], athleteSettings?: AthleteSettings | null): string {
+export function buildCoachPrompt(
+  newRun: DBActivity,
+  history: DBActivity[],
+  athleteSettings?: AthleteSettings | null,
+  metrics?: CoachingMetrics | null,
+  rules?: CoachingRules | null
+): string {
   const formatActivity = (activity: DBActivity, isNewRun = false) => {
     const prefix = isNewRun ? 'NUOVA CORSA (da analizzare):' : 'STORICO:';
     const date = new Date(activity.start_date).toLocaleDateString('it-IT');
@@ -160,18 +177,42 @@ export function buildCoachPrompt(newRun: DBActivity, history: DBActivity[], athl
 
   const athleteProfile = buildAthleteProfile(athleteSettings || undefined);
 
+  // Sezione metriche
+  const metricsSection = metrics ? `
+
+## METRICHE ATTUALI
+- Readiness Score: ${metrics.readinessScore}/100
+- Fatigue Score: ${metrics.fatigueScore}/100
+- Consistency Score: ${metrics.consistencyScore}/100
+- Rischio Overload: ${metrics.overloadRisk}
+- Focus Consigliato: ${metrics.suggestedFocus}
+${metrics.warnings && metrics.warnings.length > 0 ? `- Avvertenze: ${metrics.warnings.join(', ')}` : ''}` : '';
+
+  // Sezione regole
+  const rulesSection = rules ? `
+
+## REGOLE COACHING ATTIVE
+- Intensità massima consentita: ${rules.allowedIntensity}
+- Max corse prossima settimana: ${rules.maxRunsNextWeek}
+${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- Allenamenti bloccati: ${rules.blockedWorkouts.join(', ')}` : ''}` : '';
+
   const prompt = `# AI RUNNING COACH - ANALISI CORSA
 
 ## PROFILO ATLETA
-${athleteProfile}
+${athleteProfile}${metricsSection}${rulesSection}
 
 ## REGOLE IMPORTANTI
+- Sei un running coach prudente e concreto
+- Usa i dati del profilo atleta per personalizzare consigli
+- RISPETTA SEMPRE le regole del coaching engine (non proporre allenamenti bloccati)
+- Non proporre più sedute del massimo consentito
+- Non superare il volume massimo consigliato
+- Se mancano dati cardio, ragiona su volume, frequenza e passo
+- Obiettivo: dimagrimento + ritorno progressivo alla competitività
+- Priorità: continuità, salute, progressione graduale
 - Niente due allenamenti intensi consecutivi
-- Se l'utente è discontinuo, privilegiare easy run leggeri
-- Progressione graduale: aumentare volume e intensità del 10-20% a settimana
+- Progressione massima del 10-20% a settimana
 - Bilanciare cardio con recupero attivo
-- Considerare fatica accumulata e motivazione
-- Output sintetico, utile e professionale (non paternalistico)
 
 ## NUOVA CORSA DA ANALIZZARE
 ${newRunFormatted}
@@ -183,26 +224,33 @@ ${historyFormatted || 'Nessuna corsa precedente registrata'}
 Genera un report JSON con questa struttura ESATTA:
 
 {
-  "title": "Titolo breve e motivante (max 8 parole)",
-  "summary": "Riassunto breve della corsa e stato forma (max 2 frasi)",
+  "title": "string",
+  "summary": "string breve",
   "risk_level": "basso | medio | alto",
-  "next_48h": "Raccomandazione specifica per le prossime 48 ore (max 2 frasi)",
+  "readiness_score": 0,
+  "fatigue_score": 0,
+  "consistency_score": 0,
+  "suggested_focus": "string",
+  "next_48h": "string",
   "weekly_plan": [
     {
-      "name": "Nome allenamento (es: 'Easy Run Lunedi')",
-      "description": "Breve descrizione dell'allenamento",
-      "intensity": "easy | medium | quality | recovery",
-      "duration": "Durata stimata (es: '45-60 min')"
+      "name": "string",
+      "description": "string",
+      "intensity": "recovery | easy | medium | quality",
+      "duration": "string",
+      "reason": "string"
     }
   ],
-  "full_report": "Report completo in markdown con analisi dettagliata, consigli specifici e piano settimanale. Max 400 parole."
+  "coach_notes": [
+    "string"
+  ],
+  "full_report": "testo markdown breve"
 }
 
 ## NOTE IMPORTANTI
 - Rispondi SOLO con JSON valido, niente testo aggiuntivo
 - Adatta il piano settimanale al livello attuale dell'atleta
-- Considera il rischio infortuni nella valutazione
-- Sii incoraggiante ma realistico
+- Rispetta le metriche e regole fornite
 - Usa italiano professionale`;
 
   return prompt;
@@ -246,7 +294,10 @@ export async function generateCoachReport(prompt: string): Promise<CoachReport> 
 
       // Validazione basilare della struttura
       if (!report.title || !report.summary || !report.risk_level ||
-          !report.next_48h || !Array.isArray(report.weekly_plan) || !report.full_report) {
+          !report.next_48h || !Array.isArray(report.weekly_plan) || !report.full_report ||
+          typeof report.readiness_score !== 'number' || typeof report.fatigue_score !== 'number' ||
+          typeof report.consistency_score !== 'number' || !report.suggested_focus ||
+          !Array.isArray(report.coach_notes)) {
         throw new Error('Struttura JSON incompleta');
       }
 
@@ -256,10 +307,15 @@ export async function generateCoachReport(prompt: string): Promise<CoachReport> 
         report.risk_level = 'medio';
       }
 
+      // Validazione scores
+      report.readiness_score = Math.max(0, Math.min(100, report.readiness_score));
+      report.fatigue_score = Math.max(0, Math.min(100, report.fatigue_score));
+      report.consistency_score = Math.max(0, Math.min(100, report.consistency_score));
+
       // Validazione weekly_plan
       report.weekly_plan = report.weekly_plan.filter(item =>
-        item.name && item.description && item.intensity && item.duration &&
-        ['easy', 'medium', 'quality', 'recovery'].includes(item.intensity)
+        item.name && item.description && item.intensity && item.duration && item.reason &&
+        ['recovery', 'easy', 'medium', 'quality'].includes(item.intensity)
       );
 
       console.log('[COACH] ✓ Report parsed successfully');
@@ -301,6 +357,10 @@ function createFallbackReport(rawContent: string): CoachReport {
     title: 'Report Corsa Completata',
     summary: 'Allenamento completato. Analisi dettagliata nel report completo.',
     risk_level: 'medio',
+    readiness_score: 50,
+    fatigue_score: 30,
+    consistency_score: 60,
+    suggested_focus: 'mantenimento e recupero',
     next_48h: 'Riposo attivo domani, facile corsa tra 2-3 giorni se ti senti bene.',
     weekly_plan: [
       {
@@ -308,20 +368,24 @@ function createFallbackReport(rawContent: string): CoachReport {
         description: 'Camminata leggera o mobilità',
         intensity: 'recovery',
         duration: '30-45 min',
+        reason: 'Recupero dalla corsa recente',
       },
       {
         name: 'Easy Run',
         description: 'Corsa leggera a ritmo comodo',
         intensity: 'easy',
         duration: '45-60 min',
+        reason: 'Mantenimento continuità',
       },
       {
         name: 'Riposo',
         description: 'Recupero completo',
         intensity: 'recovery',
         duration: '0 min',
+        reason: 'Bilanciare carico e recupero',
       },
     ],
+    coach_notes: ['Report generato automaticamente - consulta professionista per consigli personalizzati'],
     full_report: rawContent, // Usa il contenuto grezzo come full_report
   };
 }
@@ -331,14 +395,19 @@ function createFallbackReport(rawContent: string): CoachReport {
  * Combina buildCoachPrompt + generateCoachReport
  * @param newRun - La nuova corsa
  * @param history - Storico corse
+ * @param athleteSettings - Impostazioni atleta
+ * @param metrics - Metriche coaching
+ * @param rules - Regole coaching
  * @returns Promise<CoachReport>
  */
 export async function generateCompleteCoachReport(
   newRun: DBActivity,
   history: DBActivity[],
-  athleteSettings?: AthleteSettings | null
+  athleteSettings?: AthleteSettings | null,
+  metrics?: CoachingMetrics | null,
+  rules?: CoachingRules | null
 ): Promise<CoachReport> {
-  const prompt = buildCoachPrompt(newRun, history, athleteSettings || undefined);
+  const prompt = buildCoachPrompt(newRun, history, athleteSettings || undefined, metrics || undefined, rules || undefined);
   return await generateCoachReport(prompt);
 }
 

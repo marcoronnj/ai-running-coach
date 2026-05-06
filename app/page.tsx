@@ -24,6 +24,14 @@ interface WeeklyTrendItem {
   total_distance: number;
 }
 
+interface AthleteMetrics {
+  readiness_score: number;
+  fatigue_score: number;
+  consistency_score: number;
+  risk_level: string;
+  suggested_focus: string;
+}
+
 /**
  * Helper: Formatta chilometri
  */
@@ -71,6 +79,24 @@ function getRiskEmoji(riskLevel: string): string {
     case 'alto': return '🔴';
     default: return '⚪';
   }
+}
+
+/**
+ * Helper: Ottieni emoji per score
+ */
+function getScoreEmoji(score: number): string {
+  if (score >= 80) return '🟢';
+  if (score >= 60) return '🟡';
+  return '🔴';
+}
+
+/**
+ * Helper: Ottieni colore per score
+ */
+function getScoreColor(score: number): string {
+  if (score >= 80) return 'text-green-400';
+  if (score >= 60) return 'text-yellow-400';
+  return 'text-red-400';
 }
 
 /**
@@ -148,14 +174,77 @@ function LastRunCard({ run, report }: { run: DashboardRun | null; report: Dashbo
 }
 
 /**
+ * Componente per le metriche atleta
+ */
+function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null }) {
+  if (!metrics) return null;
+
+  return (
+    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+      <h2 className="text-2xl font-bold text-white mb-6">Stato Atleta</h2>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {/* Readiness */}
+        <div className="bg-neutral-800 rounded-xl p-4 text-center">
+          <div className="text-2xl mb-2">{getScoreEmoji(metrics.readiness_score)}</div>
+          <div className={`text-2xl font-bold ${getScoreColor(metrics.readiness_score)}`}>
+            {metrics.readiness_score}
+          </div>
+          <div className="text-sm text-neutral-400">Readiness</div>
+        </div>
+
+        {/* Fatigue */}
+        <div className="bg-neutral-800 rounded-xl p-4 text-center">
+          <div className="text-2xl mb-2">😴</div>
+          <div className={`text-2xl font-bold ${getScoreColor(100 - metrics.fatigue_score)}`}>
+            {metrics.fatigue_score}
+          </div>
+          <div className="text-sm text-neutral-400">Fatigue</div>
+        </div>
+
+        {/* Consistency */}
+        <div className="bg-neutral-800 rounded-xl p-4 text-center">
+          <div className="text-2xl mb-2">📊</div>
+          <div className={`text-2xl font-bold ${getScoreColor(metrics.consistency_score)}`}>
+            {metrics.consistency_score}
+          </div>
+          <div className="text-sm text-neutral-400">Consistency</div>
+        </div>
+      </div>
+
+      <div className="mt-6 space-y-4">
+        {/* Risk Level */}
+        <div className="bg-neutral-800 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-white font-medium">Rischio Overload</span>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{getRiskEmoji(metrics.risk_level)}</span>
+              <span className="text-sm font-medium text-neutral-300 uppercase">
+                {metrics.risk_level}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Focus */}
+        <div className="bg-neutral-800 rounded-xl p-4">
+          <div className="text-sm text-neutral-400 mb-2">Focus Consigliato</div>
+          <div className="text-white font-medium">{metrics.suggested_focus}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Componente per il trend settimanale
  */
-function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] }) {
+function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
   if (!trend || trend.length === 0) return null;
 
   return (
     <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <h2 className="text-2xl font-bold text-white mb-6">Trend Ultime 6 Settimane</h2>
+      <h2 className="text-2xl font-bold text-white mb-6">Trend Settimanale</h2>
 
       <div className="space-y-3">
         {trend.map((week, index) => (
@@ -173,8 +262,8 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] }) {
             </div>
 
             <div className="text-right">
-              <div className="text-lg font-bold text-white">{week.runs}</div>
-              <div className="text-sm text-neutral-400">uscite</div>
+              <div className="text-lg font-bold text-white">{formatKm(week.total_distance)}</div>
+              <div className="text-sm text-neutral-400">km</div>
             </div>
           </div>
         ))}
@@ -245,7 +334,16 @@ export default async function HomePage() {
     LIMIT 6
   `);
 
+  const metricsQuery = await query(`
+    SELECT readiness_score, fatigue_score, consistency_score, risk_level, suggested_focus
+    FROM coach_reports
+    WHERE readiness_score IS NOT NULL
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+
   const weeklyTrend = trendQuery.rows;
+  const athleteMetrics = metricsQuery.rows[0] as AthleteMetrics | null;
 
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
@@ -258,12 +356,20 @@ export default async function HomePage() {
             <h1 className="text-4xl font-bold text-white mb-2">AI Running Coach</h1>
             <p className="text-neutral-400">Il tuo allenatore personale basato sui dati</p>
           </div>
-          <Link
-            href="/settings"
-            className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl transition-colors duration-200"
-          >
-            ⚙️ Settings
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/coach"
+              className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl transition-colors duration-200"
+            >
+              🧠 Coach
+            </Link>
+            <Link
+              href="/settings"
+              className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl transition-colors duration-200"
+            >
+              ⚙️ Settings
+            </Link>
+          </div>
         </div>
 
         {!hasData ? (
@@ -275,8 +381,9 @@ export default async function HomePage() {
               <LastRunCard run={lastRun} report={lastRun} />
             </div>
 
-            {/* Trend settimanale - 1 colonna su desktop */}
-            <div className="lg:col-span-1">
+            {/* Metriche atleta - 1 colonna su desktop */}
+            <div className="lg:col-span-1 space-y-8">
+              <AthleteMetricsCard metrics={athleteMetrics} />
               <WeeklyTrendCard trend={weeklyTrend} />
             </div>
           </div>

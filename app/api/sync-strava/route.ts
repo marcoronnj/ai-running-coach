@@ -5,6 +5,8 @@ import { generateCompleteCoachReport, type DBActivity, type CoachReport } from '
 import { sendTelegramMessage } from '@/lib/telegram';
 import { getAppUrl } from '@/lib/app-url';
 import { getAthleteSettings } from '@/lib/athlete-settings';
+import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
+import { getCoachingRules } from '@/lib/coaching-rules';
 
 /**
  * Helper: Formatta chilometri
@@ -119,14 +121,21 @@ export async function GET(request: NextRequest) {
       try {
         console.log(`[SYNC] 🤖 Generando report per: ${activity.name}`);
 
-        // Ottieni storico per il report AI (ultime 50 corse)
-        const history = await getActivityHistory(activity.start_date);
+        // Ottieni storico per il report AI (ultime 90 giorni per metrics)
+        const history90d = await getActivityHistory90d(activity.start_date);
+        const history = history90d.slice(0, 15); // Solo ultime 15 per il prompt
 
         // Recupera impostazioni atleta per personalizzare il prompt
         const athleteSettings = await getAthleteSettings();
 
-        // Genera report AI
-        const report = await generateCompleteCoachReport(activity, history, athleteSettings);
+        // Calcola metriche coaching
+        const metrics = calculateCoachingMetrics(history90d, athleteSettings);
+
+        // Calcola regole coaching
+        const rules = getCoachingRules(metrics, athleteSettings);
+
+        // Genera report AI con metrics e rules
+        const report = await generateCompleteCoachReport(activity, history, athleteSettings, metrics, rules);
 
         // Salva report nel DB
         await saveCoachReport(activity.id, report);
@@ -269,6 +278,29 @@ async function getActivityHistory(beforeDate: string): Promise<DBActivity[]> {
 }
 
 /**
+ * Ottieni storico attività degli ultimi 90 giorni per le metriche coaching
+ */
+async function getActivityHistory90d(beforeDate: string): Promise<DBActivity[]> {
+  try {
+    const ninetyDaysAgo = new Date(new Date(beforeDate).getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const result = await query(
+      `SELECT * FROM activities
+       WHERE type IN ('Run', 'TrailRun')
+       AND start_date >= $1
+       AND start_date < $2
+       ORDER BY start_date DESC`,
+      [ninetyDaysAgo.toISOString(), beforeDate]
+    );
+
+    return result.rows;
+  } catch (error) {
+    console.error('[SYNC] Errore ottenendo storico 90d:', error);
+    return []; // Ritorna array vuoto in caso di errore
+  }
+}
+
+/**
  * Salva un report del coach nel database
  */
 async function saveCoachReport(activityId: string, report: CoachReport): Promise<void> {
@@ -276,8 +308,9 @@ async function saveCoachReport(activityId: string, report: CoachReport): Promise
     await query(
       `INSERT INTO coach_reports
        (activity_id, report_type, title, summary, risk_level, next_48h,
-        weekly_plan, full_report)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        weekly_plan, full_report, readiness_score, fatigue_score,
+        consistency_score, suggested_focus, coach_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [
         activityId,
         'post_run',
@@ -287,6 +320,11 @@ async function saveCoachReport(activityId: string, report: CoachReport): Promise
         report.next_48h,
         JSON.stringify(report.weekly_plan),
         report.full_report,
+        report.readiness_score,
+        report.fatigue_score,
+        report.consistency_score,
+        report.suggested_focus,
+        JSON.stringify(report.coach_notes),
       ]
     );
 
@@ -324,10 +362,17 @@ async function sendTelegramNotification(activity: DBActivity, report: CoachRepor
 📊 <b>${activity.name}</b>
 📏 ${distance} • ⏱️ ${pace}${heartrate}
 
-📝 <b>Riepilogo:</b>
-${report.summary}
+� <b>Stato Atleta:</b>
+🎯 Readiness: ${report.readiness_score}/100
+😴 Fatigue: ${report.fatigue_score}/100
+📊 Consistency: ${report.consistency_score}/100
+
+🎯 <b>Focus:</b> ${report.suggested_focus}
 
 ⚠️ <b>Rischio:</b> ${riskEmoji} ${String(report.risk_level).toUpperCase()}
+
+📝 <b>Riepilogo:</b>
+${report.summary}
 
 ⏰ <b>Prossime 48h:</b>
 ${report.next_48h}
