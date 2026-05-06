@@ -2,9 +2,8 @@ import { redirect } from 'next/navigation';
 
 export async function GET() {
   const clientId = process.env.STRAVA_CLIENT_ID;
-  const redirectUri = process.env.APP_URL
-    ? `${process.env.APP_URL}/api/strava/callback`
-    : 'http://localhost:3000/api/strava/callback';
+  const redirectUri = 'https://ai-running-coach-three.vercel.app/api/strava/callback';
+  const requestedScopes = 'read,activity:read_all';
 
   if (!clientId) {
     throw new Error('STRAVA_CLIENT_ID non configurato in .env.local');
@@ -15,10 +14,14 @@ export async function GET() {
     response_type: 'code',
     redirect_uri: redirectUri,
     approval_prompt: 'force',
-    scope: 'activity:read_all',
+    scope: requestedScopes,
   });
 
   const stravaAuthUrl = `https://www.strava.com/oauth/authorize?${params.toString()}`;
+
+  console.log('[STRAVA OAUTH] URL OAuth generato:', stravaAuthUrl);
+  console.log('[STRAVA OAUTH] Redirect URI usato:', redirectUri);
+  console.log('[STRAVA OAUTH] Scopes richiesti:', requestedScopes);
 
   redirect(stravaAuthUrl);
 }

@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { refreshStravaToken, getRecentActivities, filterRunningActivities, formatActivityForDB } from '@/lib/strava';
 import { generateCompleteCoachReport } from '@/lib/coach';
 import { sendTelegramMessage, formatCoachReportForTelegram } from '@/lib/telegram';
+import { getAppUrl } from '@/lib/app-url';
 
 /**
  * Helper: Formatta chilometri
@@ -297,7 +298,7 @@ async function saveCoachReport(activityId: string, report: any): Promise<void> {
  */
 async function sendTelegramNotification(activity: any, report: any): Promise<void> {
   try {
-    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const appUrl = getAppUrl();
     const dashboardLink = `${appUrl}/runs/${activity.id}`;
 
     const distance = formatKm(activity.distance);

@@ -5,8 +5,7 @@ interface StravaTokenResponse {
   expires_at: number;
   expires_in: number;
   refresh_token: string;
-  access_token: string;
-  athlete: {
+  access_token: string;  scope?: string;  athlete: {
     id: number;
     firstname: string;
     lastname: string;
@@ -75,6 +74,14 @@ export async function GET(request: NextRequest) {
         status: tokenResponse.status,
         body: errorData,
       });
+
+      if (tokenResponse.status === 400) {
+        return createErrorResponse(
+          'Code OAuth scaduto',
+          'Il code OAuth Strava è scaduto o già usato. Rifai il login da /api/strava/auth-url'
+        );
+      }
+
       return createErrorResponse(
         'Errore nello scambio del code',
         `Strava ha restituito lo status ${tokenResponse.status}. Verifica che il code non sia scaduto e che le credenziali siano corrette.`
@@ -95,7 +102,13 @@ export async function GET(request: NextRequest) {
     const athleteName = `${data.athlete.firstname} ${data.athlete.lastname}`;
     const accessToken = data.access_token;
     const refreshToken = data.refresh_token;
+    const returnedScopes = data.scope || 'non disponibile';
     const expiresAt = new Date(data.expires_at * 1000).toISOString();
+
+    console.log('[STRAVA OAUTH] Code scambiato con successo');
+    console.log('[STRAVA OAUTH] Athlete:', athleteName);
+    console.log('[STRAVA OAUTH] Refresh token:', refreshToken);
+    console.log('[STRAVA OAUTH] Scopes restituiti:', returnedScopes);
 
     // Ritorna una pagina HTML con i dati
     const htmlContent = `
@@ -267,6 +280,13 @@ export async function GET(request: NextRequest) {
         </div>
 
         <div class="info-section">
+            <h2>Scopes restituiti</h2>
+            <div class="info-box">
+                ${returnedScopes}
+            </div>
+        </div>
+
+        <div class="info-section">
             <h2>Expires At</h2>
             <div class="info-box">
                 ${expiresAt}
@@ -392,7 +412,7 @@ function createErrorResponse(title: string, message: string): NextResponse {
         <div class="error-icon">✗</div>
         <h1>${title}</h1>
         <p>${message}</p>
-        <a href="http://localhost:3000" class="back-link">Torna alla Home</a>
+        <a href="https://ai-running-coach-three.vercel.app" class="back-link">Torna alla Home</a>
     </div>
 </body>
 </html>
