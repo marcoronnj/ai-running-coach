@@ -1,0 +1,377 @@
+import OpenAI from 'openai';
+
+/**
+ * Modulo AI Coach per generare report di running con OpenAI
+ */
+
+/**
+ * Tipi TypeScript per il coach
+ */
+export interface DBActivity {
+  id: string;
+  strava_id: string;
+  name: string;
+  type: string;
+  start_date: string;
+  distance_m: number;
+  moving_time_s: number;
+  elapsed_time_s: number;
+  average_speed: number;
+  max_speed: number;
+  average_heartrate?: number;
+  max_heartrate?: number;
+  total_elevation_gain: number;
+  raw_json: any;
+  created_at: string;
+}
+
+export interface CoachReport {
+  title: string;
+  summary: string;
+  risk_level: 'basso' | 'medio' | 'alto';
+  next_48h: string;
+  weekly_plan: WeeklyPlanItem[];
+  full_report: string;
+}
+
+export interface WeeklyPlanItem {
+  name: string;
+  description: string;
+  intensity: 'easy' | 'medium' | 'quality' | 'recovery';
+  duration: string;
+}
+
+/**
+ * Inizializza il client OpenAI
+ */
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      'OPENAI_API_KEY non è configurato in .env.local. ' +
+      'Aggiungi la variabile di ambiente e riavvia il server.'
+    );
+  }
+
+  return new OpenAI({
+    apiKey: apiKey,
+  });
+}
+
+/**
+ * Costruisce il prompt per il coach AI
+ * @param newRun - La nuova corsa appena completata
+ * @param history - Storico delle corse recenti (ultime 10-15)
+ * @returns Prompt completo per OpenAI
+ */
+export function buildCoachPrompt(newRun: DBActivity, history: DBActivity[]): string {
+  const formatActivity = (activity: DBActivity, isNewRun = false) => {
+    const prefix = isNewRun ? 'NUOVA CORSA (da analizzare):' : 'STORICO:';
+    const date = new Date(activity.start_date).toLocaleDateString('it-IT');
+    const distance = formatKm(activity.distance_m);
+    const pace = formatPace(activity.average_speed);
+    const time = formatDuration(activity.moving_time_s);
+    const hr = activity.average_heartrate ? `FC media: ${activity.average_heartrate} bpm` : 'FC non disponibile';
+    const elevation = activity.total_elevation_gain > 0 ? `D+ ${activity.total_elevation_gain}m` : '';
+
+    return `${prefix}
+- Data: ${date}
+- Nome: ${activity.name}
+- Distanza: ${distance}
+- Tempo: ${time}
+- Pace medio: ${pace}/km
+- ${hr}
+- ${elevation}
+- Tipo: ${activity.type}`;
+  };
+
+  const newRunFormatted = formatActivity(newRun, true);
+  const historyFormatted = history.slice(0, 10).map(activity => formatActivity(activity)).join('\n\n');
+
+  const prompt = `# AI RUNNING COACH - ANALISI CORSA
+
+## PROFILO ATLETA
+- Ex runner forte, ora in fase di ripresa dopo un periodo di inattività
+- Obiettivo principale: dimagrire gradualmente
+- Obiettivo secondario: tornare progressivamente in forma
+- Massimo 3 uscite running a settimana
+- Priorità: evitare infortuni e progressione prudente
+- Se manca la frequenza cardiaca, ragionare su distanza, passo e recupero
+
+## REGOLE IMPORTANTI
+- Niente due allenamenti intensi consecutivi
+- Se l'utente è discontinuo, privilegiare easy run leggeri
+- Progressione graduale: aumentare volume e intensità del 10-20% a settimana
+- Bilanciare cardio con recupero attivo
+- Considerare fatica accumulata e motivazione
+- Output sintetico, utile e professionale (non paternalistico)
+
+## NUOVA CORSA DA ANALIZZARE
+${newRunFormatted}
+
+## STORICO RECENTE (ultime corse)
+${historyFormatted || 'Nessuna corsa precedente registrata'}
+
+## ISTRUZIONI PER IL REPORT
+Genera un report JSON con questa struttura ESATTA:
+
+{
+  "title": "Titolo breve e motivante (max 8 parole)",
+  "summary": "Riassunto breve della corsa e stato forma (max 2 frasi)",
+  "risk_level": "basso | medio | alto",
+  "next_48h": "Raccomandazione specifica per le prossime 48 ore (max 2 frasi)",
+  "weekly_plan": [
+    {
+      "name": "Nome allenamento (es: 'Easy Run Lunedi')",
+      "description": "Breve descrizione dell'allenamento",
+      "intensity": "easy | medium | quality | recovery",
+      "duration": "Durata stimata (es: '45-60 min')"
+    }
+  ],
+  "full_report": "Report completo in markdown con analisi dettagliata, consigli specifici e piano settimanale. Max 400 parole."
+}
+
+## NOTE IMPORTANTI
+- Rispondi SOLO con JSON valido, niente testo aggiuntivo
+- Adatta il piano settimanale al livello attuale dell'atleta
+- Considera il rischio infortuni nella valutazione
+- Sii incoraggiante ma realistico
+- Usa italiano professionale`;
+
+  return prompt;
+}
+
+/**
+ * Genera un report del coach usando OpenAI
+ * @param prompt - Prompt completo per OpenAI
+ * @returns Promise<CoachReport> - Report parsato
+ */
+export async function generateCoachReport(prompt: string): Promise<CoachReport> {
+  const client = getOpenAIClient();
+  const model = process.env.OPENAI_MODEL_DAILY || 'gpt-4o-mini';
+
+  try {
+    console.log('[COACH] Generating report with OpenAI...');
+
+    const completion = await client.chat.completions.create({
+      model: model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+    });
+
+    const content = completion.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('OpenAI non ha restituito contenuto');
+    }
+
+    console.log('[COACH] ✓ Report generated, parsing JSON...');
+
+    // Prova a parsare il JSON
+    try {
+      const report: CoachReport = JSON.parse(content.trim());
+
+      // Validazione basilare della struttura
+      if (!report.title || !report.summary || !report.risk_level ||
+          !report.next_48h || !Array.isArray(report.weekly_plan) || !report.full_report) {
+        throw new Error('Struttura JSON incompleta');
+      }
+
+      // Validazione risk_level
+      if (!['basso', 'medio', 'alto'].includes(report.risk_level)) {
+        console.warn('[COACH] Risk level non valido, impostando "medio"');
+        report.risk_level = 'medio';
+      }
+
+      // Validazione weekly_plan
+      report.weekly_plan = report.weekly_plan.filter(item =>
+        item.name && item.description && item.intensity && item.duration &&
+        ['easy', 'medium', 'quality', 'recovery'].includes(item.intensity)
+      );
+
+      console.log('[COACH] ✓ Report parsed successfully');
+      return report;
+
+    } catch (parseError) {
+      console.warn('[COACH] JSON parsing failed, using fallback:', parseError);
+      return createFallbackReport(content);
+    }
+
+  } catch (error) {
+    console.error('[COACH] OpenAI API error:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        throw new Error('Chiave API OpenAI non valida o mancante');
+      }
+      if (error.message.includes('quota') || error.message.includes('billing')) {
+        throw new Error('Quota OpenAI esaurita. Controlla il billing su OpenAI.');
+      }
+      if (error.message.includes('model')) {
+        throw new Error(`Modello OpenAI "${model}" non disponibile`);
+      }
+    }
+
+    throw new Error('Errore nella generazione del report AI');
+  }
+}
+
+/**
+ * Crea un report fallback quando il parsing JSON fallisce
+ * @param rawContent - Contenuto grezzo da OpenAI
+ * @returns CoachReport - Report di fallback
+ */
+function createFallbackReport(rawContent: string): CoachReport {
+  console.log('[COACH] Creating fallback report');
+
+  return {
+    title: 'Report Corsa Completata',
+    summary: 'Allenamento completato. Analisi dettagliata nel report completo.',
+    risk_level: 'medio',
+    next_48h: 'Riposo attivo domani, facile corsa tra 2-3 giorni se ti senti bene.',
+    weekly_plan: [
+      {
+        name: 'Riposo Attivo',
+        description: 'Camminata leggera o mobilità',
+        intensity: 'recovery',
+        duration: '30-45 min',
+      },
+      {
+        name: 'Easy Run',
+        description: 'Corsa leggera a ritmo comodo',
+        intensity: 'easy',
+        duration: '45-60 min',
+      },
+      {
+        name: 'Riposo',
+        description: 'Recupero completo',
+        intensity: 'recovery',
+        duration: '0 min',
+      },
+    ],
+    full_report: rawContent, // Usa il contenuto grezzo come full_report
+  };
+}
+
+/**
+ * Genera un report completo per una corsa
+ * Combina buildCoachPrompt + generateCoachReport
+ * @param newRun - La nuova corsa
+ * @param history - Storico corse
+ * @returns Promise<CoachReport>
+ */
+export async function generateCompleteCoachReport(
+  newRun: DBActivity,
+  history: DBActivity[]
+): Promise<CoachReport> {
+  const prompt = buildCoachPrompt(newRun, history);
+  return await generateCoachReport(prompt);
+}
+
+/**
+ * Helper: Formatta metri in chilometri
+ * @param meters - Distanza in metri
+ * @returns string - "5.2 km"
+ */
+export function formatKm(meters: number): string {
+  const km = meters / 1000;
+  return `${km.toFixed(1)} km`;
+}
+
+/**
+ * Helper: Formatta velocità media in pace al km
+ * @param speedMs - Velocità in m/s
+ * @returns string - "5:30/km"
+ */
+export function formatPace(speedMs: number): string {
+  if (!speedMs || speedMs <= 0) return 'N/A';
+
+  // Converti m/s in secondi per km
+  const secondsPerKm = 1000 / speedMs;
+
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = Math.floor(secondsPerKm % 60);
+
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Helper: Formatta durata in secondi in formato leggibile
+ * @param seconds - Durata in secondi
+ * @returns string - "45:30" o "1h 23m"
+ */
+export function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0:00';
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Helper: Calcola il pace target per un'intensità
+ * @param basePace - Pace della corsa recente (secondi/km)
+ * @param intensity - Tipo di intensità
+ * @returns string - Pace formattato
+ */
+export function getTargetPace(basePace: number, intensity: string): string {
+  if (!basePace || basePace <= 0) return 'N/A';
+
+  let multiplier = 1;
+
+  switch (intensity) {
+    case 'easy':
+      multiplier = 1.1; // 10% più lento
+      break;
+    case 'medium':
+      multiplier = 1.0; // Pace normale
+      break;
+    case 'quality':
+      multiplier = 0.9; // 10% più veloce
+      break;
+    case 'recovery':
+      multiplier = 1.2; // 20% più lento
+      break;
+    default:
+      multiplier = 1.0;
+  }
+
+  const targetPace = basePace * multiplier;
+  return formatPace(1000 / targetPace); // Converti secondi/km in m/s poi formatta
+}
+
+/**
+ * Helper: Valida un report generato
+ * @param report - Report da validare
+ * @returns boolean
+ */
+export function validateCoachReport(report: any): report is CoachReport {
+  return (
+    typeof report === 'object' &&
+    typeof report.title === 'string' &&
+    typeof report.summary === 'string' &&
+    ['basso', 'medio', 'alto'].includes(report.risk_level) &&
+    typeof report.next_48h === 'string' &&
+    Array.isArray(report.weekly_plan) &&
+    typeof report.full_report === 'string' &&
+    report.weekly_plan.every((item: any) =>
+      typeof item.name === 'string' &&
+      typeof item.description === 'string' &&
+      ['easy', 'medium', 'quality', 'recovery'].includes(item.intensity) &&
+      typeof item.duration === 'string'
+    )
+  );
+}

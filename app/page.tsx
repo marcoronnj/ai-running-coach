@@ -1,65 +1,284 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { query } from '@/lib/db';
 
-export default function Home() {
+/**
+ * Helper: Formatta chilometri
+ */
+function formatKm(meters: number): string {
+  const km = meters / 1000;
+  return `${km.toFixed(1)} km`;
+}
+
+/**
+ * Helper: Formatta durata in minuti
+ */
+function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0 min';
+
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${remainingMinutes}m`;
+  }
+
+  return `${minutes} min`;
+}
+
+/**
+ * Helper: Formatta data in italiano
+ */
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('it-IT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+/**
+ * Helper: Ottieni emoji per livello rischio
+ */
+function getRiskEmoji(riskLevel: string): string {
+  switch (riskLevel) {
+    case 'basso': return '🟢';
+    case 'medio': return '🟡';
+    case 'alto': return '🔴';
+    default: return '⚪';
+  }
+}
+
+/**
+ * Componente per l'ultima corsa
+ */
+function LastRunCard({ run, report }: { run: any; report: any }) {
+  if (!run) return null;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-white">Ultima Corsa</h2>
+        <div className="text-sm text-neutral-400">
+          {formatDate(run.start_date)}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+
+      <div className="space-y-4 mb-6">
+        <h3 className="text-xl font-semibold text-white">{run.name}</h3>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-1">Distanza</div>
+            <div className="text-2xl font-bold text-white">{formatKm(run.distance_m)}</div>
+          </div>
+
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-1">Durata</div>
+            <div className="text-2xl font-bold text-white">{formatDuration(run.moving_time_s)}</div>
+          </div>
+
+          {run.average_heartrate && (
+            <div className="bg-neutral-800 rounded-xl p-4">
+              <div className="text-sm text-neutral-400 mb-1">FC Media</div>
+              <div className="text-2xl font-bold text-red-400">{run.average_heartrate} bpm</div>
+            </div>
+          )}
+
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-1">Tipo</div>
+            <div className="text-lg font-semibold text-white">{run.type}</div>
+          </div>
         </div>
-      </main>
+      </div>
+
+      {report && (
+        <div className="border-t border-neutral-800 pt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-lg font-semibold text-white">{report.title}</h4>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{getRiskEmoji(report.risk_level)}</span>
+              <span className="text-sm font-medium text-neutral-300 uppercase">
+                {report.risk_level}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-neutral-300 leading-relaxed">{report.summary}</p>
+
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-2">Prossime 48 ore</div>
+            <p className="text-white">{report.next_48h}</p>
+          </div>
+
+          <Link
+            href={`/runs/${run.id}`}
+            className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors duration-200"
+          >
+            Apri Report Completo
+          </Link>
+        </div>
+      )}
     </div>
   );
+}
+
+/**
+ * Componente per il trend settimanale
+ */
+function WeeklyTrendCard({ trend }: { trend: any[] }) {
+  if (!trend || trend.length === 0) return null;
+
+  return (
+    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+      <h2 className="text-2xl font-bold text-white mb-6">Trend Ultime 6 Settimane</h2>
+
+      <div className="space-y-3">
+        {trend.map((week, index) => (
+          <div key={index} className="flex items-center justify-between py-3 px-4 bg-neutral-800 rounded-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 bg-neutral-700 rounded-lg flex items-center justify-center text-sm font-medium text-white">
+                {week.week}
+              </div>
+              <div>
+                <div className="text-white font-medium">Settimana {week.week}</div>
+                <div className="text-sm text-neutral-400">
+                  {week.runs} uscite • {formatKm(week.total_distance)}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <div className="text-lg font-bold text-white">{week.runs}</div>
+              <div className="text-sm text-neutral-400">uscite</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Componente per empty state
+ */
+function EmptyState() {
+  return (
+    <div className="bg-neutral-900 rounded-3xl p-12 border border-neutral-800 text-center">
+      <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6">
+        <span className="text-2xl">🏃‍♂️</span>
+      </div>
+
+      <h2 className="text-2xl font-bold text-white mb-4">Nessuna corsa ancora sincronizzata</h2>
+
+      <p className="text-neutral-400 mb-8 max-w-md mx-auto">
+        Le tue corse appariranno qui automaticamente dopo la prima sincronizzazione con Strava.
+        Controlla che il cron job sia attivo o avvia una sync manuale.
+      </p>
+
+      <div className="text-sm text-neutral-500">
+        La sincronizzazione avviene automaticamente ogni 6 ore
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Pagina principale della dashboard
+ */
+export default async function HomePage() {
+  try {
+    // Query per l'ultima corsa con il suo report
+    const lastRunQuery = await query(`
+      SELECT a.*, cr.title, cr.summary, cr.risk_level, cr.next_48h
+      FROM activities a
+      LEFT JOIN coach_reports cr ON a.id = cr.activity_id
+      WHERE a.type IN ('Run', 'TrailRun')
+      ORDER BY a.start_date DESC
+      LIMIT 1
+    `);
+
+    const lastRun = lastRunQuery.rows[0];
+
+    // Query per il trend delle ultime 6 settimane
+    const trendQuery = await query(`
+      WITH weekly_stats AS (
+        SELECT
+          DATE_TRUNC('week', start_date) as week_start,
+          COUNT(*) as runs,
+          SUM(distance_m) as total_distance
+        FROM activities
+        WHERE type IN ('Run', 'TrailRun')
+          AND start_date >= NOW() - INTERVAL '6 weeks'
+        GROUP BY DATE_TRUNC('week', start_date)
+        ORDER BY week_start DESC
+      )
+      SELECT
+        EXTRACT(WEEK FROM week_start)::INTEGER as week,
+        runs,
+        total_distance
+      FROM weekly_stats
+      ORDER BY week_start DESC
+      LIMIT 6
+    `);
+
+    const weeklyTrend = trendQuery.rows;
+
+    const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
+
+    return (
+      <div className="min-h-screen bg-neutral-950">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">AI Running Coach</h1>
+            <p className="text-neutral-400">Il tuo allenatore personale basato sui dati</p>
+          </div>
+
+          {!hasData ? (
+            <EmptyState />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Ultima corsa - 2 colonne su desktop */}
+              <div className="lg:col-span-2">
+                <LastRunCard run={lastRun} report={lastRun} />
+              </div>
+
+              {/* Trend settimanale - 1 colonna su desktop */}
+              <div className="lg:col-span-1">
+                <WeeklyTrendCard trend={weeklyTrend} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  } catch (error) {
+    console.error('Errore caricamento dashboard:', error);
+
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <span className="text-2xl">⚠️</span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-white mb-4">Errore di caricamento</h2>
+
+          <p className="text-neutral-400 mb-6">
+            Si è verificato un errore nel caricamento dei dati.
+            Controlla la connessione al database e riprova.
+          </p>
+
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200"
+          >
+            Riprova
+          </Link>
+        </div>
+      </div>
+    );
+  }
 }
