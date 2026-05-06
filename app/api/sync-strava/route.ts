@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { refreshStravaToken, getRecentActivities, filterRunningActivities, formatActivityForDB } from '@/lib/strava';
-import { generateCompleteCoachReport } from '@/lib/coach';
-import { sendTelegramMessage, formatCoachReportForTelegram } from '@/lib/telegram';
+import { refreshStravaToken, getRecentActivities, filterRunningActivities, formatActivityForDB, type StravaActivity } from '@/lib/strava';
+import { generateCompleteCoachReport, type DBActivity, type CoachReport } from '@/lib/coach';
+import { sendTelegramMessage } from '@/lib/telegram';
 import { getAppUrl } from '@/lib/app-url';
+import { getAthleteSettings } from '@/lib/athlete-settings';
 
 /**
  * Helper: Formatta chilometri
@@ -121,8 +122,11 @@ export async function GET(request: NextRequest) {
         // Ottieni storico per il report AI (ultime 50 corse)
         const history = await getActivityHistory(activity.start_date);
 
+        // Recupera impostazioni atleta per personalizzare il prompt
+        const athleteSettings = await getAthleteSettings();
+
         // Genera report AI
-        const report = await generateCompleteCoachReport(activity, history);
+        const report = await generateCompleteCoachReport(activity, history, athleteSettings);
 
         // Salva report nel DB
         await saveCoachReport(activity.id, report);
@@ -195,8 +199,8 @@ export async function GET(request: NextRequest) {
 /**
  * Salva nuove attività nel database
  */
-async function saveNewActivities(activities: any[]): Promise<any[]> {
-  const newActivities = [];
+async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivity[]> {
+  const newActivities: DBActivity[] = [];
 
   for (const activity of activities) {
     try {
@@ -210,7 +214,7 @@ async function saveNewActivities(activities: any[]): Promise<any[]> {
           max_heartrate, total_elevation_gain, raw_json)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (strava_id) DO NOTHING
-         RETURNING id`,
+         RETURNING *`,
         [
           dbData.id,
           dbData.strava_id,
@@ -231,7 +235,7 @@ async function saveNewActivities(activities: any[]): Promise<any[]> {
 
       // Se è stata inserita (result.rows.length > 0), aggiungila alle nuove
       if (result.rows.length > 0) {
-        newActivities.push(activity);
+        newActivities.push(result.rows[0] as DBActivity);
       }
 
     } catch (error) {
@@ -246,7 +250,7 @@ async function saveNewActivities(activities: any[]): Promise<any[]> {
 /**
  * Ottieni storico attività per il report AI
  */
-async function getActivityHistory(beforeDate: string): Promise<any[]> {
+async function getActivityHistory(beforeDate: string): Promise<DBActivity[]> {
   try {
     const result = await query(
       `SELECT * FROM activities
@@ -267,7 +271,7 @@ async function getActivityHistory(beforeDate: string): Promise<any[]> {
 /**
  * Salva un report del coach nel database
  */
-async function saveCoachReport(activityId: string, report: any): Promise<void> {
+async function saveCoachReport(activityId: string, report: CoachReport): Promise<void> {
   try {
     await query(
       `INSERT INTO coach_reports
@@ -296,12 +300,12 @@ async function saveCoachReport(activityId: string, report: any): Promise<void> {
 /**
  * Invia notifica Telegram per una nuova corsa
  */
-async function sendTelegramNotification(activity: any, report: any): Promise<void> {
+async function sendTelegramNotification(activity: DBActivity, report: CoachReport): Promise<void> {
   try {
     const appUrl = getAppUrl();
     const dashboardLink = `${appUrl}/runs/${activity.id}`;
 
-    const distance = formatKm(activity.distance);
+    const distance = formatKm(activity.distance_m);
     const pace = formatPace(activity.average_speed);
     const heartrate = activity.average_heartrate
       ? ` • FC ${activity.average_heartrate} bpm`

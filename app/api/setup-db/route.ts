@@ -81,6 +81,28 @@ const SQL_STATEMENTS = [
     CREATE INDEX IF NOT EXISTS idx_sync_logs_created_at 
     ON sync_logs(created_at DESC);
   `,
+
+  // Tabella athlete_settings
+  `
+    CREATE TABLE IF NOT EXISTS athlete_settings (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      profile_summary TEXT,
+      weight_kg REAL,
+      height_cm REAL,
+      age INTEGER,
+      main_goal TEXT,
+      secondary_goal TEXT,
+      available_days TEXT[],
+      target_runs_per_week INTEGER,
+      target_weekly_volume_km REAL,
+      target_pace TEXT,
+      target_hr TEXT,
+      injuries TEXT,
+      experience_level TEXT,
+      avoid_overload BOOLEAN DEFAULT true,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `,
 ];
 
 /**
@@ -147,11 +169,24 @@ export async function GET(request: NextRequest) {
 
     console.log('[SETUP] ✓ Tutte le tabelle create con successo!');
 
+    // Inserisci impostazioni atleta default se non esistono
+    try {
+      await query(`
+        INSERT INTO athlete_settings (id, profile_summary, main_goal, secondary_goal, target_runs_per_week, avoid_overload, experience_level)
+        VALUES ('default', 'ex runner forte, ora discontinuo', 'dimagrire', 'tornare competitivo', 3, true, 'ex runner forte, ora in ripresa')
+        ON CONFLICT (id) DO NOTHING
+      `);
+      console.log('[SETUP] ✓ Impostazioni atleta default inserite');
+    } catch (error) {
+      console.error('[SETUP] ✗ Errore inserimento impostazioni default:', error);
+      // Non bloccare il setup per questo errore
+    }
+
     return NextResponse.json(
       {
         ok: true,
         message: 'Database setup completato con successo',
-        tablesCreated: ['activities', 'coach_reports', 'sync_logs'],
+        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'athlete_settings'],
         indicesCreated: 6,
       },
       { status: 200 }

@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { AthleteSettings } from './athlete-settings';
 
 /**
  * Modulo AI Coach per generare report di running con OpenAI
@@ -65,7 +66,7 @@ function getOpenAIClient(): OpenAI {
  * @param history - Storico delle corse recenti (ultime 10-15)
  * @returns Prompt completo per OpenAI
  */
-export function buildCoachPrompt(newRun: DBActivity, history: DBActivity[]): string {
+export function buildCoachPrompt(newRun: DBActivity, history: DBActivity[], athleteSettings?: AthleteSettings | null): string {
   const formatActivity = (activity: DBActivity, isNewRun = false) => {
     const prefix = isNewRun ? 'NUOVA CORSA (da analizzare):' : 'STORICO:';
     const date = new Date(activity.start_date).toLocaleDateString('it-IT');
@@ -89,15 +90,80 @@ export function buildCoachPrompt(newRun: DBActivity, history: DBActivity[]): str
   const newRunFormatted = formatActivity(newRun, true);
   const historyFormatted = history.slice(0, 10).map(activity => formatActivity(activity)).join('\n\n');
 
+  // Costruisci il profilo atleta dinamico
+  const buildAthleteProfile = (settings?: AthleteSettings): string => {
+    if (!settings) {
+      return `- Profilo non configurato - usa valori di default`;
+    }
+
+    const profileParts = [];
+
+    if (settings.profile_summary) {
+      profileParts.push(`- ${settings.profile_summary}`);
+    }
+
+    if (settings.age) {
+      profileParts.push(`- Età: ${settings.age} anni`);
+    }
+
+    if (settings.weight_kg && settings.height_cm) {
+      const bmi = (settings.weight_kg / ((settings.height_cm / 100) ** 2)).toFixed(1);
+      profileParts.push(`- Peso: ${settings.weight_kg}kg, Altezza: ${settings.height_cm}cm (BMI: ${bmi})`);
+    } else if (settings.weight_kg) {
+      profileParts.push(`- Peso: ${settings.weight_kg}kg`);
+    } else if (settings.height_cm) {
+      profileParts.push(`- Altezza: ${settings.height_cm}cm`);
+    }
+
+    if (settings.main_goal) {
+      profileParts.push(`- Obiettivo principale: ${settings.main_goal}`);
+    }
+
+    if (settings.secondary_goal) {
+      profileParts.push(`- Obiettivo secondario: ${settings.secondary_goal}`);
+    }
+
+    if (settings.target_runs_per_week) {
+      profileParts.push(`- Uscite target/settimana: ${settings.target_runs_per_week}`);
+    }
+
+    if (settings.target_weekly_volume_km) {
+      profileParts.push(`- Volume target settimanale: ${settings.target_weekly_volume_km}km`);
+    }
+
+    if (settings.target_pace) {
+      profileParts.push(`- Pace target: ${settings.target_pace}/km`);
+    }
+
+    if (settings.target_hr) {
+      profileParts.push(`- FC target: ${settings.target_hr} bpm`);
+    }
+
+    if (settings.available_days && settings.available_days.length > 0) {
+      profileParts.push(`- Giorni disponibili: ${settings.available_days.join(', ')}`);
+    }
+
+    if (settings.experience_level) {
+      profileParts.push(`- Livello esperienza: ${settings.experience_level}`);
+    }
+
+    if (settings.injuries) {
+      profileParts.push(`- Note fisiche/infortuni: ${settings.injuries}`);
+    }
+
+    if (settings.avoid_overload !== undefined) {
+      profileParts.push(`- Evitare sovrallenamento: ${settings.avoid_overload ? 'Sì' : 'No'}`);
+    }
+
+    return profileParts.length > 0 ? profileParts.join('\n') : '- Profilo base - adattati alla corsa';
+  };
+
+  const athleteProfile = buildAthleteProfile(athleteSettings || undefined);
+
   const prompt = `# AI RUNNING COACH - ANALISI CORSA
 
 ## PROFILO ATLETA
-- Ex runner forte, ora in fase di ripresa dopo un periodo di inattività
-- Obiettivo principale: dimagrire gradualmente
-- Obiettivo secondario: tornare progressivamente in forma
-- Massimo 3 uscite running a settimana
-- Priorità: evitare infortuni e progressione prudente
-- Se manca la frequenza cardiaca, ragionare su distanza, passo e recupero
+${athleteProfile}
 
 ## REGOLE IMPORTANTI
 - Niente due allenamenti intensi consecutivi
@@ -269,9 +335,10 @@ function createFallbackReport(rawContent: string): CoachReport {
  */
 export async function generateCompleteCoachReport(
   newRun: DBActivity,
-  history: DBActivity[]
+  history: DBActivity[],
+  athleteSettings?: AthleteSettings | null
 ): Promise<CoachReport> {
-  const prompt = buildCoachPrompt(newRun, history);
+  const prompt = buildCoachPrompt(newRun, history, athleteSettings || undefined);
   return await generateCoachReport(prompt);
 }
 

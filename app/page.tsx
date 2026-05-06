@@ -2,6 +2,29 @@ import Link from 'next/link';
 import { query } from '@/lib/db';
 
 /**
+ * Interfacce per i dati della dashboard
+ */
+interface DashboardRun {
+  id: string;
+  name: string;
+  start_date: string;
+  distance_m: number;
+  moving_time_s: number;
+  average_heartrate?: number;
+  type: string;
+  title?: string;
+  summary?: string;
+  risk_level?: string;
+  next_48h?: string;
+}
+
+interface WeeklyTrendItem {
+  week: number;
+  runs: number;
+  total_distance: number;
+}
+
+/**
  * Helper: Formatta chilometri
  */
 function formatKm(meters: number): string {
@@ -53,7 +76,7 @@ function getRiskEmoji(riskLevel: string): string {
 /**
  * Componente per l'ultima corsa
  */
-function LastRunCard({ run, report }: { run: any; report: any }) {
+function LastRunCard({ run, report }: { run: DashboardRun | null; report: DashboardRun | null }) {
   if (!run) return null;
 
   return (
@@ -98,7 +121,7 @@ function LastRunCard({ run, report }: { run: any; report: any }) {
           <div className="flex items-center justify-between">
             <h4 className="text-lg font-semibold text-white">{report.title}</h4>
             <div className="flex items-center gap-2">
-              <span className="text-2xl">{getRiskEmoji(report.risk_level)}</span>
+              <span className="text-2xl">{getRiskEmoji(report.risk_level || 'medio')}</span>
               <span className="text-sm font-medium text-neutral-300 uppercase">
                 {report.risk_level}
               </span>
@@ -127,7 +150,7 @@ function LastRunCard({ run, report }: { run: any; report: any }) {
 /**
  * Componente per il trend settimanale
  */
-function WeeklyTrendCard({ trend }: { trend: any[] }) {
+function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] }) {
   if (!trend || trend.length === 0) return null;
 
   return (
@@ -188,97 +211,77 @@ function EmptyState() {
  * Pagina principale della dashboard
  */
 export default async function HomePage() {
-  try {
-    // Query per l'ultima corsa con il suo report
-    const lastRunQuery = await query(`
-      SELECT a.*, cr.title, cr.summary, cr.risk_level, cr.next_48h
-      FROM activities a
-      LEFT JOIN coach_reports cr ON a.id = cr.activity_id
-      WHERE a.type IN ('Run', 'TrailRun')
-      ORDER BY a.start_date DESC
-      LIMIT 1
-    `);
+  // Query per l'ultima corsa con il suo report
+  const lastRunQuery = await query(`
+    SELECT a.*, cr.title, cr.summary, cr.risk_level, cr.next_48h
+    FROM activities a
+    LEFT JOIN coach_reports cr ON a.id = cr.activity_id
+    WHERE a.type IN ('Run', 'TrailRun')
+    ORDER BY a.start_date DESC
+    LIMIT 1
+  `);
 
-    const lastRun = lastRunQuery.rows[0];
+  const lastRun = lastRunQuery.rows[0];
 
-    // Query per il trend delle ultime 6 settimane
-    const trendQuery = await query(`
-      WITH weekly_stats AS (
-        SELECT
-          DATE_TRUNC('week', start_date) as week_start,
-          COUNT(*) as runs,
-          SUM(distance_m) as total_distance
-        FROM activities
-        WHERE type IN ('Run', 'TrailRun')
-          AND start_date >= NOW() - INTERVAL '6 weeks'
-        GROUP BY DATE_TRUNC('week', start_date)
-        ORDER BY week_start DESC
-      )
+  // Query per il trend delle ultime 6 settimane
+  const trendQuery = await query(`
+    WITH weekly_stats AS (
       SELECT
-        EXTRACT(WEEK FROM week_start)::INTEGER as week,
-        runs,
-        total_distance
-      FROM weekly_stats
+        DATE_TRUNC('week', start_date) as week_start,
+        COUNT(*) as runs,
+        SUM(distance_m) as total_distance
+      FROM activities
+      WHERE type IN ('Run', 'TrailRun')
+        AND start_date >= NOW() - INTERVAL '6 weeks'
+      GROUP BY DATE_TRUNC('week', start_date)
       ORDER BY week_start DESC
-      LIMIT 6
-    `);
+    )
+    SELECT
+      EXTRACT(WEEK FROM week_start)::INTEGER as week,
+      runs,
+      total_distance
+    FROM weekly_stats
+    ORDER BY week_start DESC
+    LIMIT 6
+  `);
 
-    const weeklyTrend = trendQuery.rows;
+  const weeklyTrend = trendQuery.rows;
 
-    const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
+  const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
-    return (
-      <div className="min-h-screen bg-neutral-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header */}
-          <div className="mb-8">
+  return (
+    <div className="min-h-screen bg-neutral-950">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
             <h1 className="text-4xl font-bold text-white mb-2">AI Running Coach</h1>
             <p className="text-neutral-400">Il tuo allenatore personale basato sui dati</p>
           </div>
-
-          {!hasData ? (
-            <EmptyState />
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Ultima corsa - 2 colonne su desktop */}
-              <div className="lg:col-span-2">
-                <LastRunCard run={lastRun} report={lastRun} />
-              </div>
-
-              {/* Trend settimanale - 1 colonna su desktop */}
-              <div className="lg:col-span-1">
-                <WeeklyTrendCard trend={weeklyTrend} />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  } catch (error) {
-    console.error('Errore caricamento dashboard:', error);
-
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800 text-center max-w-md">
-          <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-2xl">⚠️</span>
-          </div>
-
-          <h2 className="text-2xl font-bold text-white mb-4">Errore di caricamento</h2>
-
-          <p className="text-neutral-400 mb-6">
-            Si è verificato un errore nel caricamento dei dati.
-            Controlla la connessione al database e riprova.
-          </p>
-
           <Link
-            href="/"
-            className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200"
+            href="/settings"
+            className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl transition-colors duration-200"
           >
-            Riprova
+            ⚙️ Settings
           </Link>
         </div>
+
+        {!hasData ? (
+          <EmptyState />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Ultima corsa - 2 colonne su desktop */}
+            <div className="lg:col-span-2">
+              <LastRunCard run={lastRun} report={lastRun} />
+            </div>
+
+            {/* Trend settimanale - 1 colonna su desktop */}
+            <div className="lg:col-span-1">
+              <WeeklyTrendCard trend={weeklyTrend} />
+            </div>
+          </div>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
 }
