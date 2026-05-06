@@ -179,7 +179,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
            FROM coach_reports
            WHERE activity_id = a.id
          )
-        WHERE a.id = $1
+        WHERE a.id = $1 OR a.strava_id = $1
         LIMIT 1
       `,
       [id]
@@ -187,10 +187,14 @@ export default async function RunDetailPage({ params }: { params: { id: string }
 
     const run = result.rows[0] as RunDetailData | undefined;
 
+    console.log('[RUN_DETAIL] ID ricevuto:', id);
     console.log('[RUN_DETAIL] Attività trovata:', !!run);
     if (run) {
+      console.log('[RUN_DETAIL] Activity ID:', run.id);
       console.log('[RUN_DETAIL] Strava ID:', run.strava_id);
       console.log('[RUN_DETAIL] Report trovato:', !!run.title);
+    } else {
+      console.log('[RUN_DETAIL] ❌ Nessuna attività trovata per ID:', id);
     }
 
     if (!run) {

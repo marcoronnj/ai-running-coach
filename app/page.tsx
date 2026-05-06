@@ -301,11 +301,21 @@ function EmptyState() {
  * Pagina principale della dashboard
  */
 export default async function HomePage() {
-  // Query per l'ultima corsa con il suo report
+  // Query per l'ultima corsa con il suo report (ultimo disponibile)
   const lastRunQuery = await query(`
-    SELECT a.*, cr.title, cr.summary, cr.risk_level, cr.next_48h
+    SELECT a.*, 
+           cr.title, 
+           cr.summary, 
+           cr.risk_level, 
+           cr.next_48h
     FROM activities a
-    LEFT JOIN coach_reports cr ON a.id = cr.activity_id
+    LEFT JOIN coach_reports cr
+      ON cr.activity_id = a.id
+     AND cr.created_at = (
+       SELECT MAX(created_at)
+       FROM coach_reports
+       WHERE activity_id = a.id
+     )
     WHERE a.type IN ('Run', 'TrailRun')
     ORDER BY a.start_date DESC
     LIMIT 1
