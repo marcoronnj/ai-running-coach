@@ -163,9 +163,10 @@ function LastRunCard({ run, report }: { run: DashboardRun | null; report: Dashbo
 
           <Link
             href={`/runs/${run.id}`}
-            className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors duration-200"
+            className="inline-flex items-center justify-center w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-colors duration-200 active:scale-95"
           >
-            Apri Report Completo
+            <span>📊 Apri Analisi Completa</span>
+            <span>→</span>
           </Link>
         </div>
       )}
