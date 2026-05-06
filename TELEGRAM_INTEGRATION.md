@@ -44,7 +44,7 @@ cat .env.local | grep TELEGRAM
 
 Dovresti vedere:
 ```env
-TELEGRAM_BOT_TOKEN=REMOVED_TELEGRAM_TOKEN
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=686664665
 CRON_SECRET=agsdigadsi6hajks3233dd
 ```
