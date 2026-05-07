@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { query } from '@/lib/db';
+import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
+import { getAthleteSettings } from '@/lib/athlete-settings';
 
 /**
  * Interfacce per i dati della dashboard
@@ -29,11 +31,18 @@ interface WeeklyTrendItem {
 }
 
 interface AthleteMetrics {
-  readiness_score?: number;
-  fatigue_score?: number;
-  consistency_score?: number;
-  risk_level?: string;
-  suggested_focus?: string;
+  readinessScore?: number;
+  readinessLabel?: string;
+  readinessExplanation?: string;
+  fatigueScore?: number;
+  fatigueLabel?: string;
+  fatigueExplanation?: string;
+  consistencyScore?: number;
+  consistencyLabel?: string;
+  consistencyExplanation?: string;
+  overloadRisk?: string;
+  overloadExplanation?: string;
+  suggestedFocus?: string;
 }
 
 /**
@@ -328,7 +337,7 @@ function CoachDecisionCard({ run }: { run: DashboardRun | null | undefined }) {
 function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null | undefined }) {
   if (!metrics) return null;
 
-  const hasValidMetrics = metrics.readiness_score || metrics.fatigue_score || metrics.consistency_score;
+  const hasValidMetrics = metrics.readinessScore || metrics.fatigueScore || metrics.consistencyScore;
 
   if (!hasValidMetrics) return null;
 
@@ -337,34 +346,37 @@ function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null | unde
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Stato Atleta</h2>
 
       <div className="space-y-4">
-        {metrics.readiness_score && (
+        {metrics.readinessScore && metrics.readinessLabel && (
           <MetricItem
             label="Readiness"
-            value={metrics.readiness_score}
-            description={getReadinessLabel(metrics.readiness_score)}
+            value={metrics.readinessScore}
+            description={metrics.readinessLabel}
+            explanation={metrics.readinessExplanation}
             icon="⚡"
           />
         )}
 
-        {metrics.fatigue_score && (
+        {metrics.fatigueScore && metrics.fatigueLabel && (
           <MetricItem
             label="Fatigue"
-            value={metrics.fatigue_score}
-            description={getFatigueLabel(metrics.fatigue_score)}
+            value={metrics.fatigueScore}
+            description={metrics.fatigueLabel}
+            explanation={metrics.fatigueExplanation}
             icon="😴"
           />
         )}
 
-        {metrics.consistency_score && (
+        {metrics.consistencyScore && metrics.consistencyLabel && (
           <MetricItem
             label="Consistency"
-            value={metrics.consistency_score}
-            description={getConsistencyLabel(metrics.consistency_score)}
+            value={metrics.consistencyScore}
+            description={metrics.consistencyLabel}
+            explanation={metrics.consistencyExplanation}
             icon="📊"
           />
         )}
 
-        {metrics.risk_level && (
+        {metrics.overloadRisk && (
           <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <div>
@@ -372,10 +384,15 @@ function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null | unde
                   Rischio Overload
                 </div>
                 <div className="text-white font-medium">
-                  {getRiskLabel(metrics.risk_level)}
+                  {getRiskLabel(metrics.overloadRisk)}
                 </div>
+                {metrics.overloadExplanation && (
+                  <div className="text-xs text-neutral-400 mt-1">
+                    {metrics.overloadExplanation}
+                  </div>
+                )}
               </div>
-              <span className="text-3xl">{getRiskEmoji(metrics.risk_level)}</span>
+              <span className="text-3xl">{getRiskEmoji(metrics.overloadRisk)}</span>
             </div>
           </div>
         )}
@@ -391,11 +408,13 @@ function MetricItem({
   label,
   value,
   description,
+  explanation,
   icon
 }: {
   label: string;
   value: number;
   description: string;
+  explanation?: string;
   icon: string;
 }) {
   return (
@@ -682,17 +701,16 @@ export default async function HomePage() {
     LIMIT 6
   `);
 
-  const metricsQuery = await query(`
-    SELECT readiness_score, fatigue_score, consistency_score, risk_level, suggested_focus
-    FROM coach_reports
-    WHERE readiness_score IS NOT NULL
-    ORDER BY created_at DESC
-    LIMIT 1
+  const athleteSettings = await getAthleteSettings();
+  const activityHistoryQuery = await query(`
+    SELECT * FROM activities
+    WHERE type IN ('Run', 'TrailRun')
+      AND start_date >= NOW() - INTERVAL '90 days'
+    ORDER BY start_date DESC
   `);
 
+  const athleteMetrics = calculateCoachingMetrics(activityHistoryQuery.rows, athleteSettings);
   const weeklyTrend = trendQuery.rows as WeeklyTrendItem[];
-  const athleteMetrics = metricsQuery.rows[0] as AthleteMetrics | undefined;
-
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
   return (

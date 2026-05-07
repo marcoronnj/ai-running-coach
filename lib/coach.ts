@@ -40,6 +40,13 @@ export interface CoachReport {
   weekly_plan: WeeklyPlanItem[];
   coach_notes: string[];
   full_report: string;
+  readiness_label?: string;
+  readiness_explanation?: string;
+  fatigue_label?: string;
+  fatigue_explanation?: string;
+  consistency_label?: string;
+  consistency_explanation?: string;
+  overload_explanation?: string;
 }
 
 export interface WeeklyPlanItem {
@@ -181,10 +188,10 @@ export function buildCoachPrompt(
   const metricsSection = metrics ? `
 
 ## METRICHE ATTUALI
-- Readiness Score: ${metrics.readinessScore}/100
-- Fatigue Score: ${metrics.fatigueScore}/100
-- Consistency Score: ${metrics.consistencyScore}/100
-- Rischio Overload: ${metrics.overloadRisk}
+- Readiness: ${metrics.readinessLabel} (${metrics.readinessScore}/100) - ${metrics.readinessExplanation}
+- Fatigue: ${metrics.fatigueLabel} (${metrics.fatigueScore}/100) - ${metrics.fatigueExplanation}
+- Consistency: ${metrics.consistencyLabel} (${metrics.consistencyScore}/100) - ${metrics.consistencyExplanation}
+- Overload Risk: ${metrics.overloadRisk} - ${metrics.overloadExplanation}
 - Focus Consigliato: ${metrics.suggestedFocus}
 ${metrics.warnings && metrics.warnings.length > 0 ? `- Avvertenze: ${metrics.warnings.join(', ')}` : ''}` : '';
 
@@ -208,11 +215,13 @@ ${athleteProfile}${metricsSection}${rulesSection}
 - Non proporre più sedute del massimo consentito
 - Non superare il volume massimo consigliato
 - Se mancano dati cardio, ragiona su volume, frequenza e passo
+- Spiega con trasparenza perché la readiness è alta/bassa e perché la fatigue è rilevante
 - Obiettivo: dimagrimento + ritorno progressivo alla competitività
 - Priorità: continuità, salute, progressione graduale
 - Niente due allenamenti intensi consecutivi
 - Progressione massima del 10-20% a settimana
 - Bilanciare cardio con recupero attivo
+- Adotta linguaggio sportivo credibile, non frasi generiche o slogan
 
 ## NUOVA CORSA DA ANALIZZARE
 ${newRunFormatted}

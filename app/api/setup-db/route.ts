@@ -51,8 +51,15 @@ const SQL_STATEMENTS = [
       weekly_plan JSONB,
       full_report TEXT,
       readiness_score INTEGER,
+      readiness_label TEXT,
+      readiness_explanation TEXT,
       fatigue_score INTEGER,
+      fatigue_label TEXT,
+      fatigue_explanation TEXT,
       consistency_score INTEGER,
+      consistency_label TEXT,
+      consistency_explanation TEXT,
+      overload_explanation TEXT,
       suggested_focus TEXT,
       coach_notes JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
@@ -63,8 +70,15 @@ const SQL_STATEMENTS = [
   `
     ALTER TABLE coach_reports
     ADD COLUMN IF NOT EXISTS readiness_score INTEGER,
+    ADD COLUMN IF NOT EXISTS readiness_label TEXT,
+    ADD COLUMN IF NOT EXISTS readiness_explanation TEXT,
     ADD COLUMN IF NOT EXISTS fatigue_score INTEGER,
+    ADD COLUMN IF NOT EXISTS fatigue_label TEXT,
+    ADD COLUMN IF NOT EXISTS fatigue_explanation TEXT,
     ADD COLUMN IF NOT EXISTS consistency_score INTEGER,
+    ADD COLUMN IF NOT EXISTS consistency_label TEXT,
+    ADD COLUMN IF NOT EXISTS consistency_explanation TEXT,
+    ADD COLUMN IF NOT EXISTS overload_explanation TEXT,
     ADD COLUMN IF NOT EXISTS suggested_focus TEXT,
     ADD COLUMN IF NOT EXISTS coach_notes JSONB;
   `,

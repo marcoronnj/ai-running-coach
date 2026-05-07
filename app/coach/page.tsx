@@ -100,7 +100,7 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
           <div className={`text-xl font-bold ${getScoreColor(metrics.readinessScore)}`}>
             {metrics.readinessScore}
           </div>
-          <div className="text-xs text-neutral-400">Readiness</div>
+          <div className="text-xs text-neutral-400">{metrics.readinessLabel || 'Readiness'}</div>
         </div>
 
         <div className="bg-neutral-800 rounded-xl p-4 text-center">
@@ -108,7 +108,7 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
           <div className={`text-xl font-bold ${getScoreColor(100 - metrics.fatigueScore)}`}>
             {metrics.fatigueScore}
           </div>
-          <div className="text-xs text-neutral-400">Fatigue</div>
+          <div className="text-xs text-neutral-400">{metrics.fatigueLabel || 'Fatigue'}</div>
         </div>
 
         <div className="bg-neutral-800 rounded-xl p-4 text-center">
@@ -116,7 +116,7 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
           <div className={`text-xl font-bold ${getScoreColor(metrics.consistencyScore)}`}>
             {metrics.consistencyScore}
           </div>
-          <div className="text-xs text-neutral-400">Consistency</div>
+          <div className="text-xs text-neutral-400">{metrics.consistencyLabel || 'Consistency'}</div>
         </div>
 
         <div className="bg-neutral-800 rounded-xl p-4 text-center">
@@ -128,6 +128,29 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
           </div>
           <div className="text-xs text-neutral-400">Overload</div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {metrics.readinessExplanation && (
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-1">Readiness Spiegazione</div>
+            <div className="text-white text-sm">{metrics.readinessExplanation}</div>
+          </div>
+        )}
+
+        {metrics.fatigueExplanation && (
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-1">Fatigue Spiegazione</div>
+            <div className="text-white text-sm">{metrics.fatigueExplanation}</div>
+          </div>
+        )}
+
+        {metrics.consistencyExplanation && (
+          <div className="bg-neutral-800 rounded-xl p-4">
+            <div className="text-sm text-neutral-400 mb-1">Consistency Spiegazione</div>
+            <div className="text-white text-sm">{metrics.consistencyExplanation}</div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">

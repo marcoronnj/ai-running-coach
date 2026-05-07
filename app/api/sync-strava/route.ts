@@ -137,6 +137,15 @@ export async function GET(request: NextRequest) {
         // Genera report AI con metrics e rules
         const report = await generateCompleteCoachReport(activity, history, athleteSettings, metrics, rules);
 
+        // Associa metadata metriche al report per la dashboard
+        report.readiness_label = metrics.readinessLabel;
+        report.readiness_explanation = metrics.readinessExplanation;
+        report.fatigue_label = metrics.fatigueLabel;
+        report.fatigue_explanation = metrics.fatigueExplanation;
+        report.consistency_label = metrics.consistencyLabel;
+        report.consistency_explanation = metrics.consistencyExplanation;
+        report.overload_explanation = metrics.overloadExplanation;
+
         // Salva report nel DB
         await saveCoachReport(activity.id, report);
 
@@ -308,9 +317,11 @@ async function saveCoachReport(activityId: string, report: CoachReport): Promise
     await query(
       `INSERT INTO coach_reports
        (activity_id, report_type, title, summary, risk_level, next_48h,
-        weekly_plan, full_report, readiness_score, fatigue_score,
-        consistency_score, suggested_focus, coach_notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        weekly_plan, full_report, readiness_score, readiness_label, readiness_explanation,
+        fatigue_score, fatigue_label, fatigue_explanation,
+        consistency_score, consistency_label, consistency_explanation,
+        overload_explanation, suggested_focus, coach_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
       [
         activityId,
         'post_run',
@@ -321,8 +332,15 @@ async function saveCoachReport(activityId: string, report: CoachReport): Promise
         JSON.stringify(report.weekly_plan),
         report.full_report,
         report.readiness_score,
+        report.readiness_label || null,
+        report.readiness_explanation || null,
         report.fatigue_score,
+        report.fatigue_label || null,
+        report.fatigue_explanation || null,
         report.consistency_score,
+        report.consistency_label || null,
+        report.consistency_explanation || null,
+        report.overload_explanation || null,
         report.suggested_focus,
         JSON.stringify(report.coach_notes),
       ]
