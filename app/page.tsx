@@ -3,6 +3,8 @@ import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { buildCoachDecision } from '@/lib/coach-decision';
+import { getLatestRunWithReport } from '@/lib/runs';
+import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
 
 /**
  * Interfacce per i dati della dashboard
@@ -72,40 +74,7 @@ function formatDuration(seconds: number): string {
   return `${minutes} min`;
 }
 
-/**
- * Helper: Formatta data in italiano
- */
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('it-IT', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-}
-
-/**
- * Helper: Calcola giorni dall'ultima corsa
- */
-function daysSinceLastRun(lastRunDate: string): number {
-  const lastRun = new Date(lastRunDate);
-  const today = new Date();
-  const diffTime = Math.abs(today.getTime() - lastRun.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-}
-
-/**
- * Helper: Formatta data odierna
- */
-function formatToday(): string {
-  const today = new Date();
-  return today.toLocaleDateString('it-IT', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
+// Date utility moved to src/lib/date-utils.ts
 
 /**
  * Helper: Ottieni label interpretativa per readiness
@@ -199,8 +168,8 @@ function calculateWeeklyAverage(trend: WeeklyTrendItem[]): number {
  * Componente Hero - Today / Coach Status
  */
 function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) {
-  const today = formatToday();
-  const daysSince = lastRun ? daysSinceLastRun(lastRun.start_date) : null;
+  const today = formatDateIT(getTodayInAppTimezone());
+  const lastRunLabel = lastRun ? formatDaysSince(lastRun.start_date) : null;
 
   return (
     <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-3xl p-6 sm:p-8 mb-8">
@@ -210,8 +179,8 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
             {today}
           </h1>
           <div className="text-neutral-300 text-sm sm:text-base">
-            {daysSince !== null ? (
-              <span>Ultima corsa: {daysSince === 0 ? 'oggi' : `${daysSince} giorni fa`}</span>
+            {lastRunLabel ? (
+              <span>Ultima corsa: {lastRunLabel}</span>
             ) : (
               <span>Nessuna corsa ancora sincronizzata</span>
             )}
@@ -441,7 +410,7 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-white">Ultima Corsa</h2>
         <div className="text-xs sm:text-sm text-neutral-400">
-          {formatDate(run.start_date)}
+          {formatDateIT(run.start_date)}
         </div>
       </div>
 
@@ -639,36 +608,7 @@ function EmptyState() {
  */
 export default async function HomePage() {
   // Query per l'ultima corsa con il suo report (ultimo disponibile)
-  const lastRunQuery = await query(`
-    SELECT a.id,
-           a.strava_id,
-           a.name,
-           a.start_date,
-           a.distance_m,
-           a.moving_time_s,
-           a.average_speed,
-           a.average_heartrate,
-           a.type,
-           cr.title,
-           cr.summary,
-           cr.risk_level,
-           cr.next_48h,
-           cr.suggested_focus,
-           cr.coach_notes
-    FROM activities a
-    LEFT JOIN coach_reports cr
-      ON cr.activity_id = a.id
-     AND cr.created_at = (
-       SELECT MAX(created_at)
-       FROM coach_reports
-       WHERE activity_id = a.id
-     )
-    WHERE a.type IN ('Run', 'TrailRun')
-    ORDER BY a.start_date DESC
-    LIMIT 1
-  `);
-
-  const lastRun = lastRunQuery.rows[0] as DashboardRun | undefined;
+  const lastRun = await getLatestRunWithReport();
 
   // Query per il trend delle ultime 6 settimane
   const trendQuery = await query(`

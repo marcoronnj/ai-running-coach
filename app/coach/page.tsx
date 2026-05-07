@@ -4,6 +4,7 @@ import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { buildCoachDecision } from '@/lib/coach-decision';
+import { getLatestRunWithReport } from '@/lib/runs';
 
 /**
  * Helper: Formatta chilometri
@@ -400,11 +401,12 @@ export default async function CoachPage() {
       LIMIT 1
     `);
 
+    const latestRun = await getLatestRunWithReport();
     const weeklyTrend = trendQuery.rows;
     const latestReport = latestReportQuery.rows[0];
 
     // Costruisci decisione coach
-    const latestActivity = activitiesQuery.rows[0]; // Ultima attività
+    const latestActivity = latestRun ?? activitiesQuery.rows[0];
     const coachDecision = buildCoachDecision(latestReport, metrics, latestActivity);
 
     return (
