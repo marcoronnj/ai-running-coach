@@ -480,7 +480,7 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
           href={`/runs/${run.id}`}
           className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 sm:px-6 rounded-2xl transition-colors duration-200 active:scale-95 text-sm sm:text-base"
         >
-          <span>📊 Analisi Completa</span>
+          <span>Apri Analisi Completa</span>
           <span>→</span>
         </Link>
 

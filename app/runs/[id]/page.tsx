@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { query } from '@/lib/db';
+import { buildRunJudgement } from '@/lib/run-analysis';
 
 interface RunDetailData {
   // Attività
@@ -9,11 +10,14 @@ interface RunDetailData {
   start_date: string;
   distance_m: number;
   moving_time_s: number;
+  elapsed_time_s?: number;
   average_speed: number;
+  max_speed?: number;
   average_heartrate?: number;
   max_heartrate?: number;
   type: string;
   total_elevation_gain?: number;
+  raw_json?: any;
   // Report coach
   title?: string;
   summary?: string;
@@ -40,6 +44,11 @@ function formatPace(speedMs: number): string {
   const minutes = Math.floor(secondsPerKm / 60);
   const seconds = Math.round(secondsPerKm % 60);
   return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+}
+
+function formatSpeed(speedMs: number): string {
+  if (!speedMs || speedMs <= 0) return 'N/A';
+  return `${(speedMs * 3.6).toFixed(1)} km/h`;
 }
 
 function formatDuration(seconds: number): string {
@@ -87,6 +96,36 @@ function getScoreColor(score?: number): string {
   if (score >= 80) return 'text-green-400';
   if (score >= 60) return 'text-yellow-400';
   return 'text-red-400';
+}
+
+function getReadinessLabel(score?: number): string {
+  if (score === undefined || score === null) return 'N/A';
+  if (score >= 80) return 'Alta';
+  if (score >= 60) return 'Moderata';
+  return 'Bassa';
+}
+
+function getFatigueLabel(score?: number): string {
+  if (score === undefined || score === null) return 'N/A';
+  if (score <= 30) return 'Bassa';
+  if (score <= 60) return 'Media';
+  return 'Alta';
+}
+
+function getConsistencyLabel(score?: number): string {
+  if (score === undefined || score === null) return 'N/A';
+  if (score >= 80) return 'Solida';
+  if (score >= 60) return 'Buona';
+  return 'In costruzione';
+}
+
+function getRiskLevelLabel(riskLevel?: string): string {
+  switch (riskLevel?.toLowerCase()) {
+    case 'basso': return 'Basso';
+    case 'medio': return 'Medio';
+    case 'alto': return 'Alto';
+    default: return 'N/A';
+  }
 }
 
 function parseWeeklyPlan(raw: unknown): Array<{ name: string; description: string; intensity: string; duration: string }> {
@@ -155,11 +194,14 @@ export default async function RunDetailPage({ params }: { params: { id: string }
                a.start_date,
                a.distance_m,
                a.moving_time_s,
+               a.elapsed_time_s,
                a.average_speed,
+               a.max_speed,
                a.average_heartrate,
                a.max_heartrate,
                a.total_elevation_gain,
                a.type,
+               a.raw_json,
                cr.title,
                cr.summary,
                cr.risk_level,
@@ -201,9 +243,34 @@ export default async function RunDetailPage({ params }: { params: { id: string }
       return <ErrorState />;
     }
 
+    const rawJson = run.raw_json && typeof run.raw_json === 'string'
+      ? JSON.parse(run.raw_json)
+      : run.raw_json || {};
+
+    const averageCadence = rawJson?.average_cadence ?? rawJson?.cadence;
+    const calories = rawJson?.calories;
+    const sufferScore = rawJson?.suffer_score;
+    const averageWatts = rawJson?.average_watts;
+    const maxSpeed = run.max_speed ?? rawJson?.max_speed;
+    const elapsedTime = run.elapsed_time_s ?? rawJson?.elapsed_time;
+    const splits = Array.isArray(rawJson?.splits_metric) ? rawJson.splits_metric : [];
+    const hasSplits = splits.length > 0;
+
+    const judgement = buildRunJudgement(run, {
+      title: run.title,
+      summary: run.summary,
+      full_report: run.full_report,
+      next_48h: run.next_48h,
+      suggested_focus: run.suggested_focus,
+      readiness_score: run.readiness_score,
+      fatigue_score: run.fatigue_score,
+      consistency_score: run.consistency_score,
+      risk_level: run.risk_level,
+    });
+
     const weeklyPlan = parseWeeklyPlan(run.weekly_plan);
     const coachNotes = parseCoachNotes(run.coach_notes);
-    const hasReport = !!run.title;
+    const hasReport = !!run.title || !!run.full_report || !!run.summary;
 
     return (
       <div className="min-h-screen bg-neutral-950 text-white px-4 py-8 sm:px-6 lg:px-8">
@@ -241,38 +308,48 @@ export default async function RunDetailPage({ params }: { params: { id: string }
             </div>
           </div>
 
-          {/* Metriche principali */}
-          <MetricsGrid run={run} />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-6">
+              <MetricsGrid run={run} elapsedTime={elapsedTime} maxSpeed={maxSpeed} />
+              <RunExtraMetricsSection
+                averageCadence={averageCadence}
+                calories={calories}
+                sufferScore={sufferScore}
+                averageWatts={averageWatts}
+                maxSpeed={maxSpeed}
+                elapsedTime={elapsedTime}
+              />
+              <SessionJudgementSection judgement={judgement} />
+              {hasReport && <CoachAnalysisSection run={run} />}
+              {hasReport && run.next_48h && (
+                <Next48hSection next48h={run.next_48h} suggestedFocus={run.suggested_focus} />
+              )}
+              {hasReport && (
+                <ScoresSection
+                  readiness={run.readiness_score}
+                  fatigue={run.fatigue_score}
+                  consistency={run.consistency_score}
+                  riskLevel={run.risk_level}
+                />
+              )}
+              {weeklyPlan.length > 0 && <WeeklyPlanSection weeklyPlan={weeklyPlan} />}
+              {hasReport && run.full_report && <FullReportSection fullReport={run.full_report} />}
+              {coachNotes.length > 0 && <CoachNotesSection notes={coachNotes} />}
+              {!hasReport && <NoReportMessage />}
+              <RunSplitsSection splits={splits} />
+            </div>
 
-          {/* Coach Analysis */}
-          {hasReport && <CoachAnalysisSection run={run} />}
-
-          {/* Prossime 48h evidenziato */}
-          {hasReport && run.next_48h && (
-            <Next48hSection next48h={run.next_48h} suggestedFocus={run.suggested_focus} />
-          )}
-
-          {/* Trend e analisi */}
-          {hasReport && (
-            <ScoresSection
-              readiness={run.readiness_score}
-              fatigue={run.fatigue_score}
-              consistency={run.consistency_score}
-              riskLevel={run.risk_level}
-            />
-          )}
-
-          {/* Weekly plan */}
-          {weeklyPlan.length > 0 && <WeeklyPlanSection weeklyPlan={weeklyPlan} />}
-
-          {/* Report completo */}
-          {hasReport && run.full_report && <FullReportSection fullReport={run.full_report} />}
-
-          {/* Note del coach */}
-          {coachNotes.length > 0 && <CoachNotesSection notes={coachNotes} />}
-
-          {/* Messaggio se nessun report */}
-          {!hasReport && <NoReportMessage />}
+            <div className="space-y-6">
+              <CurrentStatusSection
+                readiness={run.readiness_score}
+                fatigue={run.fatigue_score}
+                consistency={run.consistency_score}
+                suggestedFocus={run.suggested_focus}
+                riskLevel={run.risk_level}
+              />
+              <StravaLinkCard stravaId={run.strava_id} />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -310,20 +387,24 @@ function NoReportMessage() {
       <div className="inline-block bg-blue-500/20 rounded-full p-4 mb-4">
         <span className="text-2xl">ℹ️</span>
       </div>
-      <h3 className="text-lg font-semibold mb-2">Report non ancora disponibile</h3>
+      <h3 className="text-lg font-semibold mb-2">Analisi AI non ancora disponibile</h3>
       <p className="text-neutral-400">
-        L'analisi del coach per questa corsa è ancora in elaborazione. Riprova tra pochi minuti.
+        Analisi AI non ancora disponibile. Verrà generata al prossimo sync.
       </p>
     </div>
   );
 }
 
-function MetricsGrid({ run }: { run: RunDetailData }) {
+function MetricsGrid({ run, elapsedTime, maxSpeed }: { run: RunDetailData; elapsedTime?: number; maxSpeed?: number }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       <MetricCard label="Distanza" value={formatKm(run.distance_m)} icon="📍" />
       <MetricCard label="Durata" value={formatDuration(run.moving_time_s)} icon="⏱️" />
+      {elapsedTime && elapsedTime !== run.moving_time_s && (
+        <MetricCard label="Elapsed time" value={formatDuration(elapsedTime)} icon="⏳" />
+      )}
       <MetricCard label="Passo medio" value={formatPace(run.average_speed)} icon="🏃" />
+      <MetricCard label="Velocità media" value={formatSpeed(run.average_speed)} icon="⚡" />
       {run.average_heartrate && (
         <MetricCard
           label="FC media"
@@ -332,7 +413,15 @@ function MetricsGrid({ run }: { run: RunDetailData }) {
           color="red"
         />
       )}
-      {!run.average_heartrate && run.total_elevation_gain && (
+      {run.max_heartrate && (
+        <MetricCard
+          label="FC max"
+          value={`${Math.round(run.max_heartrate)} bpm`}
+          icon="🚀"
+          color="red"
+        />
+      )}
+      {typeof run.total_elevation_gain === 'number' && (
         <MetricCard
           label="Dislivello"
           value={`${Math.round(run.total_elevation_gain)} m`}
@@ -341,6 +430,9 @@ function MetricsGrid({ run }: { run: RunDetailData }) {
       )}
       {run.type && (
         <MetricCard label="Tipo" value={run.type} icon="🎯" />
+      )}
+      {maxSpeed && (
+        <MetricCard label="Velocità max" value={formatSpeed(maxSpeed)} icon="💨" />
       )}
     </div>
   );
@@ -363,6 +455,218 @@ function MetricCard({
       <div className="text-2xl mb-2">{icon}</div>
       <p className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">{label}</p>
       <p className={`text-xl sm:text-2xl font-bold ${colorClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function RunExtraMetricsSection({
+  averageCadence,
+  calories,
+  sufferScore,
+  averageWatts,
+  maxSpeed,
+  elapsedTime,
+}: {
+  averageCadence?: number;
+  calories?: number;
+  sufferScore?: number;
+  averageWatts?: number;
+  maxSpeed?: number;
+  elapsedTime?: number;
+}) {
+  const hasExtra = averageCadence || calories || sufferScore || averageWatts || maxSpeed || elapsedTime;
+  if (!hasExtra) return null;
+
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="text-3xl">⚙️</span>
+        <h2 className="text-xl sm:text-2xl font-bold">Metriche extra</h2>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {averageCadence !== undefined && (
+          <MetricCard label="Cadenza media" value={`${Math.round(averageCadence)} spm`} icon="🦶" />
+        )}
+        {calories !== undefined && (
+          <MetricCard label="Calorie" value={`${Math.round(calories)} kcal`} icon="🔥" />
+        )}
+        {sufferScore !== undefined && (
+          <MetricCard label="Suffer score" value={`${sufferScore}`} icon="😅" />
+        )}
+        {averageWatts !== undefined && (
+          <MetricCard label="Watt medio" value={`${Math.round(averageWatts)} W`} icon="🔋" />
+        )}
+        {maxSpeed !== undefined && (
+          <MetricCard label="Velocità max" value={formatSpeed(maxSpeed)} icon="💨" />
+        )}
+        {elapsedTime !== undefined && (
+          <MetricCard label="Elapsed time" value={formatDuration(elapsedTime)} icon="⏳" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SessionJudgementSection({ judgement }: { judgement: { label: string; summary: string; effort: string; recoveryHint: string; formImpact: string } }) {
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="text-3xl">🧾</span>
+        <h2 className="text-xl sm:text-2xl font-bold">Giudizio sulla seduta</h2>
+      </div>
+      <div className="space-y-4">
+        <div className="rounded-2xl bg-neutral-800 p-4">
+          <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Sintesi</p>
+          <p className="text-neutral-200 leading-relaxed text-sm sm:text-base">{judgement.summary}</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl bg-neutral-800 p-4">
+            <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Sforzo</p>
+            <p className="text-white font-semibold">{judgement.effort}</p>
+          </div>
+          <div className="rounded-2xl bg-neutral-800 p-4">
+            <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Recupero</p>
+            <p className="text-white font-semibold">{judgement.recoveryHint}</p>
+          </div>
+          <div className="rounded-2xl bg-neutral-800 p-4">
+            <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Impatto Forma</p>
+            <p className="text-white font-semibold">{judgement.formImpact}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CurrentStatusSection({
+  readiness,
+  fatigue,
+  consistency,
+  suggestedFocus,
+  riskLevel,
+}: {
+  readiness?: number;
+  fatigue?: number;
+  consistency?: number;
+  suggestedFocus?: string;
+  riskLevel?: string;
+}) {
+  const hasData = readiness !== undefined || fatigue !== undefined || consistency !== undefined || suggestedFocus || riskLevel;
+  if (!hasData) {
+    return (
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4">Stato attuale</h2>
+        <p className="text-neutral-400">Dati non ancora sufficienti per valutare lo stato forma.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+      <h2 className="text-xl sm:text-2xl font-bold mb-5">Stato attuale</h2>
+      <div className="space-y-4">
+        {readiness !== undefined && (
+          <StatusRow label="Readiness" value={getReadinessLabel(readiness)} detail={`${readiness}`} icon="⚡" />
+        )}
+        {fatigue !== undefined && (
+          <StatusRow label="Fatigue" value={getFatigueLabel(fatigue)} detail={`${fatigue}`} icon="😴" />
+        )}
+        {consistency !== undefined && (
+          <StatusRow label="Consistency" value={getConsistencyLabel(consistency)} detail={`${consistency}`} icon="📈" />
+        )}
+        {riskLevel && (
+          <StatusRow label="Rischio" value={getRiskLevelLabel(riskLevel)} detail={riskLevel} icon="⚠️" />
+        )}
+        {suggestedFocus && (
+          <div className="rounded-2xl bg-neutral-800 p-4">
+            <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Suggested focus</p>
+            <p className="text-white leading-relaxed text-sm sm:text-base">{suggestedFocus}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusRow({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: string }) {
+  return (
+    <div className="rounded-2xl bg-neutral-800 p-4 flex items-center gap-3">
+      <span className="text-2xl">{icon}</span>
+      <div className="flex-1">
+        <div className="text-xs text-neutral-400 uppercase tracking-wide">{label}</div>
+        <div className="text-white font-semibold">{value}</div>
+      </div>
+      <div className="text-sm text-neutral-400">{detail}</div>
+    </div>
+  );
+}
+
+function RunSplitsSection({ splits }: { splits: any[] }) {
+  if (!splits || splits.length === 0) {
+    return (
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4">Intertempi</h2>
+        <p className="text-neutral-400">Intertempi non disponibili nei dati salvati. Apri Strava per il dettaglio completo.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="text-3xl">📉</span>
+        <h2 className="text-xl sm:text-2xl font-bold">Intertempi</h2>
+      </div>
+      <div className="overflow-x-auto rounded-3xl border border-neutral-800 bg-neutral-950/10">
+        <table className="min-w-full text-left text-sm text-neutral-300">
+          <thead className="bg-neutral-900 text-xs uppercase tracking-[0.24em] text-neutral-500">
+            <tr>
+              <th className="px-4 py-3">Km</th>
+              <th className="px-4 py-3">Passo</th>
+              <th className="px-4 py-3">FC media</th>
+              <th className="px-4 py-3">Dislivello</th>
+            </tr>
+          </thead>
+          <tbody>
+            {splits.map((split, index) => {
+              const km = typeof split.distance === 'number'
+                ? (split.distance / 1000).toFixed(1)
+                : `${index + 1}`;
+              const pace = split.average_speed ? formatPace(split.average_speed) : 'N/A';
+              const hr = split.average_heartrate ? `${Math.round(split.average_heartrate)} bpm` : '—';
+              const elev = split.elevation_difference ?? split.elevation_gain ?? '—';
+
+              return (
+                <tr key={index} className="border-t border-neutral-800">
+                  <td className="px-4 py-3 text-white">{km}</td>
+                  <td className="px-4 py-3">{pace}</td>
+                  <td className="px-4 py-3">{hr}</td>
+                  <td className="px-4 py-3">{typeof elev === 'number' ? `${Math.round(elev)} m` : elev}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StravaLinkCard({ stravaId }: { stravaId: string }) {
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
+      <h2 className="text-xl sm:text-2xl font-bold mb-4">Apri attività su Strava</h2>
+      <p className="text-neutral-400 mb-6">Vai alla pagina Strava della corsa per vedere il dettaglio completo delle mappe, segmenti e intertempi.</p>
+      <a
+        href={`https://www.strava.com/activities/${stravaId}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center justify-center gap-2 w-full rounded-2xl bg-orange-600 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-700 transition duration-200"
+      >
+        Apri attività su Strava
+      </a>
     </div>
   );
 }
