@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { query } from '@/lib/db';
+import { query, queryOne } from '@/lib/db';
 import { buildRunJudgement } from '@/lib/run-analysis';
 
 interface RunDetailData {
@@ -180,54 +180,49 @@ function parseCoachNotes(raw: unknown): string[] {
   return [];
 }
 
-export default async function RunDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
+  const { id } = await params;
 
   console.log('[RUN_DETAIL] ID ricevuto:', id);
 
   try {
-    const result = await query(
+    const activity = await queryOne<RunDetailData>(
       `
-        SELECT a.id,
-               a.strava_id,
-               a.name,
-               a.start_date,
-               a.distance_m,
-               a.moving_time_s,
-               a.elapsed_time_s,
-               a.average_speed,
-               a.max_speed,
-               a.average_heartrate,
-               a.max_heartrate,
-               a.total_elevation_gain,
-               a.type,
-               a.raw_json,
-               cr.title,
-               cr.summary,
-               cr.risk_level,
-               cr.next_48h,
-               cr.weekly_plan,
-               cr.full_report,
-               cr.readiness_score,
-               cr.fatigue_score,
-               cr.consistency_score,
-               cr.suggested_focus,
-               cr.coach_notes
-        FROM activities a
-        LEFT JOIN coach_reports cr
-          ON cr.activity_id = a.id
-         AND cr.created_at = (
-           SELECT MAX(created_at)
-           FROM coach_reports
-           WHERE activity_id = a.id
-         )
-        WHERE a.id = $1 OR a.strava_id = $1
+        SELECT id,
+               strava_id,
+               name,
+               start_date,
+               distance_m,
+               moving_time_s,
+               elapsed_time_s,
+               average_speed,
+               max_speed,
+               average_heartrate,
+               max_heartrate,
+               total_elevation_gain,
+               type,
+               raw_json
+        FROM activities
+        WHERE id = $1 OR strava_id = $1
         LIMIT 1
       `,
       [id]
     );
 
-    const run = result.rows[0] as RunDetailData | undefined;
+    const report = activity
+      ? await queryOne(
+          `
+            SELECT *
+            FROM coach_reports
+            WHERE activity_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+          `,
+          [activity.id]
+        )
+      : null;
+
+    const run = activity ? { ...activity, ...report } as RunDetailData : undefined;
 
     console.log('[RUN_DETAIL] ID ricevuto:', id);
     console.log('[RUN_DETAIL] Attività trovata:', !!run);
@@ -240,7 +235,7 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     }
 
     if (!run) {
-      return <ErrorState />;
+      return <ErrorState requestedId={id} />;
     }
 
     const rawJson = run.raw_json && typeof run.raw_json === 'string'
@@ -355,11 +350,16 @@ export default async function RunDetailPage({ params }: { params: { id: string }
     );
   } catch (error) {
     console.error('[RUN_DETAIL] Errore:', error);
-    return <ErrorState />;
+    return <ErrorState requestedId={id} />;
   }
 }
 
-function ErrorState() {
+function ErrorState({ requestedId }: { requestedId: string }) {
+  const isNumeric = /^[0-9]+$/.test(requestedId);
+  const stravaUrl = isNumeric
+    ? `https://www.strava.com/activities/${requestedId}`
+    : 'https://www.strava.com';
+
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4 py-16">
       <div className="max-w-xl text-center">
@@ -367,15 +367,26 @@ function ErrorState() {
           <span className="text-4xl">⚠️</span>
         </div>
         <h2 className="text-2xl font-bold mb-3">Corsa non trovata</h2>
+        <p className="text-neutral-400 mb-4">ID cercato: <span className="text-white font-semibold">{requestedId}</span></p>
         <p className="text-neutral-400 mb-8">
-          Questa corsa non esiste o è stata eliminata. Torna alla dashboard per visualizzare le tue corse.
+          Questa corsa non esiste o non è stata ancora sincronizzata.
         </p>
-        <Link
-          href="/"
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white font-semibold transition-colors active:scale-95"
-        >
-          ← Torna alla Dashboard
-        </Link>
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-700 px-6 py-3 text-white font-semibold transition-colors active:scale-95"
+          >
+            ← Torna alla Dashboard
+          </Link>
+          <a
+            href={stravaUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-600 hover:bg-orange-700 px-6 py-3 text-white font-semibold transition-colors active:scale-95"
+          >
+            Apri Strava
+          </a>
+        </div>
       </div>
     </div>
   );
