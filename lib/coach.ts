@@ -1,7 +1,12 @@
-import OpenAI from 'openai';
 import { AthleteSettings } from './athlete-settings';
 import { CoachingMetrics } from './coaching-metrics';
 import { CoachingRules } from './coaching-rules';
+import {
+  getDailyOpenAIModel,
+  getOpenAIClient,
+  logOpenAIError,
+  OPENAI_RESPONSES_ENDPOINT,
+} from './openai-client';
 
 /**
  * Modulo AI Coach per generare report di running con OpenAI
@@ -55,24 +60,6 @@ export interface WeeklyPlanItem {
   intensity: 'recovery' | 'easy' | 'medium' | 'quality';
   duration: string;
   reason: string;
-}
-
-/**
- * Inizializza il client OpenAI
- */
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    throw new Error(
-      'OPENAI_API_KEY non è configurato in .env.local. ' +
-      'Aggiungi la variabile di ambiente e riavvia il server.'
-    );
-  }
-
-  return new OpenAI({
-    apiKey: apiKey,
-  });
 }
 
 /**
@@ -273,24 +260,22 @@ Genera un report JSON con questa struttura ESATTA:
  */
 export async function generateCoachReport(prompt: string): Promise<CoachReport> {
   const client = getOpenAIClient();
-  const model = process.env.OPENAI_MODEL_DAILY || 'gpt-4o-mini';
+  const model = getDailyOpenAIModel();
+  const endpoint = OPENAI_RESPONSES_ENDPOINT;
 
   try {
-    console.log('[COACH] Generating report with OpenAI...');
+    console.log('[COACH] Generating report with OpenAI...', { model, endpoint });
 
-    const completion = await client.chat.completions.create({
-      model: model,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      max_tokens: 2000,
+    const response = await client.responses.create({
+      model,
+      input: prompt,
+      max_output_tokens: 3000,
+      text: {
+        format: { type: 'json_object' },
+      },
     });
 
-    const content = completion.choices[0]?.message?.content;
+    const content = response.output_text;
 
     if (!content) {
       throw new Error('OpenAI non ha restituito contenuto');
@@ -337,7 +322,7 @@ export async function generateCoachReport(prompt: string): Promise<CoachReport> 
     }
 
   } catch (error) {
-    console.error('[COACH] OpenAI API error:', error);
+    const details = logOpenAIError(error, model, endpoint);
 
     if (error instanceof Error) {
       if (error.message.includes('API key')) {
@@ -346,8 +331,11 @@ export async function generateCoachReport(prompt: string): Promise<CoachReport> 
       if (error.message.includes('quota') || error.message.includes('billing')) {
         throw new Error('Quota OpenAI esaurita. Controlla il billing su OpenAI.');
       }
-      if (error.message.includes('model')) {
-        throw new Error(`Modello OpenAI "${model}" non disponibile`);
+      if (details.status === 404 || error.message.includes('model')) {
+        throw new Error(
+          `OpenAI ha rifiutato il modello "${model}" su ${endpoint}. ` +
+          `Status: ${details.status ?? 'n/d'} - ${details.message}`
+        );
       }
     }
 
