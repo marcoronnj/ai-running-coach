@@ -1,5 +1,6 @@
 import { query } from '@/lib/db';
 import { getDaysSince } from '@/lib/date-utils';
+import { hasCoachReport } from '@/lib/report-display';
 
 export interface LatestRunWithReport {
   id: string;
@@ -12,12 +13,15 @@ export interface LatestRunWithReport {
   average_heartrate?: number;
   type: string;
   created_at?: string;
+  report_created_at?: string;
   title?: string;
   summary?: string;
   risk_level?: string;
   next_48h?: string;
   suggested_focus?: string;
-  coach_notes?: any;
+  coach_notes?: unknown;
+  weekly_plan?: unknown;
+  full_report?: string;
   readiness_score?: number;
   fatigue_score?: number;
   consistency_score?: number;
@@ -36,12 +40,15 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
              a.average_heartrate,
              a.type,
              a.created_at,
+             cr.created_at AS report_created_at,
              cr.title,
              cr.summary,
              cr.risk_level,
              cr.next_48h,
              cr.suggested_focus,
              cr.coach_notes,
+             cr.weekly_plan,
+             cr.full_report,
              cr.readiness_score,
              cr.fatigue_score,
              cr.consistency_score
@@ -49,7 +56,7 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
       LEFT JOIN LATERAL (
         SELECT *
         FROM coach_reports
-        WHERE activity_id = a.id
+        WHERE activity_id = a.id OR activity_id = a.strava_id
         ORDER BY created_at DESC
         LIMIT 1
       ) cr ON true
@@ -68,7 +75,7 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
     id: latestRun.id,
     start_date: latestRun.start_date,
     daysSince: getDaysSince(latestRun.start_date),
-    hasReport: Boolean(latestRun.title),
+    hasReport: hasCoachReport(latestRun),
   });
 
   return latestRun;

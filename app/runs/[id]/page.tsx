@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { query, queryOne } from '@/lib/db';
 import { buildRunJudgement } from '@/lib/run-analysis';
+import { getAthleteSettings } from '@/lib/athlete-settings';
+import { calculateCoachingMetrics, CoachingMetrics } from '@/lib/coaching-metrics';
+import { getDaysSince } from '@/lib/date-utils';
 
 interface RunDetailData {
   // Attività
@@ -119,6 +122,20 @@ function getConsistencyLabel(score?: number): string {
   return 'In costruzione';
 }
 
+function getRunAwareNext48h(run: RunDetailData, next48h: string): string {
+  const hasRunToday = getDaysSince(run.start_date) === 0;
+
+  if (!hasRunToday) {
+    return next48h;
+  }
+
+  return [
+    `Oggi: corsa completata (${formatKm(run.distance_m)}). Ora solo recupero leggero, camminata facile o mobilità.`,
+    'Domani: niente corsa se senti gambe pesanti. Recupero o riposo completo.',
+    'Dopodomani: se le gambe sono fresche, 30-40 minuti recovery molto facile, FC bassa.',
+  ].join(' ');
+}
+
 function getRiskLevelLabel(riskLevel?: string): string {
   switch (riskLevel?.toLowerCase()) {
     case 'basso': return 'Basso';
@@ -214,11 +231,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           `
             SELECT *
             FROM coach_reports
-            WHERE activity_id = $1
+            WHERE activity_id = $1 OR activity_id = $2
             ORDER BY created_at DESC
             LIMIT 1
           `,
-          [activity.id]
+          [activity.id, activity.strava_id]
         )
       : null;
 
@@ -266,6 +283,16 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     const weeklyPlan = parseWeeklyPlan(run.weekly_plan);
     const coachNotes = parseCoachNotes(run.coach_notes);
     const hasReport = !!run.title || !!run.full_report || !!run.summary;
+    const athleteSettings = await getAthleteSettings();
+    const history90d = await query(`
+      SELECT *
+      FROM activities
+      WHERE type IN ('Run', 'TrailRun')
+        AND start_date >= NOW() - INTERVAL '90 days'
+      ORDER BY start_date DESC
+    `);
+    const currentMetrics = calculateCoachingMetrics(history90d.rows, athleteSettings);
+    const next48h = run.next_48h ? getRunAwareNext48h(run, run.next_48h) : null;
 
     return (
       <div className="min-h-screen bg-neutral-950 text-white px-4 py-8 sm:px-6 lg:px-8">
@@ -316,8 +343,8 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               />
               <SessionJudgementSection judgement={judgement} />
               {hasReport && <CoachAnalysisSection run={run} />}
-              {hasReport && run.next_48h && (
-                <Next48hSection next48h={run.next_48h} suggestedFocus={run.suggested_focus} />
+              {hasReport && next48h && (
+                <Next48hSection next48h={next48h} suggestedFocus={run.suggested_focus} />
               )}
               {hasReport && (
                 <ScoresSection
@@ -331,16 +358,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               {hasReport && run.full_report && <FullReportSection fullReport={run.full_report} />}
               {coachNotes.length > 0 && <CoachNotesSection notes={coachNotes} />}
               {!hasReport && <NoReportMessage />}
-              <RunSplitsSection splits={splits} />
+              {hasSplits && <RunSplitsSection splits={splits} />}
             </div>
 
             <div className="space-y-6">
               <CurrentStatusSection
-                readiness={run.readiness_score}
-                fatigue={run.fatigue_score}
-                consistency={run.consistency_score}
-                suggestedFocus={run.suggested_focus}
-                riskLevel={run.risk_level}
+                metrics={currentMetrics}
               />
               <StravaLinkCard stravaId={run.strava_id} />
             </div>
@@ -551,21 +574,8 @@ function SessionJudgementSection({ judgement }: { judgement: { label: string; su
   );
 }
 
-function CurrentStatusSection({
-  readiness,
-  fatigue,
-  consistency,
-  suggestedFocus,
-  riskLevel,
-}: {
-  readiness?: number;
-  fatigue?: number;
-  consistency?: number;
-  suggestedFocus?: string;
-  riskLevel?: string;
-}) {
-  const hasData = readiness !== undefined || fatigue !== undefined || consistency !== undefined || suggestedFocus || riskLevel;
-  if (!hasData) {
+function CurrentStatusSection({ metrics }: { metrics: CoachingMetrics | null }) {
+  if (!metrics) {
     return (
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
         <h2 className="text-xl sm:text-2xl font-bold mb-4">Stato attuale</h2>
@@ -578,24 +588,14 @@ function CurrentStatusSection({
     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
       <h2 className="text-xl sm:text-2xl font-bold mb-5">Stato attuale</h2>
       <div className="space-y-4">
-        {readiness !== undefined && (
-          <StatusRow label="Readiness" value={getReadinessLabel(readiness)} detail={`${readiness}`} icon="⚡" />
-        )}
-        {fatigue !== undefined && (
-          <StatusRow label="Fatigue" value={getFatigueLabel(fatigue)} detail={`${fatigue}`} icon="😴" />
-        )}
-        {consistency !== undefined && (
-          <StatusRow label="Consistency" value={getConsistencyLabel(consistency)} detail={`${consistency}`} icon="📈" />
-        )}
-        {riskLevel && (
-          <StatusRow label="Rischio" value={getRiskLevelLabel(riskLevel)} detail={riskLevel} icon="⚠️" />
-        )}
-        {suggestedFocus && (
-          <div className="rounded-2xl bg-neutral-800 p-4">
-            <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Suggested focus</p>
-            <p className="text-white leading-relaxed text-sm sm:text-base">{suggestedFocus}</p>
-          </div>
-        )}
+        <StatusRow label="Readiness" value={getReadinessLabel(metrics.readinessScore)} detail={`${metrics.readinessScore}`} icon="⚡" />
+        <StatusRow label="Fatigue" value={getFatigueLabel(metrics.fatigueScore)} detail={`${metrics.fatigueScore}`} icon="😴" />
+        <StatusRow label="Consistency" value={getConsistencyLabel(metrics.consistencyScore)} detail={`${metrics.consistencyScore}`} icon="📈" />
+        <StatusRow label="Rischio" value={getRiskLevelLabel(metrics.overloadRisk)} detail={metrics.overloadRisk} icon="⚠️" />
+        <div className="rounded-2xl bg-neutral-800 p-4">
+          <p className="text-xs text-neutral-400 uppercase tracking-wide mb-2">Focus consigliato</p>
+          <p className="text-white leading-relaxed text-sm sm:text-base">{metrics.suggestedFocus}</p>
+        </div>
       </div>
     </div>
   );
@@ -616,12 +616,7 @@ function StatusRow({ label, value, detail, icon }: { label: string; value: strin
 
 function RunSplitsSection({ splits }: { splits: any[] }) {
   if (!splits || splits.length === 0) {
-    return (
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-xl sm:text-2xl font-bold mb-4">Intertempi</h2>
-        <p className="text-neutral-400">Intertempi non disponibili nei dati salvati. Apri Strava per il dettaglio completo.</p>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -764,18 +759,18 @@ function ScoresSection({
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
       <h2 className="text-xl sm:text-2xl font-bold mb-6 flex items-center gap-2">
-        <span>📊</span> Metriche
+        <span>📊</span> Metriche della seduta
       </h2>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {readiness !== undefined && (
-          <ScoreCard label="Readiness" value={readiness} icon="⚡" />
+          <ScoreCard label="Intensità seduta" value={readiness} icon="⚡" />
         )}
         {fatigue !== undefined && (
-          <ScoreCard label="Fatigue" value={fatigue} icon="😴" />
+          <ScoreCard label="Fatica stimata" value={fatigue} icon="😴" />
         )}
         {consistency !== undefined && (
-          <ScoreCard label="Consistency" value={consistency} icon="📈" />
+          <ScoreCard label="Impatto sul recupero" value={consistency} icon="📈" />
         )}
       </div>
     </div>

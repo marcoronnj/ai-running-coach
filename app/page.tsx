@@ -5,6 +5,7 @@ import { getAthleteSettings } from '@/lib/athlete-settings';
 import { buildCoachDecision } from '@/lib/coach-decision';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
+import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 
 /**
  * Interfacce per i dati della dashboard
@@ -26,6 +27,8 @@ interface DashboardRun {
   next_48h?: string;
   suggested_focus?: string;
   coach_notes?: any;
+  full_report?: string;
+  weekly_plan?: any;
 }
 
 interface WeeklyTrendItem {
@@ -141,26 +144,18 @@ function getScoreColor(score?: number): string {
   return 'text-red-400';
 }
 
-function getReportStatus(run?: { title?: string; created_at?: string } | null): 'ready' | 'generating' | 'missing' {
-  if (run?.title) return 'ready';
-  if (run?.created_at) {
-    const importedAt = new Date(run.created_at).getTime();
-    const ageMinutes = (Date.now() - importedAt) / (1000 * 60);
-    if (Number.isFinite(ageMinutes) && ageMinutes <= 30) return 'generating';
-  }
-  return 'missing';
+function getReportStatus(run?: DashboardRun | null): 'ready' | 'waiting' {
+  return hasCoachReport(run) ? 'ready' : 'waiting';
 }
 
-function ReportStatusBadge({ status }: { status: 'ready' | 'generating' | 'missing' }) {
+function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
   const styles = {
     ready: 'bg-emerald-500/10 text-emerald-300',
-    generating: 'bg-blue-500/10 text-blue-300',
-    missing: 'bg-yellow-500/10 text-yellow-300',
+    waiting: 'bg-yellow-500/10 text-yellow-300',
   };
   const labels = {
     ready: 'Report pronto',
-    generating: 'Report in generazione',
-    missing: 'Report mancante',
+    waiting: 'Report in attesa',
   };
 
   return (
@@ -223,12 +218,7 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
           <div className="text-right">
             <div className="text-xs text-neutral-400 uppercase tracking-wide">Stato Coach</div>
             <div className="text-white font-medium">
-              {lastRun?.risk_level ? (
-                <span className="flex items-center gap-2">
-                  <span>{getRiskEmoji(lastRun.risk_level)}</span>
-                  <span className="capitalize">{lastRun.risk_level}</span>
-                </span>
-              ) : lastRun ? (
+              {lastRun ? (
                 <ReportStatusBadge status={reportStatus} />
               ) : (
                 'In attesa dati'
@@ -310,7 +300,7 @@ function CoachDecisionCard({ decision }: { decision: any }) {
 
       <div className="bg-neutral-800 rounded-2xl p-4 mb-4">
         <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
-          Prossima Seduta
+          {decision.nextWorkoutLabel || 'Dopodomani / Prossima corsa'}
         </div>
         <p className="text-white text-sm sm:text-base">
           {decision.nextWorkout}
@@ -439,6 +429,7 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
   if (!run) return null;
 
   const reportStatus = getReportStatus(run);
+  const reportExcerpt = getCoachReportExcerpt(run);
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
@@ -454,9 +445,13 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
 
       <div className="space-y-4 mb-6">
         <h3 className="text-lg sm:text-xl font-semibold text-white">{run.name}</h3>
-        {!run.title && (
+        {reportExcerpt ? (
+          <p className="text-sm text-neutral-300 leading-relaxed">
+            {reportExcerpt}
+          </p>
+        ) : (
           <p className="text-sm text-neutral-300">
-            Analisi AI in attesa di generazione. Report non ancora disponibile.
+            Analisi AI in attesa di generazione.
           </p>
         )}
 
@@ -687,19 +682,19 @@ export default async function HomePage() {
   const weeklyTrend = trendQuery.rows as WeeklyTrendItem[];
 
   // Query per il report più recente
-  const latestReport = lastRun?.title
+  const latestReport = lastRun && hasCoachReport(lastRun)
     ? {
-        title: lastRun.title,
+        title: lastRun?.title || 'Report Coach',
         summary: lastRun.summary || '',
         risk_level: (lastRun.risk_level || 'medio') as 'basso' | 'medio' | 'alto',
         next_48h: lastRun.next_48h || '',
         suggested_focus: lastRun.suggested_focus || '',
-        coach_notes: lastRun.coach_notes || [],
+        coach_notes: Array.isArray(lastRun.coach_notes) ? lastRun.coach_notes : [],
         readiness_score: lastRun.readiness_score || 0,
         fatigue_score: lastRun.fatigue_score || 0,
         consistency_score: lastRun.consistency_score || 0,
-        weekly_plan: [],
-        full_report: '',
+        weekly_plan: Array.isArray(lastRun.weekly_plan) ? lastRun.weekly_plan : [],
+        full_report: lastRun.full_report || '',
       }
     : null;
 

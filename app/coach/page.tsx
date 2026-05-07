@@ -6,6 +6,7 @@ import { getAthleteSettings } from '@/lib/athlete-settings';
 import { buildCoachDecision } from '@/lib/coach-decision';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT } from '@/lib/date-utils';
+import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 
 /**
  * Helper: Formatta chilometri
@@ -23,26 +24,18 @@ function formatPace(speedMs: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
 }
 
-function getReportStatus(run?: { title?: string; created_at?: string } | null): 'ready' | 'generating' | 'missing' {
-  if (run?.title) return 'ready';
-  if (run?.created_at) {
-    const importedAt = new Date(run.created_at).getTime();
-    const ageMinutes = (Date.now() - importedAt) / (1000 * 60);
-    if (Number.isFinite(ageMinutes) && ageMinutes <= 30) return 'generating';
-  }
-  return 'missing';
+function getReportStatus(run?: { title?: string; summary?: string; full_report?: string } | null): 'ready' | 'waiting' {
+  return hasCoachReport(run) ? 'ready' : 'waiting';
 }
 
-function ReportStatusBadge({ status }: { status: 'ready' | 'generating' | 'missing' }) {
+function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
   const styles = {
     ready: 'bg-emerald-500/10 text-emerald-300',
-    generating: 'bg-blue-500/10 text-blue-300',
-    missing: 'bg-yellow-500/10 text-yellow-300',
+    waiting: 'bg-yellow-500/10 text-yellow-300',
   };
   const labels = {
     ready: 'Report pronto',
-    generating: 'Report in generazione',
-    missing: 'Report mancante',
+    waiting: 'Report in attesa',
   };
 
   return (
@@ -264,6 +257,7 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
   if (!run) return null;
 
   const status = getReportStatus(run);
+  const excerpt = getCoachReportExcerpt(report || run);
 
   if (!report) {
     return (
@@ -293,7 +287,7 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
             </div>
             <div className="bg-neutral-800 rounded-xl p-4">
               <div className="text-sm text-neutral-400 mb-1">Stato</div>
-              <div className="text-white font-semibold">Report non ancora disponibile</div>
+              <div className="text-white font-semibold">Report in attesa</div>
             </div>
           </div>
 
@@ -323,14 +317,18 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
   return (
     <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
       <div className="flex items-start justify-between gap-4 mb-6">
-        <h2 className="text-2xl font-bold text-white">Ultimo Report Coach</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-white">Ultima Corsa</h2>
+          <p className="text-neutral-400 mt-1">{formatDateIT(run.start_date)}</p>
+        </div>
         <ReportStatusBadge status={status} />
       </div>
 
       <div className="space-y-4">
         <div>
-          <div className="text-lg font-bold text-white mb-2">{report.title}</div>
-          <div className="text-neutral-300">{report.summary}</div>
+          <div className="text-lg font-bold text-white mb-2">{run.name}</div>
+          {report.title && <div className="text-white font-medium mb-2">{report.title}</div>}
+          <div className="text-neutral-300 leading-relaxed">{excerpt}</div>
         </div>
 
         <div className="bg-neutral-800 rounded-xl p-4">
@@ -435,7 +433,9 @@ function CoachDecisionCard({ decision }: { decision: any }) {
       </div>
 
       <div className="bg-neutral-800 rounded-xl p-4 mb-4">
-        <div className="text-sm text-neutral-400 mb-1">Prossima Seduta</div>
+        <div className="text-sm text-neutral-400 mb-1">
+          {decision.nextWorkoutLabel || 'Dopodomani / Prossima corsa'}
+        </div>
         <p className="text-white text-sm">
           {decision.nextWorkout}
         </p>
@@ -495,19 +495,19 @@ export default async function CoachPage() {
     const latestRun = await getLatestRunWithReport();
     const reportStatus = getReportStatus(latestRun);
     const weeklyTrend = trendQuery.rows;
-    const latestReport = latestRun?.title
+    const latestReport = latestRun && hasCoachReport(latestRun)
       ? ({
-          title: latestRun.title,
+          title: latestRun?.title || 'Report Coach',
           summary: latestRun.summary || '',
           risk_level: (latestRun.risk_level || 'medio') as 'basso' | 'medio' | 'alto',
           next_48h: latestRun.next_48h || '',
           suggested_focus: latestRun.suggested_focus || '',
-          coach_notes: latestRun.coach_notes || [],
+          coach_notes: Array.isArray(latestRun.coach_notes) ? latestRun.coach_notes : [],
           readiness_score: latestRun.readiness_score || 0,
           fatigue_score: latestRun.fatigue_score || 0,
           consistency_score: latestRun.consistency_score || 0,
-          weekly_plan: [],
-          full_report: '',
+          weekly_plan: Array.isArray(latestRun.weekly_plan) ? latestRun.weekly_plan : [],
+          full_report: latestRun.full_report || '',
         } as any)
       : null;
 
