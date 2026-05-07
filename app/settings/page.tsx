@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAthleteSettings, updateAthleteSettings, type AthleteSettings } from '@/lib/athlete-settings';
 
+export const dynamic = 'force-dynamic';
+
 const DAYS_OPTIONS = [
   'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'
 ];

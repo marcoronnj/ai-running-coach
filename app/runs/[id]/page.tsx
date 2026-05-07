@@ -5,6 +5,8 @@ import { getAthleteSettings } from '@/lib/athlete-settings';
 import { calculateCoachingMetrics, CoachingMetrics } from '@/lib/coaching-metrics';
 import { getDaysSince } from '@/lib/date-utils';
 
+export const dynamic = 'force-dynamic';
+
 interface RunDetailData {
   // Attività
   id: string;

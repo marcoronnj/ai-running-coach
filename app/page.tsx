@@ -6,6 +6,9 @@ import { buildCoachDecision } from '@/lib/coach-decision';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import ManualSyncButton from '@/app/components/ManualSyncButton';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Interfacce per i dati della dashboard
@@ -726,6 +729,7 @@ export default async function HomePage() {
               <span>⚙️</span>
               <span className="hidden sm:inline">Settings</span>
             </Link>
+            <ManualSyncButton />
           </div>
         </div>
 

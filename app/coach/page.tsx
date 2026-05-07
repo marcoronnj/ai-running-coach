@@ -7,6 +7,9 @@ import { buildCoachDecision } from '@/lib/coach-decision';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import ManualSyncButton from '@/app/components/ManualSyncButton';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Helper: Formatta chilometri
@@ -519,7 +522,7 @@ export default async function CoachPage() {
       <div className="min-h-screen bg-neutral-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
             <div>
               <h1 className="text-4xl font-bold text-white mb-2">AI Running Coach</h1>
               <p className="text-neutral-400">Analisi completa del tuo stato di forma</p>
@@ -530,12 +533,15 @@ export default async function CoachPage() {
                 </div>
               ) : null}
             </div>
-            <Link
-              href="/"
-              className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl transition-colors duration-200"
-            >
-              ← Dashboard
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl transition-colors duration-200 text-sm"
+              >
+                ← Dashboard
+              </Link>
+              <ManualSyncButton />
+            </div>
           </div>
 
           {/* Grid principale */}
