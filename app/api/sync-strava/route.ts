@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { refreshStravaToken, getRecentActivities, filterRunningActivities, formatActivityForDB, type StravaActivity } from '@/lib/strava';
-import { generateCompleteCoachReport, type DBActivity, type CoachReport } from '@/lib/coach';
-import { sendTelegramMessage } from '@/lib/telegram';
-import { getAppUrl } from '@/lib/app-url';
-import { getAthleteSettings } from '@/lib/athlete-settings';
-import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
-import { getCoachingRules } from '@/lib/coaching-rules';
+import { type DBActivity } from '@/lib/coach';
+import { getActivitiesWithoutReport, processReportForActivity } from '@/lib/run-report';
 
 /**
  * Helper: Formatta chilometri
@@ -97,75 +93,57 @@ export async function GET(request: NextRequest) {
     // 4. Salva nuove attività nel DB
     console.log('[SYNC] 💾 Salvando nuove corse nel database...');
     const newActivities = await saveNewActivities(runningActivities);
+    const activitiesWithoutReport = await getActivitiesWithoutReport();
 
-    if (newActivities.length === 0) {
-      await logSyncSuccess(`Trovate ${runningActivities.length} corse ma tutte già esistenti`);
+    const activitiesToProcess: DBActivity[] = [...newActivities];
+
+    for (const activity of activitiesWithoutReport) {
+      if (!activitiesToProcess.some(existing => existing.id === activity.id)) {
+        activitiesToProcess.push(activity);
+      }
+    }
+
+    console.log(`[SYNC] 📌 Attività senza report trovate: ${activitiesWithoutReport.length}`);
+    console.log(`[SYNC] ✨ Totale corse da processare: ${activitiesToProcess.length} (nuove + report mancanti)`);
+
+    if (activitiesToProcess.length === 0) {
+      await logSyncSuccess(`Trovate ${runningActivities.length} corse, tutte già processate con report AI`);
       return NextResponse.json(
         {
           ok: true,
-          message: 'Nessuna nuova corsa da sincronizzare',
+          message: 'Nessuna nuova corsa da sincronizzare e nessun report mancante da rigenerare',
           activitiesChecked: activities.length,
           runningActivities: runningActivities.length,
-          newActivities: 0,
+          newActivities: newActivities.length,
+          pendingReports: activitiesWithoutReport.length,
+          processedActivities: [],
         },
         { status: 200 }
       );
     }
 
-    console.log(`[SYNC] ✨ ${newActivities.length} nuove corse da processare`);
-
-    // 5. Per ogni nuova corsa, genera report AI e invia Telegram
+    // 5. Per ogni corsa senza report AI, genera report e invia Telegram
     const processedActivities = [];
 
-    for (const activity of newActivities) {
+    for (const activity of activitiesToProcess) {
       try {
-        console.log(`[SYNC] 🤖 Generando report per: ${activity.name}`);
+        console.log(`[SYNC] 🤖 Processando activity id=${activity.id} strava_id=${activity.strava_id} name="${activity.name}"`);
 
-        // Ottieni storico per il report AI (ultime 90 giorni per metrics)
-        const history90d = await getActivityHistory90d(activity.start_date);
-        const history = history90d.slice(0, 15); // Solo ultime 15 per il prompt
-
-        // Recupera impostazioni atleta per personalizzare il prompt
-        const athleteSettings = await getAthleteSettings();
-
-        // Calcola metriche coaching
-        const metrics = calculateCoachingMetrics(history90d, athleteSettings);
-
-        // Calcola regole coaching
-        const rules = getCoachingRules(metrics, athleteSettings);
-
-        // Genera report AI con metrics e rules
-        const report = await generateCompleteCoachReport(activity, history, athleteSettings, metrics, rules);
-
-        // Associa metadata metriche al report per la dashboard
-        report.readiness_label = metrics.readinessLabel;
-        report.readiness_explanation = metrics.readinessExplanation;
-        report.fatigue_label = metrics.fatigueLabel;
-        report.fatigue_explanation = metrics.fatigueExplanation;
-        report.consistency_label = metrics.consistencyLabel;
-        report.consistency_explanation = metrics.consistencyExplanation;
-        report.overload_explanation = metrics.overloadExplanation;
-
-        // Salva report nel DB
-        await saveCoachReport(activity.id, report);
-
-        // Invia notifica Telegram
-        await sendTelegramNotification(activity, report);
+        const { report, telegramSent } = await processReportForActivity(activity);
 
         processedActivities.push({
           id: activity.id,
           name: activity.name,
           reportGenerated: true,
-          telegramSent: true,
+          telegramSent,
         });
 
-        console.log(`[SYNC] ✅ Completato: ${activity.name}`);
-
+        console.log(`[SYNC] ✅ Completato: ${activity.name} (id=${activity.id})`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[SYNC] ❌ Errore processando ${activity.name}:`, errorMessage);
+        console.error(`[SYNC] ❌ Errore processando ${activity.name} (id=${activity.id}):`, errorMessage);
+        console.error(`[SYNC] ❌ Eventuale errore OpenAI/report per activity id=${activity.id}:`, error);
 
-        // Salva comunque l'attività senza report
         processedActivities.push({
           id: activity.id,
           name: activity.name,
@@ -189,6 +167,8 @@ export async function GET(request: NextRequest) {
         activitiesChecked: activities.length,
         runningActivities: runningActivities.length,
         newActivities: newActivities.length,
+        pendingReportsFound: activitiesWithoutReport.length,
+        processedWithReports: processedActivities.filter(p => p.reportGenerated).length,
         processedActivities: processedActivities,
         duration: `${duration.toFixed(1)}s`,
       },
@@ -263,153 +243,6 @@ async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivi
   }
 
   return newActivities;
-}
-
-/**
- * Ottieni storico attività per il report AI
- */
-async function getActivityHistory(beforeDate: string): Promise<DBActivity[]> {
-  try {
-    const result = await query(
-      `SELECT * FROM activities
-       WHERE type IN ('Run', 'TrailRun')
-       AND start_date < $1
-       ORDER BY start_date DESC
-       LIMIT 50`,
-      [beforeDate]
-    );
-
-    return result.rows;
-  } catch (error) {
-    console.error('[SYNC] Errore ottenendo storico:', error);
-    return []; // Ritorna array vuoto in caso di errore
-  }
-}
-
-/**
- * Ottieni storico attività degli ultimi 90 giorni per le metriche coaching
- */
-async function getActivityHistory90d(beforeDate: string): Promise<DBActivity[]> {
-  try {
-    const ninetyDaysAgo = new Date(new Date(beforeDate).getTime() - 90 * 24 * 60 * 60 * 1000);
-
-    const result = await query(
-      `SELECT * FROM activities
-       WHERE type IN ('Run', 'TrailRun')
-       AND start_date >= $1
-       AND start_date < $2
-       ORDER BY start_date DESC`,
-      [ninetyDaysAgo.toISOString(), beforeDate]
-    );
-
-    return result.rows;
-  } catch (error) {
-    console.error('[SYNC] Errore ottenendo storico 90d:', error);
-    return []; // Ritorna array vuoto in caso di errore
-  }
-}
-
-/**
- * Salva un report del coach nel database
- */
-async function saveCoachReport(activityId: string, report: CoachReport): Promise<void> {
-  try {
-    await query(
-      `INSERT INTO coach_reports
-       (activity_id, report_type, title, summary, risk_level, next_48h,
-        weekly_plan, full_report, readiness_score, readiness_label, readiness_explanation,
-        fatigue_score, fatigue_label, fatigue_explanation,
-        consistency_score, consistency_label, consistency_explanation,
-        overload_explanation, suggested_focus, coach_notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
-      [
-        activityId,
-        'post_run',
-        report.title,
-        report.summary,
-        report.risk_level,
-        report.next_48h,
-        JSON.stringify(report.weekly_plan),
-        report.full_report,
-        report.readiness_score,
-        report.readiness_label || null,
-        report.readiness_explanation || null,
-        report.fatigue_score,
-        report.fatigue_label || null,
-        report.fatigue_explanation || null,
-        report.consistency_score,
-        report.consistency_label || null,
-        report.consistency_explanation || null,
-        report.overload_explanation || null,
-        report.suggested_focus,
-        JSON.stringify(report.coach_notes),
-      ]
-    );
-
-    console.log(`[SYNC] 💾 Report salvato per attività ${activityId}`);
-  } catch (error) {
-    console.error(`[SYNC] Errore salvando report per ${activityId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Invia notifica Telegram per una nuova corsa
- */
-async function sendTelegramNotification(activity: DBActivity, report: CoachReport): Promise<void> {
-  try {
-    const appUrl = getAppUrl();
-    const dashboardLink = `${appUrl}/runs/${activity.id}`;
-
-    const distance = formatKm(activity.distance_m);
-    const pace = formatPace(activity.average_speed);
-    const heartrate = activity.average_heartrate
-      ? ` • FC ${activity.average_heartrate} bpm`
-      : '';
-
-    const riskLevel = String(report.risk_level).toLowerCase();
-    const riskEmoji = {
-      basso: '🟢',
-      medio: '🟡',
-      alto: '🔴',
-    }[riskLevel as 'basso' | 'medio' | 'alto'] || '🟡';
-
-    const message = `
-🏃‍♂️ <b>${report.title}</b>
-
-📊 <b>${activity.name}</b>
-📏 ${distance} • ⏱️ ${pace}${heartrate}
-
-� <b>Stato Atleta:</b>
-🎯 Readiness: ${report.readiness_score}/100
-😴 Fatigue: ${report.fatigue_score}/100
-📊 Consistency: ${report.consistency_score}/100
-
-🎯 <b>Focus:</b> ${report.suggested_focus}
-
-⚠️ <b>Rischio:</b> ${riskEmoji} ${String(report.risk_level).toUpperCase()}
-
-📝 <b>Riepilogo:</b>
-${report.summary}
-
-⏰ <b>Prossime 48h:</b>
-${report.next_48h}
-
-🔗 <a href="${dashboardLink}">Vedi Report Completo</a>
-    `.trim();
-
-    const success = await sendTelegramMessage(message);
-
-    if (success) {
-      console.log(`[SYNC] 📱 Telegram inviato per: ${activity.name}`);
-    } else {
-      console.warn(`[SYNC] ⚠️ Telegram fallito per: ${activity.name}`);
-    }
-
-  } catch (error) {
-    console.error(`[SYNC] Errore Telegram per ${activity.name}:`, error);
-    // Non throw perché non è un errore bloccante
-  }
 }
 
 /**

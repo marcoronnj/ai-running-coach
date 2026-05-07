@@ -11,12 +11,16 @@ export interface LatestRunWithReport {
   average_speed: number;
   average_heartrate?: number;
   type: string;
+  created_at?: string;
   title?: string;
   summary?: string;
   risk_level?: string;
   next_48h?: string;
   suggested_focus?: string;
   coach_notes?: any;
+  readiness_score?: number;
+  fatigue_score?: number;
+  consistency_score?: number;
 }
 
 export async function getLatestRunWithReport(): Promise<LatestRunWithReport | null> {
@@ -31,20 +35,24 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
              a.average_speed,
              a.average_heartrate,
              a.type,
+             a.created_at,
              cr.title,
              cr.summary,
              cr.risk_level,
              cr.next_48h,
              cr.suggested_focus,
-             cr.coach_notes
+             cr.coach_notes,
+             cr.readiness_score,
+             cr.fatigue_score,
+             cr.consistency_score
       FROM activities a
-      LEFT JOIN coach_reports cr
-        ON cr.activity_id = a.id
-       AND cr.created_at = (
-         SELECT MAX(created_at)
-         FROM coach_reports
-         WHERE activity_id = a.id
-       )
+      LEFT JOIN LATERAL (
+        SELECT *
+        FROM coach_reports
+        WHERE activity_id = a.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) cr ON true
       WHERE a.type IN ('Run', 'TrailRun')
       ORDER BY a.start_date DESC
       LIMIT 1
@@ -60,6 +68,7 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
     id: latestRun.id,
     start_date: latestRun.start_date,
     daysSince: getDaysSince(latestRun.start_date),
+    hasReport: Boolean(latestRun.title),
   });
 
   return latestRun;

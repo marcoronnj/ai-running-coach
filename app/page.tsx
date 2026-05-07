@@ -19,6 +19,7 @@ interface DashboardRun {
   average_speed: number;
   average_heartrate?: number;
   type: string;
+  created_at?: string;
   title?: string;
   summary?: string;
   risk_level?: string;
@@ -140,6 +141,35 @@ function getScoreColor(score?: number): string {
   return 'text-red-400';
 }
 
+function getReportStatus(run?: { title?: string; created_at?: string } | null): 'ready' | 'generating' | 'missing' {
+  if (run?.title) return 'ready';
+  if (run?.created_at) {
+    const importedAt = new Date(run.created_at).getTime();
+    const ageMinutes = (Date.now() - importedAt) / (1000 * 60);
+    if (Number.isFinite(ageMinutes) && ageMinutes <= 30) return 'generating';
+  }
+  return 'missing';
+}
+
+function ReportStatusBadge({ status }: { status: 'ready' | 'generating' | 'missing' }) {
+  const styles = {
+    ready: 'bg-emerald-500/10 text-emerald-300',
+    generating: 'bg-blue-500/10 text-blue-300',
+    missing: 'bg-yellow-500/10 text-yellow-300',
+  };
+  const labels = {
+    ready: 'Report pronto',
+    generating: 'Report in generazione',
+    missing: 'Report mancante',
+  };
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>
+      {labels[status]}
+    </span>
+  );
+}
+
 /**
  * Helper: Ottieni label per settimana
  */
@@ -170,6 +200,7 @@ function calculateWeeklyAverage(trend: WeeklyTrendItem[]): number {
 function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) {
   const today = formatDateIT(getTodayInAppTimezone());
   const lastRunLabel = lastRun ? formatDaysSince(lastRun.start_date) : null;
+  const reportStatus = getReportStatus(lastRun);
 
   return (
     <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-3xl p-6 sm:p-8 mb-8">
@@ -197,6 +228,8 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
                   <span>{getRiskEmoji(lastRun.risk_level)}</span>
                   <span className="capitalize">{lastRun.risk_level}</span>
                 </span>
+              ) : lastRun ? (
+                <ReportStatusBadge status={reportStatus} />
               ) : (
                 'In attesa dati'
               )}
@@ -405,17 +438,27 @@ function MetricItem({
 function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
   if (!run) return null;
 
+  const reportStatus = getReportStatus(run);
+
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-white">Ultima Corsa</h2>
-        <div className="text-xs sm:text-sm text-neutral-400">
-          {formatDateIT(run.start_date)}
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">Ultima Corsa</h2>
+          <div className="text-xs sm:text-sm text-neutral-400 mt-1">
+            {formatDateIT(run.start_date)}
+          </div>
         </div>
+        <ReportStatusBadge status={reportStatus} />
       </div>
 
       <div className="space-y-4 mb-6">
         <h3 className="text-lg sm:text-xl font-semibold text-white">{run.name}</h3>
+        {!run.title && (
+          <p className="text-sm text-neutral-300">
+            Analisi AI in attesa di generazione. Report non ancora disponibile.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <div className="bg-neutral-800 rounded-2xl p-4">
@@ -644,14 +687,22 @@ export default async function HomePage() {
   const weeklyTrend = trendQuery.rows as WeeklyTrendItem[];
 
   // Query per il report più recente
-  const latestReportQuery = await query(`
-    SELECT * FROM coach_reports
-    WHERE readiness_score IS NOT NULL
-    ORDER BY created_at DESC
-    LIMIT 1
-  `);
+  const latestReport = lastRun?.title
+    ? {
+        title: lastRun.title,
+        summary: lastRun.summary || '',
+        risk_level: (lastRun.risk_level || 'medio') as 'basso' | 'medio' | 'alto',
+        next_48h: lastRun.next_48h || '',
+        suggested_focus: lastRun.suggested_focus || '',
+        coach_notes: lastRun.coach_notes || [],
+        readiness_score: lastRun.readiness_score || 0,
+        fatigue_score: lastRun.fatigue_score || 0,
+        consistency_score: lastRun.consistency_score || 0,
+        weekly_plan: [],
+        full_report: '',
+      }
+    : null;
 
-  const latestReport = latestReportQuery.rows[0] || null;
   const coachDecision = buildCoachDecision(latestReport, athleteMetrics, lastRun);
 
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);

@@ -5,6 +5,7 @@ import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { buildCoachDecision } from '@/lib/coach-decision';
 import { getLatestRunWithReport } from '@/lib/runs';
+import { formatDateIT } from '@/lib/date-utils';
 
 /**
  * Helper: Formatta chilometri
@@ -12,6 +13,43 @@ import { getLatestRunWithReport } from '@/lib/runs';
 function formatKm(meters: number): string {
   const km = meters / 1000;
   return `${km.toFixed(1)} km`;
+}
+
+function formatPace(speedMs: number): string {
+  if (!speedMs || speedMs <= 0) return 'N/A';
+  const secondsPerKm = 1000 / speedMs;
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = Math.round(secondsPerKm % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
+}
+
+function getReportStatus(run?: { title?: string; created_at?: string } | null): 'ready' | 'generating' | 'missing' {
+  if (run?.title) return 'ready';
+  if (run?.created_at) {
+    const importedAt = new Date(run.created_at).getTime();
+    const ageMinutes = (Date.now() - importedAt) / (1000 * 60);
+    if (Number.isFinite(ageMinutes) && ageMinutes <= 30) return 'generating';
+  }
+  return 'missing';
+}
+
+function ReportStatusBadge({ status }: { status: 'ready' | 'generating' | 'missing' }) {
+  const styles = {
+    ready: 'bg-emerald-500/10 text-emerald-300',
+    generating: 'bg-blue-500/10 text-blue-300',
+    missing: 'bg-yellow-500/10 text-yellow-300',
+  };
+  const labels = {
+    ready: 'Report pronto',
+    generating: 'Report in generazione',
+    missing: 'Report mancante',
+  };
+
+  return (
+    <span className={`rounded-full px-3 py-1 ${styles[status]}`}>
+      {labels[status]}
+    </span>
+  );
 }
 
 /**
@@ -222,12 +260,72 @@ function WeeklyTrendCard({ trend }: { trend: any[] }) {
 /**
  * Componente per l'ultimo report
  */
-function LatestReportCard({ report }: { report: any }) {
-  if (!report) return null;
+function LatestReportCard({ report, run }: { report: any; run: any }) {
+  if (!run) return null;
+
+  const status = getReportStatus(run);
+
+  if (!report) {
+    return (
+      <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Ultima Corsa</h2>
+            <p className="text-neutral-400">{formatDateIT(run.start_date)}</p>
+          </div>
+          <ReportStatusBadge status={status} />
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <div className="text-lg font-bold text-white mb-2">{run.name}</div>
+            <div className="text-neutral-300">Analisi AI in attesa di generazione.</div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-neutral-800 rounded-xl p-4">
+              <div className="text-sm text-neutral-400 mb-1">Distanza</div>
+              <div className="text-white font-semibold">{formatKm(run.distance_m)}</div>
+            </div>
+            <div className="bg-neutral-800 rounded-xl p-4">
+              <div className="text-sm text-neutral-400 mb-1">Passo</div>
+              <div className="text-white font-semibold">{formatPace(run.average_speed)}</div>
+            </div>
+            <div className="bg-neutral-800 rounded-xl p-4">
+              <div className="text-sm text-neutral-400 mb-1">Stato</div>
+              <div className="text-white font-semibold">Report non ancora disponibile</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href={`/runs/${run.id}`}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              Apri corsa
+            </Link>
+            {run.strava_id && (
+              <a
+                href={`https://www.strava.com/activities/${run.strava_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-700"
+              >
+                Strava
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <h2 className="text-2xl font-bold text-white mb-6">Ultimo Report Coach</h2>
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <h2 className="text-2xl font-bold text-white">Ultimo Report Coach</h2>
+        <ReportStatusBadge status={status} />
+      </div>
 
       <div className="space-y-4">
         <div>
@@ -394,18 +492,26 @@ export default async function CoachPage() {
       LIMIT 4
     `);
 
-    // Ottieni ultimo report coach
-    const latestReportQuery = await query(`
-      SELECT * FROM coach_reports
-      ORDER BY created_at DESC
-      LIMIT 1
-    `);
-
     const latestRun = await getLatestRunWithReport();
+    const reportStatus = getReportStatus(latestRun);
     const weeklyTrend = trendQuery.rows;
-    const latestReport = latestReportQuery.rows[0];
+    const latestReport = latestRun?.title
+      ? ({
+          title: latestRun.title,
+          summary: latestRun.summary || '',
+          risk_level: (latestRun.risk_level || 'medio') as 'basso' | 'medio' | 'alto',
+          next_48h: latestRun.next_48h || '',
+          suggested_focus: latestRun.suggested_focus || '',
+          coach_notes: latestRun.coach_notes || [],
+          readiness_score: latestRun.readiness_score || 0,
+          fatigue_score: latestRun.fatigue_score || 0,
+          consistency_score: latestRun.consistency_score || 0,
+          weekly_plan: [],
+          full_report: '',
+        } as any)
+      : null;
 
-    // Costruisci decisione coach
+    // Costruisci decisione coach usando sempre l'ultima corsa reale
     const latestActivity = latestRun ?? activitiesQuery.rows[0];
     const coachDecision = buildCoachDecision(latestReport, metrics, latestActivity);
 
@@ -417,6 +523,12 @@ export default async function CoachPage() {
             <div>
               <h1 className="text-4xl font-bold text-white mb-2">AI Running Coach</h1>
               <p className="text-neutral-400">Analisi completa del tuo stato di forma</p>
+              {latestRun ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                  <span className="text-neutral-400">Ultima corsa: {formatDateIT(latestRun.start_date)}</span>
+                  <ReportStatusBadge status={reportStatus} />
+                </div>
+              ) : null}
             </div>
             <Link
               href="/"
@@ -438,7 +550,7 @@ export default async function CoachPage() {
             <div className="lg:col-span-2 space-y-8">
               <CoachDecisionCard decision={coachDecision} />
               <WeeklyTrendCard trend={weeklyTrend} />
-              <LatestReportCard report={latestReport} />
+              <LatestReportCard report={latestReport} run={latestRun} />
             </div>
           </div>
         </div>
