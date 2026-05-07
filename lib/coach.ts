@@ -240,7 +240,7 @@ Genera un report JSON con questa struttura ESATTA:
   "fatigue_score": 0,
   "consistency_score": 0,
   "suggested_focus": "string",
-  "next_48h": "string",
+  "next_48h": "string - raccomandazione pratica per oggi e domani, specifica cosa fare",
   "weekly_plan": [
     {
       "name": "string",
@@ -260,7 +260,8 @@ Genera un report JSON con questa struttura ESATTA:
 - Rispondi SOLO con JSON valido, niente testo aggiuntivo
 - Adatta il piano settimanale al livello attuale dell'atleta
 - Rispetta le metriche e regole fornite
-- Usa italiano professionale`;
+- Usa italiano professionale
+- Per next_48h: specifica chiaramente cosa fare OGGI e DOMANI, non essere vago`;
 
   return prompt;
 }

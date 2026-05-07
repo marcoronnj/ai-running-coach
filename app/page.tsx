@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getAthleteSettings } from '@/lib/athlete-settings';
+import { buildCoachDecision } from '@/lib/coach-decision';
 
 /**
  * Interfacce per i dati della dashboard
@@ -239,94 +240,84 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
 }
 
 /**
- * Componente Coach Decision Card - Card principale del coach
+ * Componente Coach Decision Card - Nuova card principale del coach
  */
-function CoachDecisionCard({ run }: { run: DashboardRun | null | undefined }) {
-  if (!run) {
-    return (
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-        <div className="text-center">
-          <div className="inline-block bg-blue-500/20 rounded-full p-4 mb-4">
-            <span className="text-3xl">🧠</span>
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Coach Decision</h3>
-          <p className="text-neutral-400 text-sm">
-            Sincronizza una nuova corsa per ricevere il prossimo consiglio del coach.
-          </p>
-        </div>
-      </div>
-    );
-  }
+function CoachDecisionCard({ decision }: { decision: any }) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'recovery': return 'text-blue-400';
+      case 'easy': return 'text-green-400';
+      case 'progression': return 'text-yellow-400';
+      case 'caution': return 'text-orange-400';
+      case 'insufficient_data': return 'text-gray-400';
+      default: return 'text-white';
+    }
+  };
 
-  const hasReport = !!(run.title && run.next_48h);
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'recovery': return '🛋️';
+      case 'easy': return '🏃‍♂️';
+      case 'progression': return '📈';
+      case 'caution': return '⚠️';
+      case 'insufficient_data': return '📊';
+      default: return '🧠';
+    }
+  };
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
       <div className="flex items-start gap-4 mb-6">
         <div className="text-4xl flex-shrink-0">
-          {run.risk_level ? getRiskEmoji(run.risk_level) : '🧠'}
+          {getStatusIcon(decision.status)}
         </div>
         <div className="flex-1">
-          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
-            {run.title || 'Analisi Coach'}
-          </h2>
-          {run.summary && (
-            <p className="text-neutral-300 text-sm sm:text-base leading-relaxed mb-4">
-              {run.summary}
-            </p>
-          )}
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-white">
+              {decision.title}
+            </h2>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 ${getStatusColor(decision.status)}`}>
+              {decision.label}
+            </span>
+          </div>
+          <p className="text-neutral-300 text-sm sm:text-base leading-relaxed">
+            {decision.message}
+          </p>
         </div>
       </div>
 
-      {hasReport && (
-        <div className="space-y-4">
-          {run.next_48h && (
-            <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5">
-              <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
-                Prossime 48 ore
-              </div>
-              <p className="text-white text-sm sm:text-base leading-relaxed">
-                {run.next_48h}
-              </p>
-            </div>
-          )}
-
-          {run.suggested_focus && (
-            <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5">
-              <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
-                Focus Consigliato
-              </div>
-              <p className="text-white font-medium text-sm sm:text-base">
-                {run.suggested_focus}
-              </p>
-            </div>
-          )}
-
-          {run.risk_level && (
-            <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">
-                    Livello Rischio
-                  </div>
-                  <div className="text-white font-medium capitalize">
-                    {run.risk_level}
-                  </div>
-                </div>
-                <span className="text-3xl">{getRiskEmoji(run.risk_level)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!hasReport && (
-        <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5 text-center">
-          <p className="text-neutral-400 text-sm">
-            Nuovo report disponibile dopo la prossima sincronizzazione.
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="bg-neutral-800 rounded-2xl p-4">
+          <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
+            Oggi
+          </div>
+          <p className="text-white text-sm sm:text-base">
+            {decision.actionToday}
           </p>
         </div>
-      )}
+
+        <div className="bg-neutral-800 rounded-2xl p-4">
+          <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
+            Domani
+          </div>
+          <p className="text-white text-sm sm:text-base">
+            {decision.actionTomorrow}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-neutral-800 rounded-2xl p-4 mb-4">
+        <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
+          Prossima Seduta
+        </div>
+        <p className="text-white text-sm sm:text-base">
+          {decision.nextWorkout}
+        </p>
+      </div>
+
+      <div className="text-xs text-neutral-400">
+        <strong>Motivo:</strong> {decision.reason}
+      </div>
     </div>
   );
 }
@@ -711,6 +702,18 @@ export default async function HomePage() {
 
   const athleteMetrics = calculateCoachingMetrics(activityHistoryQuery.rows, athleteSettings);
   const weeklyTrend = trendQuery.rows as WeeklyTrendItem[];
+
+  // Query per il report più recente
+  const latestReportQuery = await query(`
+    SELECT * FROM coach_reports
+    WHERE readiness_score IS NOT NULL
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+
+  const latestReport = latestReportQuery.rows[0] || null;
+  const coachDecision = buildCoachDecision(latestReport, athleteMetrics, lastRun);
+
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
   return (
@@ -751,7 +754,7 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
               {/* Colonna sinistra - Coach Decision (principale) */}
               <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-                <CoachDecisionCard run={lastRun} />
+                <CoachDecisionCard decision={coachDecision} />
                 <LastRunCard run={lastRun} />
               </div>
 

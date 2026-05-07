@@ -3,6 +3,7 @@ import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
+import { buildCoachDecision } from '@/lib/coach-decision';
 
 /**
  * Helper: Formatta chilometri
@@ -272,6 +273,83 @@ function LatestReportCard({ report }: { report: any }) {
 }
 
 /**
+ * Componente Coach Decision Card - Nuova card principale del coach
+ */
+function CoachDecisionCard({ decision }: { decision: any }) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'recovery': return 'text-blue-400';
+      case 'easy': return 'text-green-400';
+      case 'progression': return 'text-yellow-400';
+      case 'caution': return 'text-orange-400';
+      case 'insufficient_data': return 'text-gray-400';
+      default: return 'text-white';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'recovery': return '🛋️';
+      case 'easy': return '🏃‍♂️';
+      case 'progression': return '📈';
+      case 'caution': return '⚠️';
+      case 'insufficient_data': return '📊';
+      default: return '🧠';
+    }
+  };
+
+  return (
+    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+      <div className="flex items-start gap-4 mb-6">
+        <div className="text-4xl flex-shrink-0">
+          {getStatusIcon(decision.status)}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-2xl font-bold text-white">
+              {decision.title}
+            </h2>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 ${getStatusColor(decision.status)}`}>
+              {decision.label}
+            </span>
+          </div>
+          <p className="text-neutral-300 text-sm leading-relaxed">
+            {decision.message}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="bg-neutral-800 rounded-xl p-4">
+          <div className="text-sm text-neutral-400 mb-1">Oggi</div>
+          <p className="text-white text-sm">
+            {decision.actionToday}
+          </p>
+        </div>
+
+        <div className="bg-neutral-800 rounded-xl p-4">
+          <div className="text-sm text-neutral-400 mb-1">Domani</div>
+          <p className="text-white text-sm">
+            {decision.actionTomorrow}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-neutral-800 rounded-xl p-4 mb-4">
+        <div className="text-sm text-neutral-400 mb-1">Prossima Seduta</div>
+        <p className="text-white text-sm">
+          {decision.nextWorkout}
+        </p>
+      </div>
+
+      <div className="text-xs text-neutral-400">
+        <strong>Motivo:</strong> {decision.reason}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Pagina coach principale
  */
 export default async function CoachPage() {
@@ -325,6 +403,10 @@ export default async function CoachPage() {
     const weeklyTrend = trendQuery.rows;
     const latestReport = latestReportQuery.rows[0];
 
+    // Costruisci decisione coach
+    const latestActivity = activitiesQuery.rows[0]; // Ultima attività
+    const coachDecision = buildCoachDecision(latestReport, metrics, latestActivity);
+
     return (
       <div className="min-h-screen bg-neutral-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -352,6 +434,7 @@ export default async function CoachPage() {
 
             {/* Colonna destra - Trend e report */}
             <div className="lg:col-span-2 space-y-8">
+              <CoachDecisionCard decision={coachDecision} />
               <WeeklyTrendCard trend={weeklyTrend} />
               <LatestReportCard report={latestReport} />
             </div>
