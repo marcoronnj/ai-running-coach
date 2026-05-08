@@ -24,10 +24,29 @@ function getAppDateParts(value: string | Date) {
   };
 }
 
+function datePartsToUtcDate(parts: { year: number; month: number; day: number }): Date {
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+}
+
 export function getTodayInAppTimezone(): Date {
-  const now = new Date();
-  const { year, month, day } = getAppDateParts(now);
-  return new Date(Date.UTC(year, month - 1, day));
+  return startOfTodayRome();
+}
+
+export function startOfTodayRome(today: Date = new Date()): Date {
+  return datePartsToUtcDate(getAppDateParts(today));
+}
+
+export function isSameDayInRome(a: string | Date, b: string | Date = new Date()): boolean {
+  const first = getAppDateParts(a);
+  const second = getAppDateParts(b);
+  return first.year === second.year && first.month === second.month && first.day === second.day;
+}
+
+export function daysSinceInRome(value: string | Date, today: Date = new Date()): number {
+  const target = datePartsToUtcDate(getAppDateParts(value));
+  const current = datePartsToUtcDate(getAppDateParts(today));
+  const delta = Math.round((current.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
+  return delta >= 0 ? delta : 0;
 }
 
 export function formatDateIT(value: string | Date): string {
@@ -42,12 +61,7 @@ export function formatDateIT(value: string | Date): string {
 }
 
 export function getDaysSince(value: string | Date): number {
-  const target = getAppDateParts(value);
-  const today = getAppDateParts(getTodayInAppTimezone());
-  const targetUtc = Date.UTC(target.year, target.month - 1, target.day);
-  const todayUtc = Date.UTC(today.year, today.month - 1, today.day);
-  const delta = Math.round((todayUtc - targetUtc) / (1000 * 60 * 60 * 24));
-  return delta >= 0 ? delta : 0;
+  return daysSinceInRome(value);
 }
 
 export function formatDaysSince(value: string | Date): string {

@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getAthleteSettings } from '@/lib/athlete-settings';
-import { buildCoachDecision } from '@/lib/coach-decision';
+import { getCoachingRules } from '@/lib/coaching-rules';
+import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
@@ -86,33 +87,6 @@ function formatDuration(seconds: number): string {
 /**
  * Helper: Ottieni label interpretativa per readiness
  */
-function getReadinessLabel(score?: number): string {
-  if (!score) return 'N/A';
-  if (score >= 80) return 'Buona';
-  if (score >= 60) return 'Moderata';
-  return 'Bassa';
-}
-
-/**
- * Helper: Ottieni label interpretativa per fatigue
- */
-function getFatigueLabel(score?: number): string {
-  if (!score) return 'N/A';
-  if (score <= 30) return 'Bassa';
-  if (score <= 60) return 'Media';
-  return 'Alta';
-}
-
-/**
- * Helper: Ottieni label interpretativa per consistency
- */
-function getConsistencyLabel(score?: number): string {
-  if (!score) return 'N/A';
-  if (score >= 80) return 'Solida';
-  if (score >= 60) return 'Buona';
-  return 'In costruzione';
-}
-
 /**
  * Helper: Ottieni label interpretativa per risk level
  */
@@ -237,46 +211,24 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
 /**
  * Componente Coach Decision Card - Nuova card principale del coach
  */
-function CoachDecisionCard({ decision }: { decision: any }) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'recovery': return 'text-blue-400';
-      case 'easy': return 'text-green-400';
-      case 'progression': return 'text-yellow-400';
-      case 'caution': return 'text-orange-400';
-      case 'insufficient_data': return 'text-gray-400';
-      default: return 'text-white';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'recovery': return '🛋️';
-      case 'easy': return '🏃‍♂️';
-      case 'progression': return '📈';
-      case 'caution': return '⚠️';
-      case 'insufficient_data': return '📊';
-      default: return '🧠';
-    }
-  };
-
+function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
       <div className="flex items-start gap-4 mb-6">
         <div className="text-4xl flex-shrink-0">
-          {getStatusIcon(decision.status)}
+          {state.hasRunToday ? '✅' : '🧠'}
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-xl sm:text-2xl font-bold text-white">
-              {decision.title}
+              Stato atleta dinamico
             </h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 ${getStatusColor(decision.status)}`}>
-              {decision.label}
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 text-blue-300 capitalize">
+              {state.recoveryStatus}
             </span>
           </div>
           <p className="text-neutral-300 text-sm sm:text-base leading-relaxed">
-            {decision.message}
+            {state.explanation}
           </p>
         </div>
       </div>
@@ -287,7 +239,7 @@ function CoachDecisionCard({ decision }: { decision: any }) {
             Oggi
           </div>
           <p className="text-white text-sm sm:text-base">
-            {decision.actionToday}
+            {state.todayAction}
           </p>
         </div>
 
@@ -296,22 +248,33 @@ function CoachDecisionCard({ decision }: { decision: any }) {
             Domani
           </div>
           <p className="text-white text-sm sm:text-base">
-            {decision.actionTomorrow}
+            {state.tomorrowAction}
           </p>
         </div>
       </div>
 
       <div className="bg-neutral-800 rounded-2xl p-4 mb-4">
         <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
-          {decision.nextWorkoutLabel || 'Dopodomani / Prossima corsa'}
+          Dopodomani / Prossima corsa
         </div>
         <p className="text-white text-sm sm:text-base">
-          {decision.nextWorkout}
+          {state.nextAction}
         </p>
       </div>
 
-      <div className="text-xs text-neutral-400">
-        <strong>Motivo:</strong> {decision.reason}
+      <div className="space-y-3">
+        {state.timeline.map((item, index) => (
+          <div key={`${item.label}-${index}`} className="flex gap-3 rounded-2xl bg-neutral-800/70 p-4">
+            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${item.completed ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-700 text-neutral-300'}`}>
+              {item.completed ? '✓' : index + 1}
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-neutral-400">{item.label}</div>
+              <div className="text-sm font-semibold text-white">{item.title}</div>
+              <div className="text-sm text-neutral-300">{item.description}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -320,10 +283,10 @@ function CoachDecisionCard({ decision }: { decision: any }) {
 /**
  * Componente Metriche Atleta - Più leggibili con label interpretative
  */
-function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null | undefined }) {
+function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null | undefined }) {
   if (!metrics) return null;
 
-  const hasValidMetrics = metrics.readinessScore || metrics.fatigueScore || metrics.consistencyScore;
+  const hasValidMetrics = metrics.readinessScore !== null || metrics.fatigueScore !== null || metrics.consistencyScore !== null;
 
   if (!hasValidMetrics) return null;
 
@@ -332,32 +295,30 @@ function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null | unde
       <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Stato Atleta</h2>
 
       <div className="space-y-4">
-        {metrics.readinessScore && metrics.readinessLabel && (
+        {metrics.readinessScore !== null && metrics.readinessLabel && (
           <MetricItem
             label="Readiness"
             value={metrics.readinessScore}
             description={metrics.readinessLabel}
-            explanation={metrics.readinessExplanation}
+            explanation={metrics.explanation}
             icon="⚡"
           />
         )}
 
-        {metrics.fatigueScore && metrics.fatigueLabel && (
+        {metrics.fatigueScore !== null && metrics.fatigueLabel && (
           <MetricItem
             label="Fatigue"
             value={metrics.fatigueScore}
             description={metrics.fatigueLabel}
-            explanation={metrics.fatigueExplanation}
             icon="😴"
           />
         )}
 
-        {metrics.consistencyScore && metrics.consistencyLabel && (
+        {metrics.consistencyScore !== null && metrics.consistencyLabel && (
           <MetricItem
             label="Consistency"
             value={metrics.consistencyScore}
             description={metrics.consistencyLabel}
-            explanation={metrics.consistencyExplanation}
             icon="📊"
           />
         )}
@@ -372,11 +333,9 @@ function AthleteMetricsCard({ metrics }: { metrics: AthleteMetrics | null | unde
                 <div className="text-white font-medium">
                   {getRiskLabel(metrics.overloadRisk)}
                 </div>
-                {metrics.overloadExplanation && (
-                  <div className="text-xs text-neutral-400 mt-1">
-                    {metrics.overloadExplanation}
-                  </div>
-                )}
+                <div className="text-xs text-neutral-400 mt-1">
+                  Aggiornato con fatica dinamica e giorni dall'ultima corsa.
+                </div>
               </div>
               <span className="text-3xl">{getRiskEmoji(metrics.overloadRisk)}</span>
             </div>
@@ -682,6 +641,7 @@ export default async function HomePage() {
   `);
 
   const athleteMetrics = calculateCoachingMetrics(activityHistoryQuery.rows, athleteSettings);
+  const coachingRules = getCoachingRules(athleteMetrics, athleteSettings);
   const weeklyTrend = trendQuery.rows as WeeklyTrendItem[];
 
   // Query per il report più recente
@@ -701,7 +661,13 @@ export default async function HomePage() {
       }
     : null;
 
-  const coachDecision = buildCoachDecision(latestReport, athleteMetrics, lastRun);
+  const dynamicAthleteState = buildDynamicAthleteState({
+    latestRun: lastRun,
+    latestReport,
+    recentRuns: activityHistoryQuery.rows,
+    metrics: athleteMetrics,
+    rules: coachingRules,
+  });
 
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
@@ -744,13 +710,13 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
               {/* Colonna sinistra - Coach Decision (principale) */}
               <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-                <CoachDecisionCard decision={coachDecision} />
+                <CoachDecisionCard state={dynamicAthleteState} />
                 <LastRunCard run={lastRun} />
               </div>
 
               {/* Colonna destra - Metriche e trend */}
               <div className="lg:col-span-1 space-y-6 sm:space-y-8">
-                <AthleteMetricsCard metrics={athleteMetrics} />
+                <AthleteMetricsCard metrics={dynamicAthleteState} />
                 <WeeklyTrendCard trend={weeklyTrend} />
                 <StravaProfileLink />
               </div>

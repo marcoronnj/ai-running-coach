@@ -3,7 +3,7 @@ import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
-import { buildCoachDecision } from '@/lib/coach-decision';
+import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
@@ -51,7 +51,8 @@ function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
 /**
  * Helper: Ottieni emoji per score
  */
-function getScoreEmoji(score: number): string {
+function getScoreEmoji(score: number | null): string {
+  if (score === null) return '⚪';
   if (score >= 80) return '🟢';
   if (score >= 60) return '🟡';
   return '🔴';
@@ -60,7 +61,8 @@ function getScoreEmoji(score: number): string {
 /**
  * Helper: Ottieni colore per score
  */
-function getScoreColor(score: number): string {
+function getScoreColor(score: number | null): string {
+  if (score === null) return 'text-neutral-400';
   if (score >= 80) return 'text-green-400';
   if (score >= 60) return 'text-yellow-400';
   return 'text-red-400';
@@ -123,7 +125,7 @@ function AthleteProfileCard({ settings }: { settings: any }) {
 /**
  * Componente per le metriche attuali
  */
-function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
+function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, rules: any }) {
   if (!metrics) return null;
 
   return (
@@ -134,15 +136,15 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
         <div className="bg-neutral-800 rounded-xl p-4 text-center">
           <div className="text-2xl mb-2">{getScoreEmoji(metrics.readinessScore)}</div>
           <div className={`text-xl font-bold ${getScoreColor(metrics.readinessScore)}`}>
-            {metrics.readinessScore}
+            {metrics.readinessScore ?? 'N/A'}
           </div>
           <div className="text-xs text-neutral-400">{metrics.readinessLabel || 'Readiness'}</div>
         </div>
 
         <div className="bg-neutral-800 rounded-xl p-4 text-center">
           <div className="text-2xl mb-2">😴</div>
-          <div className={`text-xl font-bold ${getScoreColor(100 - metrics.fatigueScore)}`}>
-            {metrics.fatigueScore}
+          <div className={`text-xl font-bold ${getScoreColor(metrics.fatigueScore === null ? null : 100 - metrics.fatigueScore)}`}>
+            {metrics.fatigueScore ?? 'N/A'}
           </div>
           <div className="text-xs text-neutral-400">{metrics.fatigueLabel || 'Fatigue'}</div>
         </div>
@@ -150,7 +152,7 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
         <div className="bg-neutral-800 rounded-xl p-4 text-center">
           <div className="text-2xl mb-2">📊</div>
           <div className={`text-xl font-bold ${getScoreColor(metrics.consistencyScore)}`}>
-            {metrics.consistencyScore}
+            {metrics.consistencyScore ?? 'N/A'}
           </div>
           <div className="text-xs text-neutral-400">{metrics.consistencyLabel || 'Consistency'}</div>
         </div>
@@ -167,24 +169,10 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {metrics.readinessExplanation && (
+        {metrics.explanation && (
           <div className="bg-neutral-800 rounded-xl p-4">
-            <div className="text-sm text-neutral-400 mb-1">Readiness Spiegazione</div>
-            <div className="text-white text-sm">{metrics.readinessExplanation}</div>
-          </div>
-        )}
-
-        {metrics.fatigueExplanation && (
-          <div className="bg-neutral-800 rounded-xl p-4">
-            <div className="text-sm text-neutral-400 mb-1">Fatigue Spiegazione</div>
-            <div className="text-white text-sm">{metrics.fatigueExplanation}</div>
-          </div>
-        )}
-
-        {metrics.consistencyExplanation && (
-          <div className="bg-neutral-800 rounded-xl p-4">
-            <div className="text-sm text-neutral-400 mb-1">Consistency Spiegazione</div>
-            <div className="text-white text-sm">{metrics.consistencyExplanation}</div>
+            <div className="text-sm text-neutral-400 mb-1">Spiegazione dinamica</div>
+            <div className="text-white text-sm">{metrics.explanation}</div>
           </div>
         )}
       </div>
@@ -202,11 +190,11 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: any, rules: any }) {
           </div>
         )}
 
-        {metrics.warnings && metrics.warnings.length > 0 && (
+        {rules?.blockedWorkouts && rules.blockedWorkouts.length > 0 && (
           <div>
             <div className="text-sm text-neutral-400 mb-2">Avvertenze</div>
             <ul className="space-y-1">
-              {metrics.warnings.map((warning: string, index: number) => (
+              {rules.blockedWorkouts.map((warning: string, index: number) => (
                 <li key={index} className="text-yellow-400 text-sm">⚠️ {warning}</li>
               ))}
             </ul>
@@ -375,46 +363,24 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
 /**
  * Componente Coach Decision Card - Nuova card principale del coach
  */
-function CoachDecisionCard({ decision }: { decision: any }) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'recovery': return 'text-blue-400';
-      case 'easy': return 'text-green-400';
-      case 'progression': return 'text-yellow-400';
-      case 'caution': return 'text-orange-400';
-      case 'insufficient_data': return 'text-gray-400';
-      default: return 'text-white';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'recovery': return '🛋️';
-      case 'easy': return '🏃‍♂️';
-      case 'progression': return '📈';
-      case 'caution': return '⚠️';
-      case 'insufficient_data': return '📊';
-      default: return '🧠';
-    }
-  };
-
+function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
   return (
     <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
       <div className="flex items-start gap-4 mb-6">
         <div className="text-4xl flex-shrink-0">
-          {getStatusIcon(decision.status)}
+          {state.hasRunToday ? '✅' : '🧠'}
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-2xl font-bold text-white">
-              {decision.title}
+              Stato atleta dinamico
             </h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 ${getStatusColor(decision.status)}`}>
-              {decision.label}
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 text-blue-300 capitalize">
+              {state.recoveryStatus}
             </span>
           </div>
           <p className="text-neutral-300 text-sm leading-relaxed">
-            {decision.message}
+            {state.explanation}
           </p>
         </div>
       </div>
@@ -423,29 +389,40 @@ function CoachDecisionCard({ decision }: { decision: any }) {
         <div className="bg-neutral-800 rounded-xl p-4">
           <div className="text-sm text-neutral-400 mb-1">Oggi</div>
           <p className="text-white text-sm">
-            {decision.actionToday}
+            {state.todayAction}
           </p>
         </div>
 
         <div className="bg-neutral-800 rounded-xl p-4">
           <div className="text-sm text-neutral-400 mb-1">Domani</div>
           <p className="text-white text-sm">
-            {decision.actionTomorrow}
+            {state.tomorrowAction}
           </p>
         </div>
       </div>
 
       <div className="bg-neutral-800 rounded-xl p-4 mb-4">
         <div className="text-sm text-neutral-400 mb-1">
-          {decision.nextWorkoutLabel || 'Dopodomani / Prossima corsa'}
+          Dopodomani / Prossima corsa
         </div>
         <p className="text-white text-sm">
-          {decision.nextWorkout}
+          {state.nextAction}
         </p>
       </div>
 
-      <div className="text-xs text-neutral-400">
-        <strong>Motivo:</strong> {decision.reason}
+      <div className="space-y-3">
+        {state.timeline.map((item, index) => (
+          <div key={`${item.label}-${index}`} className="flex gap-3 rounded-xl bg-neutral-800/70 p-4">
+            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${item.completed ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-700 text-neutral-300'}`}>
+              {item.completed ? '✓' : index + 1}
+            </div>
+            <div>
+              <div className="text-xs uppercase tracking-wide text-neutral-400">{item.label}</div>
+              <div className="text-sm font-semibold text-white">{item.title}</div>
+              <div className="text-sm text-neutral-300">{item.description}</div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -514,9 +491,13 @@ export default async function CoachPage() {
         } as any)
       : null;
 
-    // Costruisci decisione coach usando sempre l'ultima corsa reale
-    const latestActivity = latestRun ?? activitiesQuery.rows[0];
-    const coachDecision = buildCoachDecision(latestReport, metrics, latestActivity);
+    const dynamicAthleteState = buildDynamicAthleteState({
+      latestRun,
+      latestReport,
+      recentRuns: activitiesQuery.rows,
+      metrics,
+      rules,
+    });
 
     return (
       <div className="min-h-screen bg-neutral-950">
@@ -549,12 +530,12 @@ export default async function CoachPage() {
             {/* Colonna sinistra - Profilo e metriche */}
             <div className="lg:col-span-1 space-y-8">
               <AthleteProfileCard settings={athleteSettings} />
-              <CurrentMetricsCard metrics={metrics} rules={rules} />
+              <CurrentMetricsCard metrics={dynamicAthleteState} rules={rules} />
             </div>
 
             {/* Colonna destra - Trend e report */}
             <div className="lg:col-span-2 space-y-8">
-              <CoachDecisionCard decision={coachDecision} />
+              <CoachDecisionCard state={dynamicAthleteState} />
               <WeeklyTrendCard trend={weeklyTrend} />
               <LatestReportCard report={latestReport} run={latestRun} />
             </div>
