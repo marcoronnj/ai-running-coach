@@ -1,4 +1,20 @@
 import Link from 'next/link';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Activity,
+  ArrowRight,
+  Brain,
+  CalendarDays,
+  Check,
+  ExternalLink,
+  Footprints,
+  Gauge,
+  HeartPulse,
+  Moon,
+  Settings,
+  TrendingUp,
+  UserCircle,
+} from 'lucide-react';
 import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getAthleteSettings } from '@/lib/athlete-settings';
@@ -8,6 +24,7 @@ import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
+import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,46 +116,18 @@ function getRiskLabel(riskLevel?: string): string {
   }
 }
 
-/**
- * Helper: Ottieni emoji per livello rischio
- */
-function getRiskEmoji(riskLevel?: string): string {
-  switch (riskLevel?.toLowerCase()) {
-    case 'basso': return '🟢';
-    case 'medio': return '🟡';
-    case 'alto': return '🔴';
-    default: return '⚪';
-  }
-}
-
-/**
- * Helper: Ottieni colore per score
- */
-function getScoreColor(score?: number): string {
-  if (!score) return 'text-neutral-400';
-  if (score >= 80) return 'text-green-400';
-  if (score >= 60) return 'text-yellow-400';
-  return 'text-red-400';
-}
-
 function getReportStatus(run?: DashboardRun | null): 'ready' | 'waiting' {
   return hasCoachReport(run) ? 'ready' : 'waiting';
 }
 
 function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
-  const styles = {
-    ready: 'bg-emerald-500/10 text-emerald-300',
-    waiting: 'bg-yellow-500/10 text-yellow-300',
-  };
   const labels = {
     ready: 'Report pronto',
     waiting: 'Report in attesa',
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}>
-      {labels[status]}
-    </span>
+    <Badge tone={status === 'ready' ? 'success' : 'warning'}>{labels[status]}</Badge>
   );
 }
 
@@ -175,13 +164,14 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
   const reportStatus = getReportStatus(lastRun);
 
   return (
-    <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/20 rounded-3xl p-6 sm:p-8 mb-8">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <Card className="mb-5 overflow-hidden border-[rgba(215,255,63,0.16)] bg-[linear-gradient(135deg,rgba(215,255,63,0.09),rgba(54,252,225,0.045)_42%,rgba(17,17,17,0.94))]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+          <p className="eyebrow mb-1">Today status</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">
             {today}
           </h1>
-          <div className="text-neutral-300 text-sm sm:text-base">
+          <div className="mt-1 text-sm text-app-muted">
             {lastRunLabel ? (
               <span>Ultima corsa: {lastRunLabel}</span>
             ) : (
@@ -190,11 +180,11 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
           </div>
         </div>
 
-        {/* Placeholder per futura card meteo */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:min-w-52">
+          <IconBox icon={Brain} tone="lime" />
           <div className="text-right">
-            <div className="text-xs text-neutral-400 uppercase tracking-wide">Stato Coach</div>
-            <div className="text-white font-medium">
+            <div className="eyebrow">Coach</div>
+            <div className="mt-1 font-medium text-app-text">
               {lastRun ? (
                 <ReportStatusBadge status={reportStatus} />
               ) : (
@@ -204,7 +194,7 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -213,70 +203,66 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
  */
 function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-      <div className="flex items-start gap-4 mb-6">
-        <div className="text-4xl flex-shrink-0">
-          {state.hasRunToday ? '✅' : '🧠'}
-        </div>
+    <Card>
+      <div className="mb-5 flex items-start gap-3">
+        <IconBox icon={state.hasRunToday ? Check : Brain} tone={state.hasRunToday ? 'success' : 'cyan'} />
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-xl sm:text-2xl font-bold text-white">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">
               Stato atleta dinamico
             </h2>
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 text-blue-300 capitalize">
-              {state.recoveryStatus}
-            </span>
+            <Badge tone="cyan">{state.recoveryStatus}</Badge>
           </div>
-          <p className="text-neutral-300 text-sm sm:text-base leading-relaxed">
+          <p className="text-sm leading-relaxed text-neutral-300">
             {state.explanation}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <div className="bg-neutral-800 rounded-2xl p-4">
-          <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="metric-card p-3.5">
+          <div className="eyebrow mb-1">
             Oggi
           </div>
-          <p className="text-white text-sm sm:text-base">
+          <p className="text-sm text-app-text">
             {state.todayAction}
           </p>
         </div>
 
-        <div className="bg-neutral-800 rounded-2xl p-4">
-          <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
+        <div className="metric-card p-3.5">
+          <div className="eyebrow mb-1">
             Domani
           </div>
-          <p className="text-white text-sm sm:text-base">
+          <p className="text-sm text-app-text">
             {state.tomorrowAction}
           </p>
         </div>
       </div>
 
-      <div className="bg-neutral-800 rounded-2xl p-4 mb-4">
-        <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-2">
+      <div className="metric-card mb-4 p-3.5">
+        <div className="eyebrow mb-1">
           Dopodomani / Prossima corsa
         </div>
-        <p className="text-white text-sm sm:text-base">
+        <p className="text-sm text-app-text">
           {state.nextAction}
         </p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {state.timeline.map((item, index) => (
-          <div key={`${item.label}-${index}`} className="flex gap-3 rounded-2xl bg-neutral-800/70 p-4">
-            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${item.completed ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-700 text-neutral-300'}`}>
-              {item.completed ? '✓' : index + 1}
+          <div key={`${item.label}-${index}`} className="flex gap-3 rounded-2xl border border-white/5 bg-white/[0.035] p-3">
+            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${item.completed ? 'border-[rgba(124,255,138,0.28)] bg-[rgba(124,255,138,0.12)] text-[var(--success)]' : 'border-white/10 bg-black/20 text-app-muted'}`}>
+              {item.completed ? <Check size={14} strokeWidth={2} /> : index + 1}
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wide text-neutral-400">{item.label}</div>
-              <div className="text-sm font-semibold text-white">{item.title}</div>
+              <div className="eyebrow">{item.label}</div>
+              <div className="text-sm font-semibold text-app-text">{item.title}</div>
               <div className="text-sm text-neutral-300">{item.description}</div>
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -291,17 +277,17 @@ function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null |
   if (!hasValidMetrics) return null;
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Stato Atleta</h2>
+    <Card>
+      <SectionHeader eyebrow="body battery" title="Stato atleta" icon={Gauge} />
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {metrics.readinessScore !== null && metrics.readinessLabel && (
           <MetricItem
             label="Readiness"
             value={metrics.readinessScore}
             description={metrics.readinessLabel}
-            explanation={metrics.explanation}
-            icon="⚡"
+            icon={Activity}
+            tone="lime"
           />
         )}
 
@@ -310,7 +296,8 @@ function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null |
             label="Fatigue"
             value={metrics.fatigueScore}
             description={metrics.fatigueLabel}
-            icon="😴"
+            icon={Moon}
+            tone="warning"
           />
         )}
 
@@ -319,30 +306,33 @@ function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null |
             label="Consistency"
             value={metrics.consistencyScore}
             description={metrics.consistencyLabel}
-            icon="📊"
+            icon={TrendingUp}
+            tone="cyan"
           />
         )}
 
         {metrics.overloadRisk && (
-          <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5">
+          <div className="metric-card p-3.5">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">
+                <div className="eyebrow mb-1">
                   Rischio Overload
                 </div>
-                <div className="text-white font-medium">
+                <div className="font-medium text-app-text">
                   {getRiskLabel(metrics.overloadRisk)}
                 </div>
-                <div className="text-xs text-neutral-400 mt-1">
+                <div className="mt-1 text-xs text-app-muted">
                   Aggiornato con fatica dinamica e giorni dall'ultima corsa.
                 </div>
               </div>
-              <span className="text-3xl">{getRiskEmoji(metrics.overloadRisk)}</span>
+              <span className={cn('rounded-full border px-2.5 py-1 text-xs font-semibold capitalize', riskTone(metrics.overloadRisk))}>
+                {metrics.overloadRisk}
+              </span>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -353,32 +343,38 @@ function MetricItem({
   label,
   value,
   description,
-  explanation,
-  icon
+  icon,
+  tone = 'neutral',
 }: {
   label: string;
   value: number;
   description: string;
-  explanation?: string;
-  icon: string;
+  icon: LucideIcon;
+  tone?: 'neutral' | 'lime' | 'cyan' | 'danger' | 'warning' | 'success';
 }) {
   return (
-    <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5">
+    <div className="metric-card pressable p-3.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">{icon}</span>
+          <IconBox icon={icon} tone={tone} />
           <div>
-            <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide">
+            <div className="eyebrow">
               {label}
             </div>
-            <div className="text-white font-medium text-sm sm:text-base">
+            <div className="text-sm font-medium text-app-text">
               {description}
             </div>
           </div>
         </div>
-        <div className={`text-xl sm:text-2xl font-bold ${getScoreColor(value)}`}>
+        <div className={`text-2xl font-semibold ${scoreTone(value)}`}>
           {value}
         </div>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary"
+          style={{ width: `${Math.max(0, Math.min(value, 100))}%` }}
+        />
       </div>
     </div>
   );
@@ -394,21 +390,22 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
   const reportExcerpt = getCoachReportExcerpt(run);
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-      <div className="flex items-start justify-between gap-4 mb-6">
+    <Card>
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white">Ultima Corsa</h2>
-          <div className="text-xs sm:text-sm text-neutral-400 mt-1">
+          <p className="eyebrow">latest activity</p>
+          <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">Ultima corsa</h2>
+          <div className="mt-1 text-xs text-app-muted">
             {formatDateIT(run.start_date)}
           </div>
         </div>
         <ReportStatusBadge status={reportStatus} />
       </div>
 
-      <div className="space-y-4 mb-6">
-        <h3 className="text-lg sm:text-xl font-semibold text-white">{run.name}</h3>
+      <div className="mb-5 space-y-4">
+        <h3 className="text-lg font-semibold text-app-text">{run.name}</h3>
         {reportExcerpt ? (
-          <p className="text-sm text-neutral-300 leading-relaxed">
+          <p className="text-sm leading-relaxed text-neutral-300">
             {reportExcerpt}
           </p>
         ) : (
@@ -417,29 +414,13 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
           </p>
         )}
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <div className="bg-neutral-800 rounded-2xl p-4">
-            <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">Distanza</div>
-            <div className="text-xl sm:text-2xl font-bold text-white">{formatKm(run.distance_m)}</div>
-          </div>
-
-          <div className="bg-neutral-800 rounded-2xl p-4">
-            <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">Durata</div>
-            <div className="text-xl sm:text-2xl font-bold text-white">{formatDuration(run.moving_time_s)}</div>
-          </div>
-
-          <div className="bg-neutral-800 rounded-2xl p-4">
-            <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">Passo medio</div>
-            <div className="text-lg sm:text-xl font-bold text-white">
-              {run.average_speed ? formatPace(run.average_speed) : 'N/A'}
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          <MetricTile label="Distanza" value={formatKm(run.distance_m)} icon={Footprints} tone="lime" />
+          <MetricTile label="Durata" value={formatDuration(run.moving_time_s)} icon={CalendarDays} tone="cyan" />
+          <MetricTile label="Passo medio" value={run.average_speed ? formatPace(run.average_speed) : 'N/A'} icon={Gauge} />
 
           {run.average_heartrate && (
-            <div className="bg-neutral-800 rounded-2xl p-4">
-              <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-1">FC Media</div>
-              <div className="text-lg sm:text-xl font-bold text-red-400">{run.average_heartrate} bpm</div>
-            </div>
+            <MetricTile label="FC media" value={`${Math.round(run.average_heartrate)} bpm`} icon={HeartPulse} tone="danger" />
           )}
         </div>
       </div>
@@ -447,10 +428,10 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
       <div className="flex flex-col sm:flex-row gap-3">
         <Link
           href={`/runs/${run.id}`}
-          className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 sm:px-6 rounded-2xl transition-colors duration-200 active:scale-95 text-sm sm:text-base"
+          className="pressable inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-sm font-bold text-black"
         >
-          <span>Apri Analisi Completa</span>
-          <span>→</span>
+          <span>Apri analisi</span>
+          <ArrowRight size={16} strokeWidth={2} />
         </Link>
 
         {run.strava_id && (
@@ -458,13 +439,14 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
             href={`https://www.strava.com/activities/${run.strava_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 sm:px-6 rounded-2xl transition-colors duration-200 active:scale-95 text-sm sm:text-base"
+            className="pressable inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-app-text"
           >
-            <span>🔗 Strava</span>
+            <ExternalLink size={16} strokeWidth={1.8} />
+            <span>Strava</span>
           </a>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -488,66 +470,69 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
   const weeklyAverage = calculateWeeklyAverage(trend);
   const currentWeek = trend[0]; // La settimana più recente
   const currentKm = currentWeek.total_distance / 1000;
+  const maxKm = Math.max(...trend.map((week) => week.total_distance / 1000), 1);
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8">
-      <h2 className="text-xl sm:text-2xl font-bold text-white mb-6">Trend Settimanale</h2>
+    <Card>
+      <SectionHeader eyebrow="training load" title="Trend settimanale" icon={TrendingUp} />
 
-      {/* Settimana corrente evidenziata */}
-      <div className="bg-neutral-800 rounded-2xl p-4 sm:p-5 mb-6">
-        <div className="flex items-center justify-between mb-3">
+      <div className="metric-card mb-4 p-3.5">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-primary text-sm font-bold text-black">
               {currentWeek.week}
             </div>
             <div>
-              <div className="text-white font-medium">Questa settimana</div>
-              <div className="text-xs sm:text-sm text-neutral-400">
+              <div className="font-medium text-app-text">Questa settimana</div>
+              <div className="text-xs text-app-muted">
                 {currentWeek.runs} uscite
               </div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xl sm:text-2xl font-bold text-white">{formatKm(currentWeek.total_distance)}</div>
-            <div className="text-xs sm:text-sm text-neutral-400">
+            <div className="text-2xl font-semibold text-app-text">{formatKm(currentWeek.total_distance)}</div>
+            <div className="text-xs text-app-muted">
               {getWeekLabel(currentWeek.runs, currentKm)}
             </div>
           </div>
         </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary" style={{ width: `${Math.min(100, (currentKm / maxKm) * 100)}%` }} />
+        </div>
 
         {weeklyAverage > 0 && (
-          <div className="text-xs sm:text-sm text-neutral-400">
+          <div className="mt-3 text-xs text-app-muted">
             Media recente: {weeklyAverage.toFixed(1)} km/settimana
             {currentKm > weeklyAverage * 1.2 && (
-              <span className="text-green-400 ml-2">↑ Più del 20%</span>
+              <span className="ml-2 text-[var(--success)]">+20%</span>
             )}
             {currentKm < weeklyAverage * 0.8 && (
-              <span className="text-yellow-400 ml-2">↓ Meno del 20%</span>
+              <span className="ml-2 text-[var(--warning)]">-20%</span>
             )}
           </div>
         )}
       </div>
 
-      {/* Altre settimane */}
       <div className="space-y-2">
-        <div className="text-xs sm:text-sm text-neutral-400 uppercase tracking-wide mb-3">
+        <div className="eyebrow mb-2">
           Ultime settimane
         </div>
         {trend.slice(1, 5).map((week, index) => {
           const weekKm = week.total_distance / 1000;
           return (
-            <div key={index} className="flex items-center justify-between py-2 px-3 bg-neutral-800/50 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-neutral-700 rounded-lg flex items-center justify-center text-xs font-medium text-white">
+            <div key={index} className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 text-xs font-semibold text-app-muted">
                   {week.week}
+              </div>
+              <div>
+                <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div className="h-full rounded-full bg-white/35" style={{ width: `${Math.min(100, (weekKm / maxKm) * 100)}%` }} />
                 </div>
-                <div className="text-xs sm:text-sm text-neutral-400">
-                  {week.runs} uscite
-                </div>
+                <div className="text-xs text-app-muted">{week.runs} uscite</div>
               </div>
               <div className="text-right">
-                <div className="text-sm sm:text-base font-medium text-white">{formatKm(week.total_distance)}</div>
-                <div className="text-xs text-neutral-500">
+                <div className="text-sm font-semibold text-app-text">{formatKm(week.total_distance)}</div>
+                <div className="text-xs text-app-muted">
                   {getWeekLabel(week.runs, weekKm)}
                 </div>
               </div>
@@ -555,7 +540,7 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -564,18 +549,17 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
  */
 function StravaProfileLink() {
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6">
+    <Card className="p-3">
       <a
         href="https://www.strava.com/athletes/533234"
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center justify-center w-full gap-3 bg-orange-600 hover:bg-orange-700 text-white font-medium py-4 px-6 rounded-2xl transition-colors duration-200 active:scale-95"
+        className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-app-text"
       >
-        <span className="text-2xl">🏃</span>
-        <span className="text-sm sm:text-base">Apri Profilo Strava</span>
-        <span className="text-lg">→</span>
+        <ExternalLink size={16} strokeWidth={1.8} />
+        <span>Apri profilo Strava</span>
       </a>
-    </div>
+    </Card>
   );
 }
 
@@ -584,22 +568,22 @@ function StravaProfileLink() {
  */
 function EmptyState() {
   return (
-    <div className="bg-neutral-900 rounded-3xl p-12 border border-neutral-800 text-center">
-      <div className="w-16 h-16 bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-6">
-        <span className="text-2xl">🏃‍♂️</span>
+    <Card className="p-8 text-center sm:p-10">
+      <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[rgba(215,255,63,0.2)] bg-[rgba(215,255,63,0.08)] text-accent-primary">
+        <Footprints size={24} strokeWidth={1.8} />
       </div>
 
-      <h2 className="text-2xl font-bold text-white mb-4">Nessuna corsa ancora sincronizzata</h2>
+      <h2 className="mb-3 text-xl font-semibold text-app-text">Nessuna corsa ancora sincronizzata</h2>
 
-      <p className="text-neutral-400 mb-8 max-w-md mx-auto">
+      <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-app-muted">
         Le tue corse appariranno qui automaticamente dopo la prima sincronizzazione con Strava.
         Controlla che il cron job sia attivo o avvia una sync manuale.
       </p>
 
-      <div className="text-sm text-neutral-500">
+      <div className="text-xs text-app-muted">
         La sincronizzazione avviene automaticamente ogni 6 ore
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -672,50 +656,61 @@ export default async function HomePage() {
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
   return (
-    <div className="min-h-screen bg-neutral-950">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <PageShell>
         {/* Header con navigazione */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">AI Running Coach</h1>
-            <p className="text-neutral-400 text-sm sm:text-base">Il tuo allenatore personale basato sui dati</p>
+        <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-primary text-black">
+                <Activity size={18} strokeWidth={2} />
+              </div>
+              <div className="min-w-0">
+                <p className="eyebrow">AI Running</p>
+                <h1 className="truncate text-xl font-semibold tracking-tight text-app-text sm:text-2xl">Coach</h1>
+              </div>
+            </div>
+            <p className="mt-2 hidden text-sm text-app-muted sm:block">Il tuo allenatore personale basato sui dati</p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2">
             <Link
               href="/coach"
-              className="inline-flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-xl transition-colors duration-200 text-sm"
+              className="pressable inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-app-text sm:w-auto sm:px-3"
+              title="Coach"
             >
-              <span>🧠</span>
+              <Brain size={17} strokeWidth={1.8} />
               <span className="hidden sm:inline">Coach</span>
             </Link>
             <Link
               href="/settings"
-              className="inline-flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-xl transition-colors duration-200 text-sm"
+              className="pressable inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-app-text"
+              title="Settings"
             >
-              <span>⚙️</span>
-              <span className="hidden sm:inline">Settings</span>
+              <Settings size={17} strokeWidth={1.8} />
             </Link>
             <ManualSyncButton />
+            <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-app-muted sm:flex">
+              <UserCircle size={18} strokeWidth={1.8} />
+            </div>
           </div>
         </div>
 
         {!hasData ? (
           <EmptyState />
         ) : (
-          <div className="space-y-6 sm:space-y-8">
+            <div className="space-y-5 sm:space-y-6">
             {/* Hero Section */}
             <HeroSection lastRun={lastRun} />
 
             {/* Layout principale */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
               {/* Colonna sinistra - Coach Decision (principale) */}
-              <div className="lg:col-span-2 space-y-6 sm:space-y-8">
+              <div className="space-y-5 lg:col-span-2">
                 <CoachDecisionCard state={dynamicAthleteState} />
                 <LastRunCard run={lastRun} />
               </div>
 
               {/* Colonna destra - Metriche e trend */}
-              <div className="lg:col-span-1 space-y-6 sm:space-y-8">
+              <div className="space-y-5 lg:col-span-1">
                 <AthleteMetricsCard metrics={dynamicAthleteState} />
                 <WeeklyTrendCard trend={weeklyTrend} />
                 <StravaProfileLink />
@@ -723,7 +718,6 @@ export default async function HomePage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </PageShell>
   );
 }

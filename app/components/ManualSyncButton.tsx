@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Check, RefreshCw, XCircle } from 'lucide-react';
 
 type SyncState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -70,7 +71,8 @@ export default function ManualSyncButton() {
       ? 'Aggiornato'
       : state === 'error'
         ? 'Errore'
-        : '🔄 Sync';
+        : 'Sync';
+  const Icon = state === 'success' ? Check : state === 'error' ? XCircle : RefreshCw;
 
   return (
     <div className="relative flex flex-col items-start">
@@ -78,12 +80,13 @@ export default function ManualSyncButton() {
         type="button"
         onClick={handleSync}
         disabled={state === 'loading'}
-        className="inline-flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-xl transition-colors duration-200 text-sm"
+        className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
       >
+        <Icon size={16} strokeWidth={1.8} className={state === 'loading' ? 'animate-spin' : ''} />
         {label}
       </button>
       {message ? (
-        <div className="absolute right-0 top-full z-10 mt-2 w-56 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-200 shadow-lg">
+        <div className="absolute right-0 top-full z-10 mt-2 w-60 rounded-xl border border-white/10 bg-app-card px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/30">
           {message}
         </div>
       ) : null}

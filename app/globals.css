@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050505;
+  --foreground: #f5f5f5;
+  --bg: #050505;
+  --card: #111111;
+  --card-2: #171717;
+  --text: #f5f5f5;
+  --muted: #9ca3af;
+  --accent-primary: #d7ff3f;
+  --accent-secondary: #36fce1;
+  --success: #7cff8a;
+  --warning: #ffd84d;
+  --danger: #ff6262;
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-neon: rgba(215, 255, 63, 0.22);
+  --shadow-glow: 0 0 28px rgba(54, 252, 225, 0.08);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-app-bg: var(--bg);
+  --color-app-card: var(--card);
+  --color-app-card-2: var(--card-2);
+  --color-app-text: var(--text);
+  --color-app-muted: var(--muted);
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-secondary: var(--accent-secondary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(215, 255, 63, 0.28);
+  color: var(--text);
+}
+
+@layer components {
+  .app-screen {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 16% 0%, rgba(54, 252, 225, 0.11), transparent 28rem),
+      radial-gradient(circle at 88% 12%, rgba(215, 255, 63, 0.08), transparent 24rem),
+      linear-gradient(180deg, #050505 0%, #080808 44%, #050505 100%);
+    color: var(--text);
+  }
+
+  .app-container {
+    width: min(100%, 80rem);
+    margin-inline: auto;
+    padding: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .app-container {
+      padding: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .app-container {
+      padding: 2rem;
+    }
+  }
+
+  .premium-card {
+    border: 1px solid var(--border-soft);
+    background: linear-gradient(180deg, rgba(23, 23, 23, 0.92), rgba(13, 13, 13, 0.94));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 16px 40px rgba(0, 0, 0, 0.24);
+    border-radius: 1.25rem;
+  }
+
+  .metric-card {
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.035);
+    border-radius: 1rem;
+  }
+
+  .eyebrow {
+    font-size: 0.68rem;
+    line-height: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .pressable {
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+  }
+
+  .pressable:hover {
+    border-color: rgba(215, 255, 63, 0.24);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .pressable:active {
+    transform: scale(0.97);
+  }
+
+  .fade-in {
+    animation: fade-in 420ms ease both;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

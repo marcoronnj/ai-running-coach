@@ -1,4 +1,18 @@
 import Link from 'next/link';
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  Brain,
+  Check,
+  ExternalLink,
+  Gauge,
+  Moon,
+  ShieldAlert,
+  Sparkles,
+  TrendingUp,
+  User,
+} from 'lucide-react';
 import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
@@ -8,6 +22,7 @@ import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
+import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,40 +47,14 @@ function getReportStatus(run?: { title?: string; summary?: string; full_report?:
 }
 
 function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
-  const styles = {
-    ready: 'bg-emerald-500/10 text-emerald-300',
-    waiting: 'bg-yellow-500/10 text-yellow-300',
-  };
   const labels = {
     ready: 'Report pronto',
     waiting: 'Report in attesa',
   };
 
   return (
-    <span className={`rounded-full px-3 py-1 ${styles[status]}`}>
-      {labels[status]}
-    </span>
+    <Badge tone={status === 'ready' ? 'success' : 'warning'}>{labels[status]}</Badge>
   );
-}
-
-/**
- * Helper: Ottieni emoji per score
- */
-function getScoreEmoji(score: number | null): string {
-  if (score === null) return '⚪';
-  if (score >= 80) return '🟢';
-  if (score >= 60) return '🟡';
-  return '🔴';
-}
-
-/**
- * Helper: Ottieni colore per score
- */
-function getScoreColor(score: number | null): string {
-  if (score === null) return 'text-neutral-400';
-  if (score >= 80) return 'text-green-400';
-  if (score >= 60) return 'text-yellow-400';
-  return 'text-red-400';
 }
 
 /**
@@ -75,29 +64,30 @@ function AthleteProfileCard({ settings }: { settings: any }) {
   if (!settings) return null;
 
   return (
-    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <h2 className="text-2xl font-bold text-white mb-6">Profilo Atleta</h2>
+    <Card>
+      <SectionHeader eyebrow="profile" title="Profilo atleta" icon={User} />
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {settings.profile_summary && (
-          <div>
-            <div className="text-sm text-neutral-400 mb-1">Sommario</div>
-            <div className="text-white">{settings.profile_summary}</div>
+          <div className="metric-card p-3">
+            <div className="eyebrow mb-1">Sommario</div>
+            <div className="text-sm text-app-text">{settings.profile_summary}</div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           {settings.age && (
-            <div>
-              <div className="text-sm text-neutral-400">Età</div>
-              <div className="text-white font-medium">{settings.age} anni</div>
+            <div className="metric-card p-3">
+              <div className="eyebrow">Età</div>
+              <div className="text-lg font-semibold text-app-text">{settings.age}</div>
+              <div className="text-xs text-app-muted">anni</div>
             </div>
           )}
 
           {settings.weight_kg && settings.height_cm && (
-            <div>
-              <div className="text-sm text-neutral-400">BMI</div>
-              <div className="text-white font-medium">
+            <div className="metric-card p-3">
+              <div className="eyebrow">BMI</div>
+              <div className="text-lg font-semibold text-app-text">
                 {(settings.weight_kg / ((settings.height_cm / 100) ** 2)).toFixed(1)}
               </div>
             </div>
@@ -105,20 +95,20 @@ function AthleteProfileCard({ settings }: { settings: any }) {
         </div>
 
         {settings.main_goal && (
-          <div>
-            <div className="text-sm text-neutral-400 mb-1">Obiettivo Principale</div>
-            <div className="text-white font-medium">{settings.main_goal}</div>
+          <div className="metric-card p-3">
+            <div className="eyebrow mb-1">Obiettivo principale</div>
+            <div className="text-sm font-medium text-app-text">{settings.main_goal}</div>
           </div>
         )}
 
         {settings.experience_level && (
-          <div>
-            <div className="text-sm text-neutral-400 mb-1">Livello Esperienza</div>
-            <div className="text-white">{settings.experience_level}</div>
+          <div className="metric-card p-3">
+            <div className="eyebrow mb-1">Livello esperienza</div>
+            <div className="text-sm text-app-text">{settings.experience_level}</div>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -129,79 +119,57 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, 
   if (!metrics) return null;
 
   return (
-    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <h2 className="text-2xl font-bold text-white mb-6">Metriche Attuali</h2>
+    <Card>
+      <SectionHeader eyebrow="current state" title="Metriche attuali" icon={Gauge} />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-neutral-800 rounded-xl p-4 text-center">
-          <div className="text-2xl mb-2">{getScoreEmoji(metrics.readinessScore)}</div>
-          <div className={`text-xl font-bold ${getScoreColor(metrics.readinessScore)}`}>
-            {metrics.readinessScore ?? 'N/A'}
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <MetricTile label="Readiness" value={metrics.readinessScore ?? 'N/A'} detail={metrics.readinessLabel || 'Readiness'} icon={Activity} tone="lime" progress={metrics.readinessScore} />
+        <MetricTile label="Fatigue" value={metrics.fatigueScore ?? 'N/A'} detail={metrics.fatigueLabel || 'Fatigue'} icon={Moon} tone="warning" progress={metrics.fatigueScore} />
+        <MetricTile label="Consistency" value={metrics.consistencyScore ?? 'N/A'} detail={metrics.consistencyLabel || 'Consistency'} icon={TrendingUp} tone="cyan" progress={metrics.consistencyScore} />
+        <div className="metric-card p-3.5">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="eyebrow">Overload</p>
+            <IconBox icon={ShieldAlert} tone={metrics.overloadRisk === 'alto' ? 'danger' : metrics.overloadRisk === 'medio' ? 'warning' : 'success'} />
           </div>
-          <div className="text-xs text-neutral-400">{metrics.readinessLabel || 'Readiness'}</div>
-        </div>
-
-        <div className="bg-neutral-800 rounded-xl p-4 text-center">
-          <div className="text-2xl mb-2">😴</div>
-          <div className={`text-xl font-bold ${getScoreColor(metrics.fatigueScore === null ? null : 100 - metrics.fatigueScore)}`}>
-            {metrics.fatigueScore ?? 'N/A'}
-          </div>
-          <div className="text-xs text-neutral-400">{metrics.fatigueLabel || 'Fatigue'}</div>
-        </div>
-
-        <div className="bg-neutral-800 rounded-xl p-4 text-center">
-          <div className="text-2xl mb-2">📊</div>
-          <div className={`text-xl font-bold ${getScoreColor(metrics.consistencyScore)}`}>
-            {metrics.consistencyScore ?? 'N/A'}
-          </div>
-          <div className="text-xs text-neutral-400">{metrics.consistencyLabel || 'Consistency'}</div>
-        </div>
-
-        <div className="bg-neutral-800 rounded-xl p-4 text-center">
-          <div className="text-2xl mb-2">
-            {metrics.overloadRisk === 'alto' ? '🔴' : metrics.overloadRisk === 'medio' ? '🟡' : '🟢'}
-          </div>
-          <div className="text-sm font-bold text-white uppercase">
-            {metrics.overloadRisk}
-          </div>
-          <div className="text-xs text-neutral-400">Overload</div>
+          <div className="text-lg font-semibold capitalize text-app-text">{metrics.overloadRisk}</div>
+          <span className={cn('mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize', riskTone(metrics.overloadRisk))}>{metrics.overloadRisk}</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="mb-4 grid grid-cols-1 gap-3">
         {metrics.explanation && (
-          <div className="bg-neutral-800 rounded-xl p-4">
-            <div className="text-sm text-neutral-400 mb-1">Spiegazione dinamica</div>
-            <div className="text-white text-sm">{metrics.explanation}</div>
+          <div className="metric-card p-3">
+            <div className="eyebrow mb-1">Spiegazione dinamica</div>
+            <div className="text-sm text-app-text">{metrics.explanation}</div>
           </div>
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div>
-          <div className="text-sm text-neutral-400 mb-1">Focus Consigliato</div>
-          <div className="text-white font-medium">{metrics.suggestedFocus}</div>
+          <div className="eyebrow mb-1">Focus consigliato</div>
+          <div className="text-sm font-medium text-app-text">{metrics.suggestedFocus}</div>
         </div>
 
         {rules && (
           <div>
-            <div className="text-sm text-neutral-400 mb-1">Intensità Massima</div>
-            <div className="text-white font-medium capitalize">{rules.allowedIntensity}</div>
+            <div className="eyebrow mb-1">Intensità massima</div>
+            <div className="text-sm font-medium capitalize text-app-text">{rules.allowedIntensity}</div>
           </div>
         )}
 
         {rules?.blockedWorkouts && rules.blockedWorkouts.length > 0 && (
           <div>
-            <div className="text-sm text-neutral-400 mb-2">Avvertenze</div>
+            <div className="eyebrow mb-2">Avvertenze</div>
             <ul className="space-y-1">
               {rules.blockedWorkouts.map((warning: string, index: number) => (
-                <li key={index} className="text-yellow-400 text-sm">⚠️ {warning}</li>
+                <li key={index} className="flex gap-2 text-sm text-[var(--warning)]"><ShieldAlert size={15} strokeWidth={1.8} /> {warning}</li>
               ))}
             </ul>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -210,34 +178,37 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, 
  */
 function WeeklyTrendCard({ trend }: { trend: any[] }) {
   if (!trend || trend.length === 0) return null;
+  const maxKm = Math.max(...trend.map((week) => week.total_distance / 1000), 1);
 
   return (
-    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <h2 className="text-2xl font-bold text-white mb-6">Trend Ultime 4 Settimane</h2>
+    <Card>
+      <SectionHeader eyebrow="volume" title="Trend ultime 4 settimane" icon={TrendingUp} />
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {trend.map((week, index) => (
-          <div key={index} className="flex items-center justify-between py-3 px-4 bg-neutral-800 rounded-xl">
+          <div key={index} className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-xs font-semibold text-app-muted">
+              {week.week}
+            </div>
             <div className="flex items-center gap-4">
-              <div className="w-8 h-8 bg-neutral-700 rounded-lg flex items-center justify-center text-sm font-medium text-white">
-                {week.week}
-              </div>
               <div>
-                <div className="text-white font-medium">Settimana {week.week}</div>
-                <div className="text-sm text-neutral-400">
+                <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary" style={{ width: `${Math.min(100, ((week.total_distance / 1000) / maxKm) * 100)}%` }} />
+                </div>
+                <div className="text-xs text-app-muted">
                   {week.runs} uscite • {formatKm(week.total_distance)}
                 </div>
               </div>
             </div>
 
             <div className="text-right">
-              <div className="text-lg font-bold text-white">{formatKm(week.total_distance)}</div>
-              <div className="text-sm text-neutral-400">km</div>
+              <div className="text-sm font-semibold text-app-text">{formatKm(week.total_distance)}</div>
+              <div className="text-xs text-app-muted">km</div>
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -252,41 +223,34 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
 
   if (!report) {
     return (
-      <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-        <div className="flex items-start justify-between gap-4 mb-6">
+      <Card>
+        <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Ultima Corsa</h2>
-            <p className="text-neutral-400">{formatDateIT(run.start_date)}</p>
+            <p className="eyebrow">latest activity</p>
+            <h2 className="text-lg font-semibold text-app-text">Ultima corsa</h2>
+            <p className="text-sm text-app-muted">{formatDateIT(run.start_date)}</p>
           </div>
           <ReportStatusBadge status={status} />
         </div>
 
         <div className="space-y-4">
           <div>
-            <div className="text-lg font-bold text-white mb-2">{run.name}</div>
-            <div className="text-neutral-300">Analisi AI in attesa di generazione.</div>
+            <div className="mb-2 text-base font-semibold text-app-text">{run.name}</div>
+            <div className="text-sm text-neutral-300">Analisi AI in attesa di generazione.</div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-neutral-800 rounded-xl p-4">
-              <div className="text-sm text-neutral-400 mb-1">Distanza</div>
-              <div className="text-white font-semibold">{formatKm(run.distance_m)}</div>
-            </div>
-            <div className="bg-neutral-800 rounded-xl p-4">
-              <div className="text-sm text-neutral-400 mb-1">Passo</div>
-              <div className="text-white font-semibold">{formatPace(run.average_speed)}</div>
-            </div>
-            <div className="bg-neutral-800 rounded-xl p-4">
-              <div className="text-sm text-neutral-400 mb-1">Stato</div>
-              <div className="text-white font-semibold">Report in attesa</div>
-            </div>
+            <MetricTile label="Distanza" value={formatKm(run.distance_m)} icon={Activity} tone="lime" />
+            <MetricTile label="Passo" value={formatPace(run.average_speed)} icon={Gauge} tone="cyan" />
+            <MetricTile label="Stato" value="In attesa" icon={Brain} />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href={`/runs/${run.id}`}
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+              className="pressable inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-5 py-2.5 text-sm font-bold text-black"
             >
+              <ArrowRight size={16} strokeWidth={2} />
               Apri corsa
             </Link>
             {run.strava_id && (
@@ -294,48 +258,50 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
                 href={`https://www.strava.com/activities/${run.strava_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-700"
+                className="pressable inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-5 py-2.5 text-sm font-semibold text-app-text"
               >
+                <ExternalLink size={16} strokeWidth={1.8} />
                 Strava
               </a>
             )}
           </div>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <div className="flex items-start justify-between gap-4 mb-6">
+    <Card>
+      <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">Ultima Corsa</h2>
-          <p className="text-neutral-400 mt-1">{formatDateIT(run.start_date)}</p>
+          <p className="eyebrow">latest report</p>
+          <h2 className="text-lg font-semibold text-app-text">Ultima corsa</h2>
+          <p className="mt-1 text-sm text-app-muted">{formatDateIT(run.start_date)}</p>
         </div>
         <ReportStatusBadge status={status} />
       </div>
 
       <div className="space-y-4">
         <div>
-          <div className="text-lg font-bold text-white mb-2">{run.name}</div>
-          {report.title && <div className="text-white font-medium mb-2">{report.title}</div>}
-          <div className="text-neutral-300 leading-relaxed">{excerpt}</div>
+          <div className="mb-2 text-base font-semibold text-app-text">{run.name}</div>
+          {report.title && <div className="mb-2 text-sm font-medium text-app-text">{report.title}</div>}
+          <div className="text-sm leading-relaxed text-neutral-300">{excerpt}</div>
         </div>
 
-        <div className="bg-neutral-800 rounded-xl p-4">
-          <div className="text-sm text-neutral-400 mb-2">Prossime 48 ore</div>
-          <div className="text-white">{report.next_48h}</div>
+        <div className="metric-card p-3.5">
+          <div className="eyebrow mb-2">Prossime 48 ore</div>
+          <div className="text-sm text-app-text">{report.next_48h}</div>
         </div>
 
         {report.weekly_plan && report.weekly_plan.length > 0 && (
           <div>
-            <div className="text-sm text-neutral-400 mb-3">Piano Settimanale</div>
+            <div className="eyebrow mb-3">Piano settimanale</div>
             <div className="space-y-2">
               {report.weekly_plan.slice(0, 3).map((item: any, index: number) => (
-                <div key={index} className="bg-neutral-800 rounded-lg p-3">
+                <div key={index} className="rounded-xl bg-white/[0.035] p-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-white font-medium">{item.name}</div>
-                    <div className="text-sm text-neutral-400 capitalize">{item.intensity}</div>
+                    <div className="font-medium text-app-text">{item.name}</div>
+                    <div className="text-xs capitalize text-app-muted">{item.intensity}</div>
                   </div>
                   <div className="text-sm text-neutral-300 mt-1">{item.description}</div>
                   <div className="text-xs text-neutral-500 mt-1">{item.duration}</div>
@@ -347,16 +313,16 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
 
         {report.coach_notes && report.coach_notes.length > 0 && (
           <div>
-            <div className="text-sm text-neutral-400 mb-2">Note Coach</div>
+            <div className="eyebrow mb-2">Note coach</div>
             <ul className="space-y-1">
               {report.coach_notes.map((note: string, index: number) => (
-                <li key={index} className="text-blue-400 text-sm">💡 {note}</li>
+                <li key={index} className="flex gap-2 text-sm text-accent-secondary"><Sparkles size={15} strokeWidth={1.8} /> {note}</li>
               ))}
             </ul>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -365,66 +331,62 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
  */
 function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
   return (
-    <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-      <div className="flex items-start gap-4 mb-6">
-        <div className="text-4xl flex-shrink-0">
-          {state.hasRunToday ? '✅' : '🧠'}
-        </div>
+    <Card>
+      <div className="mb-5 flex items-start gap-3">
+        <IconBox icon={state.hasRunToday ? Check : Brain} tone={state.hasRunToday ? 'success' : 'cyan'} />
         <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-2xl font-bold text-white">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold tracking-tight text-app-text">
               Stato atleta dinamico
             </h2>
-            <span className="px-3 py-1 rounded-full text-xs font-medium bg-neutral-800 text-blue-300 capitalize">
-              {state.recoveryStatus}
-            </span>
+            <Badge tone="cyan">{state.recoveryStatus}</Badge>
           </div>
-          <p className="text-neutral-300 text-sm leading-relaxed">
+          <p className="text-sm leading-relaxed text-neutral-300">
             {state.explanation}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <div className="bg-neutral-800 rounded-xl p-4">
-          <div className="text-sm text-neutral-400 mb-1">Oggi</div>
-          <p className="text-white text-sm">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="metric-card p-3.5">
+          <div className="eyebrow mb-1">Oggi</div>
+          <p className="text-sm text-app-text">
             {state.todayAction}
           </p>
         </div>
 
-        <div className="bg-neutral-800 rounded-xl p-4">
-          <div className="text-sm text-neutral-400 mb-1">Domani</div>
-          <p className="text-white text-sm">
+        <div className="metric-card p-3.5">
+          <div className="eyebrow mb-1">Domani</div>
+          <p className="text-sm text-app-text">
             {state.tomorrowAction}
           </p>
         </div>
       </div>
 
-      <div className="bg-neutral-800 rounded-xl p-4 mb-4">
-        <div className="text-sm text-neutral-400 mb-1">
+      <div className="metric-card mb-4 p-3.5">
+        <div className="eyebrow mb-1">
           Dopodomani / Prossima corsa
         </div>
-        <p className="text-white text-sm">
+        <p className="text-sm text-app-text">
           {state.nextAction}
         </p>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         {state.timeline.map((item, index) => (
-          <div key={`${item.label}-${index}`} className="flex gap-3 rounded-xl bg-neutral-800/70 p-4">
-            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm ${item.completed ? 'bg-emerald-500/15 text-emerald-300' : 'bg-neutral-700 text-neutral-300'}`}>
-              {item.completed ? '✓' : index + 1}
+          <div key={`${item.label}-${index}`} className="flex gap-3 rounded-2xl border border-white/5 bg-white/[0.035] p-3">
+            <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${item.completed ? 'border-[rgba(124,255,138,0.28)] bg-[rgba(124,255,138,0.12)] text-[var(--success)]' : 'border-white/10 bg-black/20 text-app-muted'}`}>
+              {item.completed ? <Check size={14} strokeWidth={2} /> : index + 1}
             </div>
             <div>
-              <div className="text-xs uppercase tracking-wide text-neutral-400">{item.label}</div>
-              <div className="text-sm font-semibold text-white">{item.title}</div>
+              <div className="eyebrow">{item.label}</div>
+              <div className="text-sm font-semibold text-app-text">{item.title}</div>
               <div className="text-sm text-neutral-300">{item.description}</div>
             </div>
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -500,74 +462,75 @@ export default async function CoachPage() {
     });
 
     return (
-      <div className="min-h-screen bg-neutral-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <PageShell>
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">AI Running Coach</h1>
-              <p className="text-neutral-400">Analisi completa del tuo stato di forma</p>
+              <p className="eyebrow mb-1">coach hub</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">AI Running Coach</h1>
+              <p className="mt-1 text-sm text-app-muted">Analisi compatta del tuo stato di forma</p>
               {latestRun ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-                  <span className="text-neutral-400">Ultima corsa: {formatDateIT(latestRun.start_date)}</span>
+                  <span className="text-app-muted">Ultima corsa: {formatDateIT(latestRun.start_date)}</span>
                   <ReportStatusBadge status={reportStatus} />
                 </div>
               ) : null}
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2">
               <Link
                 href="/"
-                className="inline-flex items-center justify-center bg-neutral-800 hover:bg-neutral-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl transition-colors duration-200 text-sm"
+                className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
               >
-                ← Dashboard
+                <ArrowLeft size={16} strokeWidth={1.8} />
+                Dashboard
               </Link>
               <ManualSyncButton />
             </div>
           </div>
 
           {/* Grid principale */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
             {/* Colonna sinistra - Profilo e metriche */}
-            <div className="lg:col-span-1 space-y-8">
+            <div className="space-y-5 lg:col-span-1">
               <AthleteProfileCard settings={athleteSettings} />
               <CurrentMetricsCard metrics={dynamicAthleteState} rules={rules} />
             </div>
 
             {/* Colonna destra - Trend e report */}
-            <div className="lg:col-span-2 space-y-8">
+            <div className="space-y-5 lg:col-span-2">
               <CoachDecisionCard state={dynamicAthleteState} />
               <WeeklyTrendCard trend={weeklyTrend} />
               <LatestReportCard report={latestReport} run={latestRun} />
             </div>
           </div>
-        </div>
-      </div>
+      </PageShell>
     );
   } catch (error) {
     console.error('Errore caricamento pagina coach:', error);
 
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800 text-center max-w-md">
-          <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-2xl">⚠️</span>
+      <PageShell className="flex items-center justify-center">
+        <Card className="max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[rgba(255,98,98,0.2)] bg-[rgba(255,98,98,0.1)] text-[var(--danger)]">
+            <ShieldAlert size={24} strokeWidth={1.8} />
           </div>
 
-          <h2 className="text-2xl font-bold text-white mb-4">Errore di caricamento</h2>
+          <h2 className="mb-3 text-xl font-semibold text-app-text">Errore di caricamento</h2>
 
-          <p className="text-neutral-400 mb-6">
+          <p className="mb-6 text-sm leading-relaxed text-app-muted">
             Si è verificato un errore nel caricamento dei dati del coach.
             Controlla la connessione al database e riprova.
           </p>
 
           <Link
             href="/"
-            className="inline-flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200"
+            className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-sm font-bold text-black"
           >
+            <ArrowLeft size={16} strokeWidth={2} />
             Torna alla Dashboard
           </Link>
-        </div>
-      </div>
+        </Card>
+      </PageShell>
     );
   }
 }
