@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { getAthleteSettings, updateAthleteSettings, type AthleteSettings } from '@/lib/athlete-settings';
+import SettingsSubmit from './SettingsSubmit';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,14 +114,24 @@ async function updateSettings(formData: FormData) {
     await updateAthleteSettings(data);
   } catch (error) {
     console.error('Errore aggiornamento impostazioni:', error);
-    throw new Error('Errore durante il salvataggio delle impostazioni');
+    redirect('/settings?error=true');
   }
 
   redirect('/settings?success=true');
 }
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ success?: string; error?: string }> | { success?: string; error?: string };
+}) {
   const settings = await getAthleteSettings();
+  const params = searchParams ? await searchParams : {};
+  const saveStatus = params.success === 'true'
+    ? 'success'
+    : params.error === 'true'
+      ? 'error'
+      : null;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -134,21 +145,22 @@ export default async function SettingsPage() {
               Configura i dati usati dal coach per personalizzare analisi e consigli.
             </p>
           </div>
-          <Link
-            href="/"
-            className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
-          >
-            <ArrowLeft size={16} strokeWidth={1.8} />
-            Dashboard
-          </Link>
-        </div>
-
-        {/* Success message */}
-        {process.env.NODE_ENV === 'development' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('success') && (
-          <div className="bg-green-900 border border-green-700 rounded-xl p-4 mb-8">
-            <p className="text-green-300">✓ Impostazioni salvate con successo!</p>
+          <div className="flex gap-2">
+            <Link
+              href="/"
+              className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
+            >
+              <ArrowLeft size={16} strokeWidth={1.8} />
+              Dashboard
+            </Link>
+            <form action="/api/logout" method="post">
+              <button className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text">
+                <LogOut size={16} strokeWidth={1.8} />
+                Logout
+              </button>
+            </form>
           </div>
-        )}
+        </div>
 
         {/* Form */}
         <form action={updateSettings} className="space-y-8">
@@ -374,14 +386,7 @@ export default async function SettingsPage() {
           </div>
 
           {/* Submit */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 px-8 rounded-xl transition-colors duration-200"
-            >
-              Salva Impostazioni
-            </button>
-          </div>
+          <SettingsSubmit status={saveStatus} />
         </form>
       </div>
     </div>
