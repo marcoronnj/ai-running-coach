@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { getAthleteSettings, updateAthleteSettings, type AthleteSettings } from '@/lib/athlete-settings';
 
 export const dynamic = 'force-dynamic';
@@ -125,18 +126,20 @@ export default async function SettingsPage() {
     <div className="min-h-screen bg-neutral-950 text-white">
       <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Impostazioni Atleta</h1>
-            <p className="text-neutral-400">
-              Configura il tuo profilo per report personalizzati dal coach AI
+            <p className="eyebrow mb-1">IMPOSTAZIONI</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">Profilo atleta</h1>
+            <p className="mt-1 text-sm text-app-muted">
+              Configura i dati usati dal coach per personalizzare analisi e consigli.
             </p>
           </div>
           <Link
             href="/"
-            className="bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl transition-colors duration-200"
+            className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
           >
-            ← Torna alla Dashboard
+            <ArrowLeft size={16} strokeWidth={1.8} />
+            Dashboard
           </Link>
         </div>
 
