@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getActivityByIdOrStravaId, processReportForActivity } from '@/lib/run-report';
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const { id } = await params;
+  const sendTelegram = request.nextUrl.searchParams.get('telegram') === 'true';
 
   try {
     const activity = await getActivityByIdOrStravaId(id);
@@ -17,7 +18,11 @@ export async function POST(
       );
     }
 
-    const { report, telegramSent } = await processReportForActivity(activity);
+    const { report, telegramSent } = await processReportForActivity(activity, {
+      sendTelegram,
+      reason: 'manual-regenerate',
+      syncMode: 'manual',
+    });
 
     return NextResponse.json(
       {
@@ -26,6 +31,7 @@ export async function POST(
         activityId: activity.id,
         stravaId: activity.strava_id,
         reportGenerated: true,
+        telegramRequested: sendTelegram,
         telegramSent,
         reportTitle: report.title,
       },

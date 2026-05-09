@@ -9,15 +9,24 @@ import {
   type StravaActivity,
 } from '@/lib/strava';
 
+export type StravaSyncMode = 'manual' | 'cron';
+
 export interface StravaSyncPayload {
   ok: boolean;
   message: string;
+  mode?: StravaSyncMode;
   error?: string;
+  warning?: string;
   activitiesChecked?: number;
   runningActivities?: number;
   newActivities: number;
+  latestActivityId?: string;
+  latestActivityName?: string;
+  latestReportGenerated?: boolean;
+  telegramSent?: boolean;
   pendingReports?: number;
   pendingReportsFound?: number;
+  retryReportsProcessed?: number;
   processedWithReports?: number;
   reportsGenerated?: number;
   processedActivities?: Array<{
@@ -35,20 +44,22 @@ export interface StravaSyncResult {
   status: number;
 }
 
-export async function runStravaSync(): Promise<StravaSyncResult> {
+const RETRY_MISSING_REPORT_LIMIT = 3;
+
+export async function runStravaSync(mode: StravaSyncMode = 'cron'): Promise<StravaSyncResult> {
   const startTime = Date.now();
 
   try {
-    console.log('[SYNC] 🔄 Inizio sincronizzazione Strava...');
+    console.log(`[SYNC] Inizio sincronizzazione Strava mode=${mode}`);
 
-    console.log('[SYNC] 🔑 Refreshing Strava token...');
+    console.log('[SYNC] Refreshing Strava token...');
     const tokenData = await refreshStravaToken();
 
-    console.log('[SYNC] 📊 Fetching attività recenti...');
+    console.log('[SYNC] Fetching attività recenti...');
     const activities = await getRecentActivities(tokenData.access_token);
 
     const runningActivities = filterRunningActivities(activities);
-    console.log(`[SYNC] 🏃‍♂️ Trovate ${runningActivities.length} corse`);
+    console.log(`[SYNC] Corse trovate=${runningActivities.length} mode=${mode}`);
 
     if (runningActivities.length === 0) {
       const duration = formatDuration(startTime);
@@ -58,31 +69,31 @@ export async function runStravaSync(): Promise<StravaSyncResult> {
         payload: {
           ok: true,
           message: 'Nessuna nuova corsa da sincronizzare',
+          mode,
           activitiesChecked: activities.length,
           runningActivities: 0,
           newActivities: 0,
           reportsGenerated: 0,
+          retryReportsProcessed: 0,
+          telegramSent: false,
           duration,
         },
         status: 200,
       };
     }
 
-    console.log('[SYNC] 💾 Salvando nuove corse nel database...');
-    const newActivities = await saveNewActivities(runningActivities);
-    const activitiesWithoutReport = await getActivitiesWithoutReport();
-    const activitiesToProcess: DBActivity[] = [...newActivities];
+    console.log('[SYNC] Salvando nuove corse nel database...');
+    const newActivities = sortActivitiesByStartDateDesc(await saveNewActivities(runningActivities));
+    const latestNewActivity = newActivities[0];
 
-    for (const activity of activitiesWithoutReport) {
-      if (!activitiesToProcess.some(existing => existing.id === activity.id)) {
-        activitiesToProcess.push(activity);
-      }
-    }
+    const activitiesWithoutReport = (await getActivitiesWithoutReport())
+      .filter(activity => !newActivities.some(newActivity => newActivity.id === activity.id))
+      .slice(0, RETRY_MISSING_REPORT_LIMIT);
 
-    console.log(`[SYNC] 📌 Attività senza report trovate: ${activitiesWithoutReport.length}`);
-    console.log(`[SYNC] ✨ Totale corse da processare: ${activitiesToProcess.length} (nuove + report mancanti)`);
+    console.log(`[SYNC] Nuove attività=${newActivities.length} latest=${latestNewActivity?.id ?? 'none'} mode=${mode}`);
+    console.log(`[SYNC] Retry report mancanti selezionati=${activitiesWithoutReport.length} limit=${RETRY_MISSING_REPORT_LIMIT}`);
 
-    if (activitiesToProcess.length === 0) {
+    if (newActivities.length === 0 && activitiesWithoutReport.length === 0) {
       const duration = formatDuration(startTime);
       await logSyncSuccess(`Trovate ${runningActivities.length} corse, tutte già processate con report AI`);
 
@@ -90,12 +101,15 @@ export async function runStravaSync(): Promise<StravaSyncResult> {
         payload: {
           ok: true,
           message: 'Nessuna nuova corsa da sincronizzare e nessun report mancante da rigenerare',
+          mode,
           activitiesChecked: activities.length,
           runningActivities: runningActivities.length,
           newActivities: newActivities.length,
           pendingReports: activitiesWithoutReport.length,
           processedActivities: [],
           reportsGenerated: 0,
+          retryReportsProcessed: 0,
+          telegramSent: false,
           duration,
         },
         status: 200,
@@ -103,25 +117,74 @@ export async function runStravaSync(): Promise<StravaSyncResult> {
     }
 
     const processedActivities: NonNullable<StravaSyncPayload['processedActivities']> = [];
+    const warnings: string[] = [];
+    let latestReportGenerated = false;
+    let telegramSent = false;
+    let retryReportsProcessed = 0;
 
-    for (const activity of activitiesToProcess) {
+    for (const activity of newActivities) {
       try {
-        console.log(`[SYNC] 🤖 Processando activity id=${activity.id} strava_id=${activity.strava_id} name="${activity.name}"`);
+        const shouldSendTelegram = latestNewActivity?.id === activity.id;
+        console.log(
+          `[SYNC] Report nuova activity id=${activity.id} latest=${shouldSendTelegram ? 'yes' : 'no'} telegram=${shouldSendTelegram ? 'yes' : 'no'}`
+        );
 
-        const { telegramSent } = await processReportForActivity(activity);
+        const result = await processReportForActivity(activity, {
+          sendTelegram: shouldSendTelegram,
+          reason: 'new-activity',
+          syncMode: mode,
+        });
+        const activityTelegramSent = result.telegramSent;
+
+        if (latestNewActivity?.id === activity.id) {
+          latestReportGenerated = true;
+          telegramSent = activityTelegramSent;
+        }
 
         processedActivities.push({
           id: activity.id,
           name: activity.name,
           reportGenerated: true,
-          telegramSent,
+          telegramSent: activityTelegramSent,
         });
 
-        console.log(`[SYNC] ✅ Completato: ${activity.name} (id=${activity.id})`);
+        console.log(`[SYNC] Report completato activity id=${activity.id} telegram=${activityTelegramSent ? 'yes' : 'no'}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[SYNC] ❌ Errore processando ${activity.name} (id=${activity.id}):`, errorMessage);
-        console.error(`[SYNC] ❌ Eventuale errore OpenAI/report per activity id=${activity.id}:`, error);
+        console.error(`[SYNC] Errore report nuova activity id=${activity.id}:`, errorMessage);
+        warnings.push(`Report non generato per ${activity.name}: ${errorMessage}`);
+
+        processedActivities.push({
+          id: activity.id,
+          name: activity.name,
+          reportGenerated: false,
+          telegramSent: false,
+          error: errorMessage,
+        });
+      }
+    }
+
+    for (const activity of activitiesWithoutReport) {
+      try {
+        console.log(`[SYNC] Retry report mancante activity id=${activity.id} telegram=no`);
+
+        await processReportForActivity(activity, {
+          sendTelegram: false,
+          reason: 'retry-missing',
+          syncMode: mode,
+        });
+        retryReportsProcessed += 1;
+
+        processedActivities.push({
+          id: activity.id,
+          name: activity.name,
+          reportGenerated: true,
+          telegramSent: false,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[SYNC] Errore retry report activity id=${activity.id}:`, errorMessage);
+        warnings.push(`Retry report non riuscito per ${activity.name}: ${errorMessage}`);
 
         processedActivities.push({
           id: activity.id,
@@ -135,16 +198,30 @@ export async function runStravaSync(): Promise<StravaSyncResult> {
 
     const duration = formatDuration(startTime);
     const reportsGenerated = processedActivities.filter(activity => activity.reportGenerated).length;
-    await logSyncSuccess(`Sincronizzate ${newActivities.length} nuove corse in ${duration}`);
+    const warning = warnings.length > 0 ? warnings.join(' | ') : undefined;
+    await logSyncSuccess(
+      `mode=${mode} nuove=${newActivities.length} report=${reportsGenerated} retry=${retryReportsProcessed} telegram=${telegramSent ? 'yes' : 'no'} duration=${duration}`
+    );
+
+    console.log(
+      `[SYNC] Completato mode=${mode} new=${newActivities.length} latest=${latestNewActivity?.id ?? 'none'} reports=${reportsGenerated} retry=${retryReportsProcessed} telegram=${telegramSent ? 'yes' : 'no'} warnings=${warnings.length}`
+    );
 
     return {
       payload: {
         ok: true,
-        message: 'Sincronizzazione completata con successo',
+        message: newActivities.length > 0 ? 'Sync completato' : 'Nessuna nuova corsa',
+        mode,
+        warning,
         activitiesChecked: activities.length,
         runningActivities: runningActivities.length,
         newActivities: newActivities.length,
+        latestActivityId: latestNewActivity?.id,
+        latestActivityName: latestNewActivity?.name,
+        latestReportGenerated,
+        telegramSent,
         pendingReportsFound: activitiesWithoutReport.length,
+        retryReportsProcessed,
         processedWithReports: reportsGenerated,
         reportsGenerated,
         processedActivities,
@@ -164,7 +241,10 @@ export async function runStravaSync(): Promise<StravaSyncResult> {
         ok: false,
         error: 'Errore durante la sincronizzazione',
         message: errorMessage,
+        mode,
         newActivities: 0,
+        telegramSent: false,
+        retryReportsProcessed: 0,
         duration,
       },
       status: 500,
@@ -174,6 +254,12 @@ export async function runStravaSync(): Promise<StravaSyncResult> {
 
 function formatDuration(startTime: number): string {
   return `${((Date.now() - startTime) / 1000).toFixed(1)}s`;
+}
+
+function sortActivitiesByStartDateDesc(activities: DBActivity[]): DBActivity[] {
+  return [...activities].sort(
+    (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+  );
 }
 
 async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivity[]> {

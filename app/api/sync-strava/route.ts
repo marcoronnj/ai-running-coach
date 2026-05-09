@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await runStravaSync();
+    const result = await runStravaSync('cron');
     return NextResponse.json(result.payload, { status: result.status });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

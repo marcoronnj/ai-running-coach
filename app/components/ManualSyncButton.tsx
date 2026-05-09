@@ -4,13 +4,18 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check, RefreshCw, XCircle } from 'lucide-react';
 
-type SyncState = 'idle' | 'loading' | 'success' | 'error';
+type SyncState = 'idle' | 'loading' | 'success' | 'warning' | 'error';
 
 interface ManualSyncResponse {
   ok: boolean;
   message?: string;
+  warning?: string;
   newActivities?: number;
   reportsGenerated?: number;
+  latestActivityId?: string;
+  latestReportGenerated?: boolean;
+  telegramSent?: boolean;
+  retryReportsProcessed?: number;
   duration?: string;
 }
 
@@ -19,6 +24,12 @@ function buildStatusMessage(data?: ManualSyncResponse): string {
 
   const newActivities = data.newActivities ?? 0;
   const reportsGenerated = data.reportsGenerated ?? 0;
+
+  if (data.warning && newActivities > 0) {
+    return newActivities === 1
+      ? 'Corsa sincronizzata, sto aggiornando il coach'
+      : `${newActivities} corse sincronizzate, sto aggiornando il coach`;
+  }
 
   if (newActivities === 0 && reportsGenerated === 0) {
     return 'Nessuna nuova corsa';
@@ -52,13 +63,16 @@ export default function ManualSyncButton() {
 
       const data = (await response.json()) as ManualSyncResponse;
 
-      if (!response.ok || !data.ok) {
+      if (!data.ok) {
         throw new Error(data.message || 'Sync non riuscito');
       }
 
-      setState('success');
+      setState(data.warning ? 'warning' : 'success');
       setMessage(`${buildStatusMessage(data)}. Sync completato, sto aggiornando i dati.`);
       router.refresh();
+      window.setTimeout(() => {
+        router.refresh();
+      }, 500);
     } catch (error) {
       setState('error');
       setMessage(error instanceof Error ? error.message : 'Errore durante la sincronizzazione');
@@ -69,10 +83,12 @@ export default function ManualSyncButton() {
     ? 'Sync...'
     : state === 'success'
       ? 'Aggiornato'
+      : state === 'warning'
+        ? 'Aggiornato'
       : state === 'error'
         ? 'Errore'
         : 'Sync';
-  const Icon = state === 'success' ? Check : state === 'error' ? XCircle : RefreshCw;
+  const Icon = state === 'success' || state === 'warning' ? Check : state === 'error' ? XCircle : RefreshCw;
 
   return (
     <div className="relative flex flex-col items-start">

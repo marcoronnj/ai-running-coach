@@ -35,7 +35,21 @@ export async function getActivityByIdOrStravaId(id: string): Promise<DBActivity 
   return result.rows[0];
 }
 
-export async function processReportForActivity(activity: DBActivity): Promise<{ report: CoachReport; telegramSent: boolean }> {
+export interface ProcessReportOptions {
+  sendTelegram?: boolean;
+  reason?: 'new-activity' | 'retry-missing' | 'manual-regenerate' | 'cron-regenerate';
+  syncMode?: 'manual' | 'cron';
+}
+
+export async function processReportForActivity(
+  activity: DBActivity,
+  options: ProcessReportOptions = {}
+): Promise<{ report: CoachReport; telegramSent: boolean }> {
+  const sendTelegram = options.sendTelegram === true;
+  console.log(
+    `[RUN-REPORT] Generazione report activity id=${activity.id} mode=${options.syncMode ?? 'n/a'} reason=${options.reason ?? 'n/a'} telegram=${sendTelegram ? 'yes' : 'no'}`
+  );
+
   const history90d = await getActivityHistory90d(activity.start_date);
   const history = history90d.slice(0, 15);
   const athleteSettings = await getAthleteSettings();
@@ -59,7 +73,13 @@ export async function processReportForActivity(activity: DBActivity): Promise<{ 
 
   await saveCoachReport(activity.id, report);
 
-  const telegramSent = await sendTelegramNotification(activity, report);
+  const telegramSent = sendTelegram
+    ? await sendTelegramNotification(activity, report)
+    : false;
+
+  if (!sendTelegram) {
+    console.log(`[RUN-REPORT] Telegram skipped for activity id=${activity.id}`);
+  }
 
   return { report, telegramSent };
 }

@@ -22,6 +22,8 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
 
   try {
     console.log('[TELEGRAM] Invio messaggio...');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const response = await fetch(
       `https://api.telegram.org/bot${botToken}/sendMessage`,
@@ -36,8 +38,9 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
           parse_mode: 'HTML',
           disable_web_page_preview: true,
         }),
+        signal: controller.signal,
       }
-    );
+    ).finally(() => clearTimeout(timeout));
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -71,6 +74,11 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
     }
 
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[TELEGRAM] Timeout invio messaggio');
+      return false;
+    }
+
     console.error('[TELEGRAM] Errore di rete:', error);
     return false;
   }
