@@ -5,7 +5,6 @@ import {
   filterRunningActivities,
   formatActivityForDB,
   getRecentActivities,
-  refreshStravaToken,
   type StravaActivity,
 } from '@/lib/strava';
 
@@ -44,19 +43,31 @@ export interface StravaSyncResult {
   status: number;
 }
 
+export interface RunStravaSyncOptions {
+  accessToken?: string;
+  skipRetryMissingReports?: boolean;
+}
+
 const RETRY_MISSING_REPORT_LIMIT = 3;
 
-export async function runStravaSync(mode: StravaSyncMode = 'cron'): Promise<StravaSyncResult> {
+export async function runStravaSync(
+  mode: StravaSyncMode = 'cron',
+  options: RunStravaSyncOptions = {}
+): Promise<StravaSyncResult> {
   const startTime = Date.now();
 
   try {
     console.log(`[SYNC] Inizio sincronizzazione Strava mode=${mode}`);
 
-    console.log('[SYNC] Refreshing Strava token...');
-    const tokenData = await refreshStravaToken();
+    const accessToken = options.accessToken;
 
+    if (!accessToken) {
+      throw new Error('Access token OAuth Strava mancante');
+    }
+
+    console.log('[SYNC] Uso access token OAuth salvato');
     console.log('[SYNC] Fetching attività recenti...');
-    const activities = await getRecentActivities(tokenData.access_token);
+    const activities = await getRecentActivities(accessToken);
 
     const runningActivities = filterRunningActivities(activities);
     console.log(`[SYNC] Corse trovate=${runningActivities.length} mode=${mode}`);
@@ -86,9 +97,11 @@ export async function runStravaSync(mode: StravaSyncMode = 'cron'): Promise<Stra
     const newActivities = sortActivitiesByStartDateDesc(await saveNewActivities(runningActivities));
     const latestNewActivity = newActivities[0];
 
-    const activitiesWithoutReport = (await getActivitiesWithoutReport())
-      .filter(activity => !newActivities.some(newActivity => newActivity.id === activity.id))
-      .slice(0, RETRY_MISSING_REPORT_LIMIT);
+    const activitiesWithoutReport = options.skipRetryMissingReports
+      ? []
+      : (await getActivitiesWithoutReport())
+          .filter(activity => !newActivities.some(newActivity => newActivity.id === activity.id))
+          .slice(0, RETRY_MISSING_REPORT_LIMIT);
 
     console.log(`[SYNC] Nuove attività=${newActivities.length} latest=${latestNewActivity?.id ?? 'none'} mode=${mode}`);
     console.log(`[SYNC] Retry report mancanti selezionati=${activitiesWithoutReport.length} limit=${RETRY_MISSING_REPORT_LIMIT}`);

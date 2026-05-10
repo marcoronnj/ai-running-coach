@@ -28,7 +28,7 @@ function requireEnv(name: string): string {
 }
 
 async function refreshAccessToken(): Promise<string> {
-  const tokenResponse = await refreshStravaToken();
+  const tokenResponse = await refreshStravaToken(requireEnv('STRAVA_REFRESH_TOKEN'));
   const scopes = (tokenResponse as any).scope || 'non disponibile';
 
   console.log('[DEBUG] Strava token refresh completato');

@@ -2,7 +2,10 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, LogOut } from 'lucide-react';
 import { getAthleteSettings, updateAthleteSettings, type AthleteSettings } from '@/lib/athlete-settings';
+import { isAdminUser, verifySession } from '@/lib/auth';
+import { getPublicStravaConnectionStatus } from '@/lib/strava-connection';
 import SettingsSubmit from './SettingsSubmit';
+import StravaConnectionBox from './StravaConnectionBox';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,15 +126,25 @@ async function updateSettings(formData: FormData) {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ success?: string; error?: string }> | { success?: string; error?: string };
+  searchParams?: Promise<{ success?: string; error?: string; strava?: string }> | { success?: string; error?: string; strava?: string };
 }) {
   const settings = await getAthleteSettings();
+  const session = await verifySession();
+  const isAdmin = isAdminUser(session);
+  const stravaStatus = isAdmin && session
+    ? await getPublicStravaConnectionStatus(session.email)
+    : null;
   const params = searchParams ? await searchParams : {};
   const saveStatus = params.success === 'true'
     ? 'success'
     : params.error === 'true'
       ? 'error'
       : null;
+  const stravaMessage = params.strava === 'connected'
+    ? { type: 'success' as const, text: 'Strava collegato con successo' }
+    : params.strava
+      ? { type: 'error' as const, text: 'Connessione Strava non riuscita' }
+      : undefined;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -164,6 +177,10 @@ export default async function SettingsPage({
 
         {/* Form */}
         <form action={updateSettings} className="space-y-8">
+          {isAdmin && stravaStatus ? (
+            <StravaConnectionBox status={stravaStatus} initialMessage={stravaMessage} />
+          ) : null}
+
           {/* Dati fisici */}
           <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
             <h2 className="text-2xl font-bold mb-6">Dati Fisici</h2>

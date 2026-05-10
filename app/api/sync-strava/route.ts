@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { getValidStravaAccessToken } from '@/lib/strava-connection';
 import { runStravaSync } from '@/lib/strava-sync';
 
 /**
@@ -39,7 +40,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const result = await runStravaSync('cron');
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.APP_LOGIN_EMAIL;
+
+    if (!adminEmail) {
+      await logSyncError('ADMIN_EMAIL o APP_LOGIN_EMAIL non configurato');
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Configurazione mancante',
+          message: 'ADMIN_EMAIL o APP_LOGIN_EMAIL non configurato',
+          newActivities: 0,
+        },
+        { status: 500 }
+      );
+    }
+
+    const { accessToken } = await getValidStravaAccessToken(adminEmail);
+    const result = await runStravaSync('cron', { accessToken });
     return NextResponse.json(result.payload, { status: result.status });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

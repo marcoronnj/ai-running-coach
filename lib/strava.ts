@@ -12,6 +12,7 @@ export interface StravaTokenResponse {
   expires_in: number;
   refresh_token: string;
   access_token: string;
+  scope?: string;
   athlete: {
     id: number;
     firstname: string;
@@ -90,15 +91,71 @@ export interface StravaActivity {
   visibility?: string;
 }
 
+export interface StravaTokenRefreshResponse {
+  token_type: string;
+  expires_at: number;
+  expires_in: number;
+  refresh_token: string;
+  access_token: string;
+}
+
 /**
  * Refresh del token di accesso Strava
  * @returns Promise<StravaTokenResponse>
  * @throws Error se il refresh fallisce
  */
-export async function refreshStravaToken(): Promise<StravaTokenResponse> {
+export async function exchangeStravaCode(code: string): Promise<StravaTokenResponse> {
   const clientId = process.env.STRAVA_CLIENT_ID;
   const clientSecret = process.env.STRAVA_CLIENT_SECRET;
-  const refreshToken = process.env.STRAVA_REFRESH_TOKEN;
+
+  if (!clientId) {
+    throw new Error('STRAVA_CLIENT_ID non configurato');
+  }
+
+  if (!clientSecret) {
+    throw new Error('STRAVA_CLIENT_SECRET non configurato');
+  }
+
+  const response = await fetch('https://www.strava.com/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error('[STRAVA] OAuth code exchange failed:', {
+      status: response.status,
+      body: errorData,
+    });
+    throw new Error(`Errore OAuth Strava (${response.status})`);
+  }
+
+  const data: StravaTokenResponse = await response.json();
+
+  if (!data.access_token || !data.refresh_token || !data.expires_at || !data.athlete) {
+    throw new Error('Risposta OAuth Strava incompleta');
+  }
+
+  console.log('[STRAVA] OAuth code exchanged successfully');
+  return data;
+}
+
+/**
+ * Refresh del token di accesso Strava
+ * @returns Promise<StravaTokenRefreshResponse>
+ * @throws Error se il refresh fallisce
+ */
+export async function refreshStravaToken(refreshToken: string): Promise<StravaTokenRefreshResponse> {
+  const clientId = process.env.STRAVA_CLIENT_ID;
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET;
 
   // Verifica che le credenziali siano configurate
   if (!clientId) {
@@ -116,10 +173,7 @@ export async function refreshStravaToken(): Promise<StravaTokenResponse> {
   }
 
   if (!refreshToken) {
-    throw new Error(
-      'STRAVA_REFRESH_TOKEN non è configurato in .env.local. ' +
-      'Completa prima il flusso OAuth di Strava per ottenere il refresh token.'
-    );
+    throw new Error('Refresh token Strava mancante. Collega Strava via OAuth.');
   }
 
   try {
@@ -164,7 +218,7 @@ export async function refreshStravaToken(): Promise<StravaTokenResponse> {
       );
     }
 
-    const data: StravaTokenResponse = await response.json();
+    const data: StravaTokenRefreshResponse = await response.json();
 
     // Verifica che la risposta contenga i campi necessari
     if (!data.access_token || !data.refresh_token || !data.expires_at) {

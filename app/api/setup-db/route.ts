@@ -111,6 +111,27 @@ const SQL_STATEMENTS = [
     ON sync_logs(created_at DESC);
   `,
 
+  // Tabella connessione OAuth Strava admin
+  `
+    CREATE TABLE IF NOT EXISTS strava_connections (
+      id TEXT PRIMARY KEY,
+      user_id TEXT UNIQUE NOT NULL,
+      strava_athlete_id TEXT NOT NULL,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      scope TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `,
+
+  // Indice su user_id per connessione single-admin
+  `
+    CREATE INDEX IF NOT EXISTS idx_strava_connections_user_id
+    ON strava_connections(user_id);
+  `,
+
   // Tabella athlete_settings
   `
     CREATE TABLE IF NOT EXISTS athlete_settings (
@@ -215,8 +236,8 @@ export async function GET(request: NextRequest) {
       {
         ok: true,
         message: 'Database setup completato con successo',
-        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'athlete_settings'],
-        indicesCreated: 6,
+        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'strava_connections', 'athlete_settings'],
+        indicesCreated: 7,
       },
       { status: 200 }
     );

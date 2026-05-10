@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Activity, ArrowLeft, Brain, CheckCircle2, LogOut, Settings, Timer, UserCircle } from 'lucide-react';
 import { requireAuth } from '@/lib/auth';
 import { queryOne } from '@/lib/db';
+import { getPublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { Card, MetricTile, PageShell, SectionHeader } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,7 @@ function formatDate(value?: string): string {
 export default async function AccountPage() {
   const session = await requireAuth();
   const stats = await getAccountStats();
-  const stravaConfigured = Boolean(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_REFRESH_TOKEN);
+  const stravaStatus = await getPublicStravaConnectionStatus(session.email);
 
   return (
     <PageShell>
@@ -93,10 +94,10 @@ export default async function AccountPage() {
             <MetricTile label="Email" value={session.email} icon={UserCircle} tone="cyan" />
             <MetricTile
               label="Strava"
-              value={stravaConfigured ? 'Configurato' : 'Da configurare'}
-              detail={stravaConfigured ? 'Sync pronto' : 'Credenziali mancanti'}
+              value={stravaStatus.connected ? 'Collegato' : 'Non collegato'}
+              detail={stravaStatus.connected ? `Athlete ${stravaStatus.stravaAthleteId}` : 'OAuth non configurato'}
               icon={CheckCircle2}
-              tone={stravaConfigured ? 'success' : 'warning'}
+              tone={stravaStatus.connected ? 'success' : 'warning'}
             />
             <MetricTile label="Ultima sync" value={formatDate(stats.latestSyncAt)} detail={stats.latestSyncStatus ?? 'N/D'} icon={Timer} />
             <MetricTile label="Corse importate" value={stats.runsCount} detail={`Ultima: ${formatDate(stats.latestRunAt)}`} icon={Activity} tone="lime" />

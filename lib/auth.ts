@@ -64,3 +64,22 @@ export async function requireAuth(): Promise<AuthSession> {
 
   return session;
 }
+
+export function isAdminUser(user: AuthSession | null | undefined): boolean {
+  if (!user) return false;
+
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.APP_LOGIN_EMAIL;
+  if (!adminEmail) return false;
+
+  return user.email.toLowerCase() === adminEmail.toLowerCase();
+}
+
+export async function requireAdmin(): Promise<AuthSession> {
+  const session = await requireAuth();
+
+  if (!isAdminUser(session)) {
+    throw new Error('Accesso admin richiesto');
+  }
+
+  return session;
+}
