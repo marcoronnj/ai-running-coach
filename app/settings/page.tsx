@@ -4,6 +4,7 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import { getAthleteSettings, updateAthleteSettings, type AthleteSettings } from '@/lib/athlete-settings';
 import { isAdminUser, verifySession } from '@/lib/auth';
 import { getPublicStravaConnectionStatus } from '@/lib/strava-connection';
+import { normalizeLanguage, t } from '@/lib/i18n';
 import SettingsSubmit from './SettingsSubmit';
 import StravaConnectionBox from './StravaConnectionBox';
 
@@ -25,6 +26,8 @@ async function updateSettings(formData: FormData) {
   'use server';
 
   const data: Partial<AthleteSettings> = {};
+  const language = formData.get('language');
+  data.language = normalizeLanguage(language);
 
   // Campi numerici
   const weightKg = formData.get('weight_kg');
@@ -129,6 +132,7 @@ export default async function SettingsPage({
   searchParams?: Promise<{ success?: string; error?: string; strava?: string }> | { success?: string; error?: string; strava?: string };
 }) {
   const settings = await getAthleteSettings();
+  const language = normalizeLanguage(settings?.language);
   const session = await verifySession();
   const isAdmin = isAdminUser(session);
   const stravaStatus = isAdmin && session
@@ -141,9 +145,9 @@ export default async function SettingsPage({
       ? 'error'
       : null;
   const stravaMessage = params.strava === 'connected'
-    ? { type: 'success' as const, text: 'Strava collegato con successo' }
+    ? { type: 'success' as const, text: language === 'en' ? 'Strava connected successfully' : 'Strava collegato con successo' }
     : params.strava
-      ? { type: 'error' as const, text: 'Connessione Strava non riuscita' }
+      ? { type: 'error' as const, text: language === 'en' ? 'Strava connection failed' : 'Connessione Strava non riuscita' }
       : undefined;
 
   return (
@@ -152,10 +156,10 @@ export default async function SettingsPage({
         {/* Header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="eyebrow mb-1">IMPOSTAZIONI</p>
-            <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">Profilo atleta</h1>
+            <p className="eyebrow mb-1">{t(language, 'settings.eyebrow')}</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{t(language, 'settings.title')}</h1>
             <p className="mt-1 text-sm text-app-muted">
-              Configura i dati usati dal coach per personalizzare analisi e consigli.
+              {t(language, 'settings.subtitle')}
             </p>
           </div>
           <div className="flex gap-2">
@@ -164,12 +168,12 @@ export default async function SettingsPage({
               className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
             >
               <ArrowLeft size={16} strokeWidth={1.8} />
-              Dashboard
+              {t(language, 'nav.dashboard')}
             </Link>
             <form action="/api/logout" method="post">
               <button className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text">
                 <LogOut size={16} strokeWidth={1.8} />
-                Logout
+                {t(language, 'nav.logout')}
               </button>
             </form>
           </div>
@@ -178,16 +182,41 @@ export default async function SettingsPage({
         {/* Form */}
         <form action={updateSettings} className="space-y-8">
           {isAdmin && stravaStatus ? (
-            <StravaConnectionBox status={stravaStatus} initialMessage={stravaMessage} />
+            <StravaConnectionBox status={stravaStatus} initialMessage={stravaMessage} language={language} />
           ) : null}
+
+          <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
+            <h2 className="text-2xl font-bold mb-2">{t(language, 'settings.language')}</h2>
+            <p className="mb-5 text-sm text-app-muted">{t(language, 'settings.languageHelp')}</p>
+            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-black/20 p-1.5">
+              {[
+                { value: 'it', label: 'Italiano' },
+                { value: 'en', label: 'English' },
+              ].map((option) => (
+                <label
+                  key={option.value}
+                  className="relative flex cursor-pointer items-center justify-center rounded-xl border border-transparent px-4 py-3 text-sm font-semibold text-app-text has-[:checked]:border-[rgba(215,255,63,0.28)] has-[:checked]:bg-[rgba(215,255,63,0.12)]"
+                >
+                  <input
+                    type="radio"
+                    name="language"
+                    value={option.value}
+                    defaultChecked={language === option.value}
+                    className="sr-only"
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          </div>
 
           {/* Dati fisici */}
           <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-            <h2 className="text-2xl font-bold mb-6">Dati Fisici</h2>
+            <h2 className="text-2xl font-bold mb-6">{t(language, 'settings.physical')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Peso (kg)
+                  {t(language, 'settings.weight')}
                 </label>
                 <input
                   type="number"
@@ -202,7 +231,7 @@ export default async function SettingsPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Altezza (cm)
+                  {t(language, 'settings.height')}
                 </label>
                 <input
                   type="number"
@@ -216,7 +245,7 @@ export default async function SettingsPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Età
+                  {t(language, 'settings.age')}
                 </label>
                 <input
                   type="number"
@@ -233,11 +262,11 @@ export default async function SettingsPage({
 
           {/* Obiettivi */}
           <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-            <h2 className="text-2xl font-bold mb-6">Obiettivi</h2>
+            <h2 className="text-2xl font-bold mb-6">{t(language, 'settings.goals')}</h2>
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Obiettivo Principale
+                  {t(language, 'settings.mainGoal')}
                 </label>
                 <input
                   type="text"
@@ -249,7 +278,7 @@ export default async function SettingsPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Obiettivo Secondario
+                  {t(language, 'settings.secondaryGoal')}
                 </label>
                 <input
                   type="text"
@@ -264,11 +293,11 @@ export default async function SettingsPage({
 
           {/* Allenamento */}
           <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-            <h2 className="text-2xl font-bold mb-6">Allenamento</h2>
+            <h2 className="text-2xl font-bold mb-6">{t(language, 'settings.training')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Uscite target/settimana
+                  {t(language, 'settings.targetRuns')}
                 </label>
                 <input
                   type="number"
@@ -282,7 +311,7 @@ export default async function SettingsPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Volume target settimanale (km)
+                  {t(language, 'settings.weeklyVolume')}
                 </label>
                 <input
                   type="number"
@@ -297,7 +326,7 @@ export default async function SettingsPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Pace target (min/km)
+                  {t(language, 'settings.targetPace')}
                 </label>
                 <input
                   type="text"
@@ -309,7 +338,7 @@ export default async function SettingsPage({
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  FC target (bpm)
+                  {t(language, 'settings.targetHr')}
                 </label>
                 <input
                   type="text"
@@ -323,7 +352,7 @@ export default async function SettingsPage({
 
             <div className="mt-6">
               <label className="block text-sm font-medium text-neutral-300 mb-3">
-                Giorni disponibili
+                {t(language, 'settings.availableDays')}
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {DAYS_OPTIONS.map((day) => (
@@ -344,18 +373,18 @@ export default async function SettingsPage({
 
           {/* Altro */}
           <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
-            <h2 className="text-2xl font-bold mb-6">Altro</h2>
+            <h2 className="text-2xl font-bold mb-6">{t(language, 'settings.other')}</h2>
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Esperienza
+                  {t(language, 'settings.experience')}
                 </label>
                 <select
                   name="experience_level"
                   defaultValue={settings?.experience_level || ''}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Seleziona livello</option>
+                  <option value="">{t(language, 'settings.selectLevel')}</option>
                   {EXPERIENCE_LEVELS.map((level) => (
                     <option key={level} value={level}>{level}</option>
                   ))}
@@ -364,7 +393,7 @@ export default async function SettingsPage({
 
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Infortuni / Note fisiche
+                  {t(language, 'settings.injuries')}
                 </label>
                 <textarea
                   name="injuries"
@@ -377,7 +406,7 @@ export default async function SettingsPage({
 
               <div>
                 <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  Sommario profilo
+                  {t(language, 'settings.profileSummary')}
                 </label>
                 <textarea
                   name="profile_summary"
@@ -396,14 +425,14 @@ export default async function SettingsPage({
                   className="w-5 h-5 text-blue-600 bg-neutral-800 border-neutral-700 rounded focus:ring-blue-500 focus:ring-2"
                 />
                 <label className="text-white font-medium">
-                  Evita sovrallenamento e burnout
+                  {t(language, 'settings.avoidOverload')}
                 </label>
               </div>
             </div>
           </div>
 
           {/* Submit */}
-          <SettingsSubmit status={saveStatus} />
+          <SettingsSubmit status={saveStatus} language={language} />
         </form>
       </div>
     </div>

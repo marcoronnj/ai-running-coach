@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { AlertCircle, CheckCircle2, LoaderCircle, Save } from 'lucide-react';
+import { normalizeLanguage, type Language } from '@/lib/i18n';
 
 type SaveStatus = 'success' | 'error' | null;
 
-export default function SettingsSubmit({ status }: { status: SaveStatus }) {
+export default function SettingsSubmit({ status, language = 'it' }: { status: SaveStatus; language?: Language }) {
+  const currentLanguage = normalizeLanguage(language);
   const { pending } = useFormStatus();
   const [visibleStatus, setVisibleStatus] = useState<SaveStatus>(status);
 
@@ -47,8 +49,8 @@ export default function SettingsSubmit({ status }: { status: SaveStatus }) {
           )}
           <span>
             {visibleStatus === 'success'
-              ? 'Impostazioni aggiornate con successo'
-              : 'Errore durante il salvataggio. Riprova.'}
+              ? (currentLanguage === 'en' ? 'Settings updated successfully' : 'Impostazioni aggiornate con successo')
+              : (currentLanguage === 'en' ? 'Error while saving. Try again.' : 'Errore durante il salvataggio. Riprova.')}
           </span>
         </div>
       ) : null}
@@ -64,7 +66,9 @@ export default function SettingsSubmit({ status }: { status: SaveStatus }) {
           ) : (
             <Save size={17} strokeWidth={2} />
           )}
-          {pending ? 'Salvando...' : 'Salva impostazioni'}
+          {pending
+            ? (currentLanguage === 'en' ? 'Saving...' : 'Salvando...')
+            : (currentLanguage === 'en' ? 'Save settings' : 'Salva impostazioni')}
         </button>
       </div>
     </div>

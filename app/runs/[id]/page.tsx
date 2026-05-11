@@ -27,6 +27,8 @@ import {
 import { query, queryOne } from '@/lib/db';
 import { buildRunJudgement } from '@/lib/run-analysis';
 import { formatDateIT, formatTimeIT } from '@/lib/date-utils';
+import { getCurrentLanguage } from '@/lib/athlete-settings';
+import { t, type Language } from '@/lib/i18n';
 import { Card, IconBox, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -206,6 +208,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     if (!run) {
       return <ErrorState requestedId={id} />;
     }
+    const language = await getCurrentLanguage();
 
     const rawJson = run.raw_json && typeof run.raw_json === 'string'
       ? JSON.parse(run.raw_json)
@@ -252,7 +255,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           {/* Header con navigazione */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="eyebrow mb-1">Analisi corsa</p>
+              <p className="eyebrow mb-1">{t(language, 'run.analysisEyebrow')}</p>
               <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{run.name}</h1>
               <p className="mt-1 text-sm text-app-muted">
                 {formatDateIT(run.start_date)} • {formatTimeIT(run.start_date)}
@@ -265,7 +268,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                 className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
               >
                 <ArrowLeft size={16} strokeWidth={1.8} />
-                Dashboard
+                {t(language, 'nav.dashboard')}
               </Link>
               
               {run.strava_id && (
@@ -294,10 +297,10 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                 maxSpeed={maxSpeed}
                 elapsedTime={elapsedTime}
               />
-              <SessionJudgementSection judgement={judgement} />
+              <SessionJudgementSection judgement={judgement} language={language} />
               {hasReport && <CoachAnalysisSection run={run} />}
               {hasReport && next48h && (
-                <Next48hSection next48h={next48h} suggestedFocus={run.suggested_focus} />
+                <Next48hSection next48h={next48h} suggestedFocus={run.suggested_focus} language={language} />
               )}
               {hasReport && (
                 <ScoresSection
@@ -314,7 +317,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             <div className="space-y-5">
-              <HistoricalReportNotice runDate={run.start_date} />
+              <HistoricalReportNotice runDate={run.start_date} language={language} />
               <StravaLinkCard stravaId={run.strava_id} />
             </div>
           </div>
@@ -486,27 +489,27 @@ function RunExtraMetricsSection({
   );
 }
 
-function SessionJudgementSection({ judgement }: { judgement: { label: string; summary: string; effort: string; recoveryHint: string; formImpact: string } }) {
+function SessionJudgementSection({ judgement, language }: { judgement: { label: string; summary: string; effort: string; recoveryHint: string; formImpact: string }; language: Language }) {
   return (
     <Card>
-      <SectionHeader eyebrow="session" title="Giudizio sulla seduta" icon={CheckCircle2} />
+      <SectionHeader eyebrow="session" title={t(language, 'run.sessionJudgement')} icon={CheckCircle2} />
       <div className="space-y-3">
         <div className="metric-card p-3.5">
-          <p className="eyebrow mb-2">Sintesi</p>
+          <p className="eyebrow mb-2">{t(language, 'run.summary')}</p>
           <p className="text-sm leading-relaxed text-neutral-200">{judgement.summary}</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="metric-card p-3.5">
-            <p className="eyebrow mb-2">Sforzo</p>
+            <p className="eyebrow mb-2">{t(language, 'run.effort')}</p>
             <p className="font-semibold text-app-text">{judgement.effort}</p>
           </div>
           <div className="metric-card p-3.5">
-            <p className="eyebrow mb-2">Post-corsa</p>
+            <p className="eyebrow mb-2">{t(language, 'run.postRun')}</p>
             <p className="font-semibold text-app-text">{judgement.recoveryHint}</p>
           </div>
           <div className="metric-card p-3.5">
-            <p className="eyebrow mb-2">Impatto forma</p>
+            <p className="eyebrow mb-2">{t(language, 'run.formImpact')}</p>
             <p className="font-semibold text-app-text">{judgement.formImpact}</p>
           </div>
         </div>
@@ -515,20 +518,20 @@ function SessionJudgementSection({ judgement }: { judgement: { label: string; su
   );
 }
 
-function HistoricalReportNotice({ runDate }: { runDate: string }) {
+function HistoricalReportNotice({ runDate, language }: { runDate: string; language: Language }) {
   return (
     <Card>
-      <SectionHeader eyebrow="storico" title="Report della seduta" icon={Info} />
+      <SectionHeader eyebrow="historical" title={t(language, 'run.historicalReport')} icon={Info} />
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-neutral-200">
-          Questa pagina è una fotografia della corsa del {formatDateIT(runDate)}. Le indicazioni qui sotto sono quelle generate dopo quella seduta e non rappresentano necessariamente il coach live di oggi.
+          {t(language, 'run.historicalNotice')} {formatDateIT(runDate)}.
         </p>
         <Link
           href="/"
           className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-app-text"
         >
           <Gauge size={16} strokeWidth={1.8} />
-          Vedi coach live
+          {t(language, 'run.viewLiveCoach')}
         </Link>
       </div>
     </Card>
@@ -639,21 +642,21 @@ function CoachAnalysisSection({ run }: { run: RunDetailData }) {
   );
 }
 
-function Next48hSection({ next48h, suggestedFocus }: { next48h: string; suggestedFocus?: string }) {
+function Next48hSection({ next48h, suggestedFocus, language }: { next48h: string; suggestedFocus?: string; language: Language }) {
   return (
     <Card className="border-[rgba(54,252,225,0.22)] bg-[linear-gradient(135deg,rgba(54,252,225,0.09),rgba(17,17,17,0.94))]">
       <div className="flex items-start gap-4">
         <IconBox icon={Clock} tone="cyan" />
         <div className="flex-1">
-          <p className="eyebrow mb-1">report storico</p>
-          <h3 className="mb-2 text-lg font-semibold text-app-text">Indicazioni post-corsa</h3>
+          <p className="eyebrow mb-1">historical report</p>
+          <h3 className="mb-2 text-lg font-semibold text-app-text">{t(language, 'run.postRunGuidance')}</h3>
           <p className="mb-3 text-xs leading-relaxed text-app-muted">
-            Consigli generati dopo questa seduta: usali come contesto storico, non come prescrizione live di oggi.
+            {t(language, 'run.postRunGuidanceHelp')}
           </p>
           <p className="mb-4 text-sm leading-relaxed text-neutral-200">{next48h}</p>
           {suggestedFocus && (
             <div className="mt-4 border-t border-[rgba(54,252,225,0.18)] pt-4">
-              <p className="eyebrow mb-1 text-accent-secondary">Focus generato allora</p>
+              <p className="eyebrow mb-1 text-accent-secondary">{t(language, 'run.generatedThen')}</p>
               <p className="font-medium text-app-text">{suggestedFocus}</p>
             </div>
           )}

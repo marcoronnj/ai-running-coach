@@ -3,8 +3,9 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock, LogIn, Mail, AlertCircle, LoaderCircle } from 'lucide-react';
+import { t, type Language } from '@/lib/i18n';
 
-export default function LoginForm({ nextPath }: { nextPath: string }) {
+export default function LoginForm({ nextPath, language }: { nextPath: string; language: Language }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,14 +30,14 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
       const data = (await response.json()) as { ok?: boolean; message?: string };
 
       if (!response.ok || !data.ok) {
-        setError('Credenziali non valide');
+        setError(t(language, 'login.invalidCredentials'));
         return;
       }
 
       router.replace(nextPath || '/');
       router.refresh();
     } catch {
-      setError('Credenziali non valide');
+      setError(t(language, 'login.invalidCredentials'));
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
       ) : null}
 
       <label className="block">
-        <span className="eyebrow mb-2 block">Email</span>
+        <span className="eyebrow mb-2 block">{t(language, 'common.email')}</span>
         <span className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-app-text focus-within:border-[rgba(54,252,225,0.36)]">
           <Mail size={17} strokeWidth={1.8} className="text-app-muted" />
           <input
@@ -68,7 +69,7 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
       </label>
 
       <label className="block">
-        <span className="eyebrow mb-2 block">Password</span>
+        <span className="eyebrow mb-2 block">{t(language, 'common.password')}</span>
         <span className="flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-app-text focus-within:border-[rgba(54,252,225,0.36)]">
           <Lock size={17} strokeWidth={1.8} className="text-app-muted" />
           <input
@@ -93,7 +94,7 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
         ) : (
           <LogIn size={17} strokeWidth={2} />
         )}
-        {loading ? 'Accesso...' : 'Login'}
+        {loading ? t(language, 'login.signingIn') : t(language, 'common.login')}
       </button>
     </form>
   );

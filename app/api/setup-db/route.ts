@@ -149,9 +149,15 @@ const SQL_STATEMENTS = [
       target_hr TEXT,
       injuries TEXT,
       experience_level TEXT,
+      language TEXT DEFAULT 'it',
       avoid_overload BOOLEAN DEFAULT true,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+  `,
+
+  `
+    ALTER TABLE athlete_settings
+    ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'it';
   `,
 ];
 
@@ -222,8 +228,8 @@ export async function GET(request: NextRequest) {
     // Inserisci impostazioni atleta default se non esistono
     try {
       await query(`
-        INSERT INTO athlete_settings (id, profile_summary, main_goal, secondary_goal, target_runs_per_week, avoid_overload, experience_level)
-        VALUES ('default', 'ex runner forte, ora discontinuo', 'dimagrire', 'tornare competitivo', 3, true, 'ex runner forte, ora in ripresa')
+        INSERT INTO athlete_settings (id, profile_summary, main_goal, secondary_goal, target_runs_per_week, avoid_overload, experience_level, language)
+        VALUES ('default', 'ex runner forte, ora discontinuo', 'dimagrire', 'tornare competitivo', 3, true, 'ex runner forte, ora in ripresa', 'it')
         ON CONFLICT (id) DO NOTHING
       `);
       console.log('[SETUP] ✓ Impostazioni atleta default inserite');

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unlink, AlertCircle } from 'lucide-react';
 import { Card, SectionHeader } from '@/app/components/ui';
 import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
+import { normalizeLanguage, type Language } from '@/lib/i18n';
 
 type ActionState = 'idle' | 'syncing' | 'disconnecting';
 type Message = { type: 'success' | 'error'; text: string } | null;
@@ -12,10 +13,13 @@ type Message = { type: 'success' | 'error'; text: string } | null;
 export default function StravaConnectionBox({
   status,
   initialMessage,
+  language = 'it',
 }: {
   status: PublicStravaConnectionStatus;
   initialMessage?: Message;
+  language?: Language;
 }) {
+  const currentLanguage = normalizeLanguage(language);
   const router = useRouter();
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [message, setMessage] = useState<Message>(initialMessage ?? null);
@@ -34,24 +38,24 @@ export default function StravaConnectionBox({
       const data = (await response.json()) as { ok?: boolean; message?: string; newActivities?: number };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Sync Strava non riuscita');
+        throw new Error(data.message || (currentLanguage === 'en' ? 'Strava sync failed' : 'Sync Strava non riuscita'));
       }
 
       const newActivities = data.newActivities ?? 0;
       setMessage({
         type: 'success',
         text: newActivities === 1
-          ? '1 nuova corsa sincronizzata'
+          ? (currentLanguage === 'en' ? '1 new run synced' : '1 nuova corsa sincronizzata')
           : newActivities > 1
-            ? `${newActivities} nuove corse sincronizzate`
-            : 'Nessuna nuova corsa',
+            ? (currentLanguage === 'en' ? `${newActivities} new runs synced` : `${newActivities} nuove corse sincronizzate`)
+            : (currentLanguage === 'en' ? 'No new runs' : 'Nessuna nuova corsa'),
       });
       router.refresh();
       window.setTimeout(() => router.refresh(), 500);
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Errore durante la sync Strava',
+        text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error during Strava sync' : 'Errore durante la sync Strava'),
       });
     } finally {
       setActionState('idle');
@@ -72,15 +76,15 @@ export default function StravaConnectionBox({
       const data = (await response.json()) as { ok?: boolean; message?: string };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || 'Disconnessione non riuscita');
+        throw new Error(data.message || (currentLanguage === 'en' ? 'Disconnect failed' : 'Disconnessione non riuscita'));
       }
 
-      setMessage({ type: 'success', text: 'Strava disconnesso' });
+      setMessage({ type: 'success', text: currentLanguage === 'en' ? 'Strava disconnected' : 'Strava disconnesso' });
       router.refresh();
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : 'Errore durante la disconnessione',
+        text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error while disconnecting' : 'Errore durante la disconnessione'),
       });
     } finally {
       setActionState('idle');
@@ -101,12 +105,16 @@ export default function StravaConnectionBox({
               strokeWidth={1.8}
               className={status.connected ? 'text-[var(--success)]' : 'text-app-muted'}
             />
-            {status.connected ? 'Collegato' : 'Non collegato'}
+            {status.connected
+              ? (currentLanguage === 'en' ? 'Connected' : 'Collegato')
+              : (currentLanguage === 'en' ? 'Not connected' : 'Non collegato')}
           </div>
           <p className="mt-1 text-xs text-app-muted">
             {status.connected
               ? `Athlete ID ${status.stravaAthleteId} • scope ${status.scope}`
-              : 'Collega il tuo account Strava personale per usare OAuth e refresh automatico token.'}
+              : (currentLanguage === 'en'
+                ? 'Connect your personal Strava account to use OAuth and automatic token refresh.'
+                : 'Collega il tuo account Strava personale per usare OAuth e refresh automatico token.')}
           </p>
         </div>
       </div>
@@ -134,7 +142,7 @@ export default function StravaConnectionBox({
           className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
         >
           <ExternalLink size={16} strokeWidth={1.8} />
-          Collega Strava
+          {currentLanguage === 'en' ? 'Connect Strava' : 'Collega Strava'}
         </a>
         <button
           type="button"
@@ -147,7 +155,9 @@ export default function StravaConnectionBox({
           ) : (
             <RefreshCw size={16} strokeWidth={1.8} />
           )}
-          {actionState === 'syncing' ? 'Sincronizzo...' : 'Sincronizza corse'}
+          {actionState === 'syncing'
+            ? (currentLanguage === 'en' ? 'Syncing...' : 'Sincronizzo...')
+            : (currentLanguage === 'en' ? 'Sync runs' : 'Sincronizza corse')}
         </button>
         <button
           type="button"
@@ -160,7 +170,7 @@ export default function StravaConnectionBox({
           ) : (
             <Unlink size={16} strokeWidth={1.8} />
           )}
-          Disconnetti
+          {currentLanguage === 'en' ? 'Disconnect' : 'Disconnetti'}
         </button>
       </div>
     </Card>

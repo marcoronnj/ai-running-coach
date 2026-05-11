@@ -2,6 +2,7 @@ import { AthleteSettings } from './athlete-settings';
 import { CoachingMetrics } from './coaching-metrics';
 import { CoachingRules } from './coaching-rules';
 import { formatDateIT } from './date-utils';
+import { normalizeLanguage, outputLanguageName, type Language } from './i18n';
 import {
   getDailyOpenAIModel,
   getOpenAIClient,
@@ -77,8 +78,10 @@ export function buildCoachPrompt(
   history: DBActivity[],
   athleteSettings?: AthleteSettings | null,
   metrics?: CoachingMetrics | null,
-  rules?: CoachingRules | null
+  rules?: CoachingRules | null,
+  language: Language = normalizeLanguage(athleteSettings?.language)
 ): string {
+  const outputLanguage = outputLanguageName(language);
   const formatActivity = (activity: DBActivity, isNewRun = false) => {
     const prefix = isNewRun ? 'NUOVA CORSA (da analizzare):' : 'STORICO:';
     const date = formatDateIT(activity.start_date);
@@ -193,6 +196,10 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- Allenamenti blo
 
   const prompt = `# AI RUNNING COACH - ANALISI CORSA
 
+Output language: ${outputLanguage}
+All user-facing JSON text fields MUST be written in ${outputLanguage}: title, summary, suggested_focus, next_48h, weekly_plan names/descriptions/reasons, coach_notes and full_report.
+Keep enum/code values unchanged: risk_level must remain "basso | medio | alto"; intensity must remain "recovery | easy | medium | quality".
+
 ## PROFILO ATLETA
 ${athleteProfile}${metricsSection}${rulesSection}
 
@@ -248,7 +255,7 @@ Genera un report JSON con questa struttura ESATTA:
 - Rispondi SOLO con JSON valido, niente testo aggiuntivo
 - Adatta il piano settimanale al livello attuale dell'atleta
 - Rispetta le metriche e regole fornite
-- Usa italiano professionale
+- Usa ${outputLanguage === 'English' ? 'professional English' : 'italiano professionale'}
 - Per next_48h: specifica chiaramente cosa fare OGGI e DOMANI, non essere vago`;
 
   return prompt;
@@ -404,9 +411,10 @@ export async function generateCompleteCoachReport(
   history: DBActivity[],
   athleteSettings?: AthleteSettings | null,
   metrics?: CoachingMetrics | null,
-  rules?: CoachingRules | null
+  rules?: CoachingRules | null,
+  language: Language = normalizeLanguage(athleteSettings?.language)
 ): Promise<CoachReport> {
-  const prompt = buildCoachPrompt(newRun, history, athleteSettings || undefined, metrics || undefined, rules || undefined);
+  const prompt = buildCoachPrompt(newRun, history, athleteSettings || undefined, metrics || undefined, rules || undefined, language);
   return await generateCoachReport(prompt);
 }
 

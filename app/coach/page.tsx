@@ -23,6 +23,7 @@ import { formatDateIT } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone } from '@/app/components/ui';
+import { normalizeLanguage, t, type Language } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -329,7 +330,7 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
 /**
  * Componente Coach Decision Card - Nuova card principale del coach
  */
-function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
+function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; language: Language }) {
   return (
     <Card>
       <div className="mb-5 flex items-start gap-3">
@@ -337,12 +338,12 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
         <div className="flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold tracking-tight text-app-text">
-              Coach live
+              {t(language, 'dashboard.coachLive')}
             </h2>
             <Badge tone="cyan">{state.recoveryStatus}</Badge>
           </div>
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-accent-secondary">
-            Stato attuale dell'atleta
+            {t(language, 'dashboard.currentState')}
           </p>
           <p className="text-sm leading-relaxed text-neutral-300">
             {state.explanation}
@@ -352,14 +353,14 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="metric-card p-3.5">
-          <div className="eyebrow mb-1">Oggi</div>
+          <div className="eyebrow mb-1">{t(language, 'dashboard.today')}</div>
           <p className="text-sm text-app-text">
             {state.todayAction}
           </p>
         </div>
 
         <div className="metric-card p-3.5">
-          <div className="eyebrow mb-1">Domani</div>
+          <div className="eyebrow mb-1">{t(language, 'dashboard.tomorrow')}</div>
           <p className="text-sm text-app-text">
             {state.tomorrowAction}
           </p>
@@ -368,7 +369,7 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
 
       <div className="metric-card mb-4 p-3.5">
         <div className="eyebrow mb-1">
-          Dopodomani / Prossima corsa
+          {t(language, 'dashboard.nextRun')}
         </div>
         <p className="text-sm text-app-text">
           {state.nextAction}
@@ -400,6 +401,7 @@ export default async function CoachPage() {
   try {
     // Ottieni impostazioni atleta
     const athleteSettings = await getAthleteSettings();
+    const language = normalizeLanguage(athleteSettings?.language);
 
     // Ottieni storico ultime 90 giorni per metriche
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -462,6 +464,7 @@ export default async function CoachPage() {
       recentRuns: activitiesQuery.rows,
       metrics,
       rules,
+      language,
     });
 
     return (
@@ -469,9 +472,9 @@ export default async function CoachPage() {
           {/* Header */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="eyebrow mb-1">coach hub</p>
+              <p className="eyebrow mb-1">{t(language, 'coach.eyebrow')}</p>
               <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">AI Running Coach</h1>
-              <p className="mt-1 text-sm text-app-muted">Analisi compatta del tuo stato di forma</p>
+              <p className="mt-1 text-sm text-app-muted">{t(language, 'coach.subtitle')}</p>
               {latestRun ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
                   <span className="text-app-muted">Ultima corsa: {formatDateIT(latestRun.start_date)}</span>
@@ -485,9 +488,9 @@ export default async function CoachPage() {
                 className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
               >
                 <ArrowLeft size={16} strokeWidth={1.8} />
-                Dashboard
+                {t(language, 'nav.dashboard')}
               </Link>
-              <ManualSyncButton />
+              <ManualSyncButton language={language} />
             </div>
           </div>
 
@@ -501,7 +504,7 @@ export default async function CoachPage() {
 
             {/* Colonna destra - Trend e report */}
             <div className="space-y-5 lg:col-span-2">
-              <CoachDecisionCard state={dynamicAthleteState} />
+              <CoachDecisionCard state={dynamicAthleteState} language={language} />
               <WeeklyTrendCard trend={weeklyTrend} />
               <LatestReportCard report={latestReport} run={latestRun} />
             </div>

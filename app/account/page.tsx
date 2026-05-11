@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { Activity, ArrowLeft, Brain, CheckCircle2, LogOut, Settings, Timer, UserCircle } from 'lucide-react';
 import { requireAuth } from '@/lib/auth';
+import { getCurrentLanguage } from '@/lib/athlete-settings';
 import { queryOne } from '@/lib/db';
 import { getPublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { formatDateTimeIT } from '@/lib/date-utils';
+import { t } from '@/lib/i18n';
 import { Card, MetricTile, PageShell, SectionHeader } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -55,6 +57,7 @@ function formatDate(value?: string): string {
 
 export default async function AccountPage() {
   const session = await requireAuth();
+  const language = await getCurrentLanguage();
   const stats = await getAccountStats();
   const stravaStatus = await getPublicStravaConnectionStatus(session.email);
 
@@ -63,9 +66,9 @@ export default async function AccountPage() {
       <div className="mx-auto max-w-5xl space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="eyebrow mb-1">ACCOUNT</p>
-            <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">Profilo app</h1>
-            <p className="mt-1 text-sm text-app-muted">Sessione privata e stato della tua app atleta.</p>
+            <p className="eyebrow mb-1">{t(language, 'account.eyebrow')}</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{t(language, 'account.title')}</h1>
+            <p className="mt-1 text-sm text-app-muted">{t(language, 'account.subtitle')}</p>
           </div>
           <div className="flex gap-2">
             <Link
@@ -73,19 +76,19 @@ export default async function AccountPage() {
               className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
             >
               <ArrowLeft size={16} strokeWidth={1.8} />
-              Dashboard
+              {t(language, 'nav.dashboard')}
             </Link>
             <form action="/api/logout" method="post">
               <button className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text">
                 <LogOut size={16} strokeWidth={1.8} />
-                Logout
+                {t(language, 'nav.logout')}
               </button>
             </form>
           </div>
         </div>
 
         <Card>
-          <SectionHeader eyebrow="private access" title="Account corrente" icon={UserCircle} />
+          <SectionHeader eyebrow="private access" title={t(language, 'account.currentAccount')} icon={UserCircle} />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricTile label="Email" value={session.email} icon={UserCircle} tone="cyan" />
             <MetricTile
@@ -95,8 +98,8 @@ export default async function AccountPage() {
               icon={CheckCircle2}
               tone={stravaStatus.connected ? 'success' : 'warning'}
             />
-            <MetricTile label="Ultima sync" value={formatDate(stats.latestSyncAt)} detail={stats.latestSyncStatus ?? 'N/D'} icon={Timer} />
-            <MetricTile label="Corse importate" value={stats.runsCount} detail={`Ultima: ${formatDate(stats.latestRunAt)}`} icon={Activity} tone="lime" />
+            <MetricTile label={t(language, 'account.lastSync')} value={formatDate(stats.latestSyncAt)} detail={stats.latestSyncStatus ?? 'N/D'} icon={Timer} />
+            <MetricTile label={t(language, 'account.importedRuns')} value={stats.runsCount} detail={`${language === 'en' ? 'Latest' : 'Ultima'}: ${formatDate(stats.latestRunAt)}`} icon={Activity} tone="lime" />
           </div>
         </Card>
 

@@ -1,4 +1,5 @@
 import { daysSinceInRome, isSameDayInRome } from './date-utils';
+import { normalizeLanguage, type Language } from './i18n';
 
 type OverloadRisk = 'basso' | 'medio' | 'alto' | 'dati insufficienti';
 
@@ -43,22 +44,37 @@ function formatKm(meters: unknown): string {
   return `${(value / 1000).toFixed(1)} km`;
 }
 
-function readinessLabel(score: number | null): string {
+function readinessLabel(score: number | null, language: Language): string {
   if (score === null) return 'dati insufficienti';
+  if (language === 'en') {
+    if (score >= 75) return 'good';
+    if (score >= 50) return 'moderate';
+    return 'low';
+  }
   if (score >= 75) return 'buona';
   if (score >= 50) return 'moderata';
   return 'bassa';
 }
 
-function fatigueLabel(score: number | null): string {
-  if (score === null) return 'dati insufficienti';
+function fatigueLabel(score: number | null, language: Language): string {
+  if (score === null) return language === 'en' ? 'insufficient data' : 'dati insufficienti';
+  if (language === 'en') {
+    if (score >= 60) return 'high';
+    if (score >= 35) return 'medium';
+    return 'low';
+  }
   if (score >= 60) return 'alta';
   if (score >= 35) return 'media';
   return 'bassa';
 }
 
-function consistencyLabel(score: number | null): string {
-  if (score === null) return 'dati insufficienti';
+function consistencyLabel(score: number | null, language: Language): string {
+  if (score === null) return language === 'en' ? 'insufficient data' : 'dati insufficienti';
+  if (language === 'en') {
+    if (score >= 70) return 'solid';
+    if (score >= 40) return 'good';
+    return 'building';
+  }
   if (score >= 70) return 'solida';
   if (score >= 40) return 'buona';
   return 'in costruzione';
@@ -232,6 +248,7 @@ function buildActions({
   fatigueScore,
   overloadRisk,
   rules,
+  language,
 }: {
   daysSinceLatestRun: number | null;
   hasRunToday: boolean;
@@ -241,6 +258,7 @@ function buildActions({
   fatigueScore: number | null;
   overloadRisk: OverloadRisk;
   rules: any;
+  language: Language;
 }) {
   const distance = formatKm(latestRun?.distance_m);
   const persistedFocus = focus.endsWith('.') ? focus : `${focus}.`;
@@ -251,6 +269,18 @@ function buildActions({
     rules?.allowedIntensity === 'recovery';
 
   if (hasRunToday) {
+    if (language === 'en') {
+      return {
+        todayAction: `Run completed: ${distance}. Now only light recovery, mobility or an easy walk.`,
+        tomorrowAction: 'Recovery or full rest. Avoid quality work.',
+        nextAction: 'Day after tomorrow: 30-40 minutes very easy recovery, low HR/Z2, only if your legs feel fresh.',
+        timeline: [
+          { label: 'Today', title: `Run completed: ${distance}`, description: 'Only light recovery, mobility or an easy walk now.', completed: true },
+          { label: 'Tomorrow', title: 'Recovery or full rest', description: 'Avoid quality and let residual fatigue come down.' },
+          { label: 'Day after tomorrow', title: 'Optional recovery run', description: '30-40 minutes very easy, low HR/Z2, no progressions.' },
+        ],
+      };
+    }
     return {
       todayAction: `Corsa completata: ${distance}. Ora solo recupero leggero, mobilità o camminata facile.`,
       tomorrowAction: 'Recupero o riposo completo. Evita qualità.',
@@ -285,6 +315,27 @@ function buildActions({
           ? `readiness bassa (${readinessScore}/100)`
           : 'intensità limitata a recovery';
 
+    if (language === 'en') {
+      const enReason = overloadRisk === 'alto'
+        ? 'high overload risk'
+        : fatigueScore !== null && fatigueScore >= 60
+          ? `high fatigue (${fatigueScore}/100)`
+          : readinessScore !== null && readinessScore < 40
+            ? `low readiness (${readinessScore}/100)`
+            : 'intensity limited to recovery';
+
+      return {
+        todayAction: `Recovery today: rest, 20-30 minutes easy walking, or mobility. Reason: ${enReason}.`,
+        tomorrowAction: 'If fatigue drops: 25-35 minutes very easy recovery in low Z1/Z2. Otherwise rest.',
+        nextAction: 'Day after tomorrow, restart with a 30-40 minute easy run only if legs and sleep are good.',
+        timeline: [
+          { label: 'Today', title: 'Recovery needed', description: `Rest or easy walking. ${enReason}.` },
+          { label: 'Tomorrow', title: 'Optional recovery', description: '25-35 minutes very easy, low HR, no quality.' },
+          { label: 'Day after tomorrow', title: 'Cautious easy run', description: '30-40 minutes in low Z2 only if recovered.' },
+        ],
+      };
+    }
+
     return {
       todayAction: `Recupero oggi: riposo, camminata facile 20-30 minuti o mobilità. Motivo: ${reason}.`,
       tomorrowAction: 'Se la fatica scende: 25-35 minuti recovery molto facile in Z1/Z2 bassa. Altrimenti riposo.',
@@ -298,6 +349,18 @@ function buildActions({
   }
 
   if (daysSinceLatestRun === 1) {
+    if (language === 'en') {
+      return {
+        todayAction: 'Recovery today: rest, light mobility, or 20-30 minutes easy walking.',
+        tomorrowAction: `Easy run if legs feel fresh: ${persistedFocus}`,
+        nextAction: 'Day after tomorrow, consider a light progression only if recovery and legs are good.',
+        timeline: [
+          { label: 'Today', title: 'Recovery recommended', description: 'Rest, light mobility, or 20-30 minutes easy walking.' },
+          { label: 'Tomorrow', title: 'Easy run if fresh', description: persistedFocus },
+          { label: 'Day after tomorrow', title: 'Consider light progression', description: 'Only if you feel no residual fatigue.' },
+        ],
+      };
+    }
     return {
       todayAction: 'Recupero oggi: riposo, mobilità leggera o camminata facile 20-30 minuti.',
       tomorrowAction: `Easy run se le gambe sono fresche: ${persistedFocus}`,
@@ -311,6 +374,18 @@ function buildActions({
   }
 
   if (daysSinceLatestRun !== null && daysSinceLatestRun >= 2 && daysSinceLatestRun <= 3) {
+    if (language === 'en') {
+      return {
+        todayAction: `You can run easy/recovery if you feel fresh: ${persistedFocus}`,
+        tomorrowAction: 'Light recovery: mobility, easy walking, or rest.',
+        nextAction: 'Day after tomorrow, optional second easy run, no quality.',
+        timeline: [
+          { label: 'Today', title: 'Easy/recovery possible', description: persistedFocus },
+          { label: 'Tomorrow', title: 'Light recovery', description: 'Mobility, walking, or rest.' },
+          { label: 'Day after tomorrow', title: 'Optional second easy run', description: 'Keep intensity easy.' },
+        ],
+      };
+    }
     return {
       todayAction: `Puoi correre easy/recovery se ti senti fresco: ${persistedFocus}`,
       tomorrowAction: 'Recupero leggero: mobilità, camminata facile o riposo.',
@@ -324,6 +399,18 @@ function buildActions({
   }
 
   if (daysSinceLatestRun !== null && daysSinceLatestRun >= 4 && daysSinceLatestRun <= 6) {
+    if (language === 'en') {
+      return {
+        todayAction: `It is a good time to return with a controlled easy run: ${persistedFocus}`,
+        tomorrowAction: 'Recovery: easy walking, mobility, or rest.',
+        nextAction: 'Day after tomorrow, possible second easy run if the first one was light.',
+        timeline: [
+          { label: 'Today', title: 'Return with easy running', description: persistedFocus },
+          { label: 'Tomorrow', title: 'Recovery', description: 'Easy walking or mobility: absorb the return.' },
+          { label: 'Day after tomorrow', title: 'Second easy run possible', description: 'Easy and controlled only, low HR/Z2.' },
+        ],
+      };
+    }
     return {
       todayAction: `È consigliato tornare a correre con una easy run controllata: ${persistedFocus}`,
       tomorrowAction: 'Recupero: camminata facile, mobilità o riposo.',
@@ -337,6 +424,18 @@ function buildActions({
   }
 
   if (daysSinceLatestRun !== null && daysSinceLatestRun >= 7) {
+    if (language === 'en') {
+      return {
+        todayAction: `Restart easy: ${persistedFocus || '25-35 minutes easy, no quality, low HR/Z2.'}`,
+        tomorrowAction: 'Recovery or easy walking.',
+        nextAction: 'Day after tomorrow, consider a second short easy run, no quality.',
+        timeline: [
+          { label: 'Today', title: 'Easy restart', description: persistedFocus || '25-35 minutes easy, no quality, low HR/Z2.' },
+          { label: 'Tomorrow', title: 'Recovery', description: 'No quality after a long break.' },
+          { label: 'Day after tomorrow', title: 'Optional short easy run', description: 'Decide based on your legs.' },
+        ],
+      };
+    }
     return {
       todayAction: `Riparti facile: ${persistedFocus || '25-35 minuti easy senza qualità, FC bassa/Z2.'}`,
       tomorrowAction: 'Recupero o camminata facile.',
@@ -345,6 +444,19 @@ function buildActions({
         { label: 'Oggi', title: 'Ripartenza facile', description: persistedFocus || '25-35 minuti easy senza qualità, FC bassa/Z2.' },
         { label: 'Domani', title: 'Recupero', description: 'Niente qualità dopo una pausa lunga.' },
         { label: 'Dopodomani', title: 'Seconda easy breve opzionale', description: 'Decidi in base alle gambe.' },
+      ],
+    };
+  }
+
+  if (language === 'en') {
+    return {
+      todayAction: 'Insufficient run data: stay with active recovery or easy walking.',
+      tomorrowAction: 'Sync a run or keep activity light.',
+      nextAction: 'Next run should be easy when updated data is available.',
+      timeline: [
+        { label: 'Today', title: 'Active recovery', description: '20-30 minutes easy walking or light mobility.' },
+        { label: 'Tomorrow', title: 'Check data', description: 'Sync a new run if available.' },
+        { label: 'Day after tomorrow', title: 'Easy run', description: 'Restart without quality, low HR/Z2.' },
       ],
     };
   }
@@ -368,6 +480,7 @@ export function buildDynamicAthleteState({
   metrics,
   rules,
   today = new Date(),
+  language = 'it',
 }: {
   latestRun: any;
   latestReport: any | null;
@@ -375,7 +488,9 @@ export function buildDynamicAthleteState({
   metrics: any;
   rules: any;
   today?: Date;
+  language?: Language;
 }): DynamicAthleteState {
+  const currentLanguage = normalizeLanguage(language);
   const daysSinceLatestRun = latestRun?.start_date ? daysSinceInRome(latestRun.start_date, today) : null;
   const hasRunToday = latestRun?.start_date ? isSameDayInRome(latestRun.start_date, today) : false;
   const suggestedFocus = extractTechnicalFocus(latestReport, metrics);
@@ -392,43 +507,58 @@ export function buildDynamicAthleteState({
     fatigueScore,
     overloadRisk,
     rules,
+    language: currentLanguage,
   });
 
   const recoveryStatus = hasRunToday
-    ? 'post-corsa'
+    ? (currentLanguage === 'en' ? 'post-run' : 'post-corsa')
     : daysSinceLatestRun === null
-      ? 'dati insufficienti'
+      ? (currentLanguage === 'en' ? 'insufficient data' : 'dati insufficienti')
       : daysSinceLatestRun <= 1
-        ? 'recupero'
+        ? (currentLanguage === 'en' ? 'recovery' : 'recupero')
         : daysSinceLatestRun <= 3
-          ? 'pronto per facile'
-          : 'rientro controllato';
+          ? (currentLanguage === 'en' ? 'ready for easy' : 'pronto per facile')
+          : (currentLanguage === 'en' ? 'controlled return' : 'rientro controllato');
 
-  const explanationParts = [
-    daysSinceLatestRun === null
-      ? 'Non ci sono corse recenti sincronizzate.'
-      : hasRunToday
-        ? 'Hai già corso oggi, quindi il timing passa al recupero.'
-        : `Ultima corsa ${daysSinceLatestRun} giorni fa: il timing del coach evolve senza aspettare una nuova sync.`,
-    fatigueScore !== null
-      ? `La fatica dinamica è ${fatigueScore}/100 dopo decadimento dal valore del report o dalle metriche.`
-      : 'Fatica non disponibile: uso fallback prudente nelle azioni.',
-    `Indicazione pratica corrente: ${suggestedFocus}`,
-  ];
+  const explanationParts = currentLanguage === 'en'
+    ? [
+        daysSinceLatestRun === null
+          ? 'No recent synced runs.'
+          : hasRunToday
+            ? 'You already ran today, so timing shifts to recovery.'
+            : `Last run ${daysSinceLatestRun} days ago: coach timing evolves without waiting for a new sync.`,
+        fatigueScore !== null
+          ? `Dynamic fatigue is ${fatigueScore}/100 after decay from report value or metrics.`
+          : 'Fatigue unavailable: using conservative action fallback.',
+        `Current practical guidance: ${suggestedFocus}`,
+      ]
+    : [
+        daysSinceLatestRun === null
+          ? 'Non ci sono corse recenti sincronizzate.'
+          : hasRunToday
+            ? 'Hai già corso oggi, quindi il timing passa al recupero.'
+            : `Ultima corsa ${daysSinceLatestRun} giorni fa: il timing del coach evolve senza aspettare una nuova sync.`,
+        fatigueScore !== null
+          ? `La fatica dinamica è ${fatigueScore}/100 dopo decadimento dal valore del report o dalle metriche.`
+          : 'Fatica non disponibile: uso fallback prudente nelle azioni.',
+        `Indicazione pratica corrente: ${suggestedFocus}`,
+      ];
 
   if (rules?.allowedIntensity) {
-    explanationParts.push(`Intensità massima corrente: ${rules.allowedIntensity}.`);
+    explanationParts.push(currentLanguage === 'en'
+      ? `Current max intensity: ${rules.allowedIntensity}.`
+      : `Intensità massima corrente: ${rules.allowedIntensity}.`);
   }
 
   return {
     hasRunToday,
     daysSinceLatestRun,
     readinessScore,
-    readinessLabel: readinessLabel(readinessScore),
+    readinessLabel: readinessLabel(readinessScore, currentLanguage),
     fatigueScore,
-    fatigueLabel: fatigueLabel(fatigueScore),
+    fatigueLabel: fatigueLabel(fatigueScore, currentLanguage),
     consistencyScore,
-    consistencyLabel: consistencyLabel(consistencyScore),
+    consistencyLabel: consistencyLabel(consistencyScore, currentLanguage),
     overloadRisk,
     recoveryStatus,
     suggestedFocus,

@@ -1,4 +1,5 @@
 import { query } from './db';
+import { normalizeLanguage, type Language } from './i18n';
 
 export interface AthleteSettings {
   id: string;
@@ -16,6 +17,7 @@ export interface AthleteSettings {
   injuries?: string;
   experience_level?: string;
   avoid_overload?: boolean;
+  language?: Language;
   updated_at?: string;
 }
 
@@ -29,11 +31,17 @@ export async function getAthleteSettings(): Promise<AthleteSettings | null> {
       ['default']
     );
 
-    return result.rows[0] || null;
+    const settings = result.rows[0] || null;
+    return settings ? { ...settings, language: normalizeLanguage(settings.language) } : null;
   } catch (error) {
     console.error('[ATHLETE_SETTINGS] Errore recupero impostazioni:', error);
     throw error;
   }
+}
+
+export async function getCurrentLanguage(): Promise<Language> {
+  const settings = await getAthleteSettings();
+  return normalizeLanguage(settings?.language);
 }
 
 /**

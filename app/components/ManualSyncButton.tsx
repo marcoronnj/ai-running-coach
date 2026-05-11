@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Check, RefreshCw, XCircle } from 'lucide-react';
+import { normalizeLanguage, type Language } from '@/lib/i18n';
 
 type SyncState = 'idle' | 'loading' | 'success' | 'warning' | 'error';
 
@@ -20,32 +21,35 @@ interface ManualSyncResponse {
   duration?: string;
 }
 
-function buildStatusMessage(data?: ManualSyncResponse): string {
-  if (!data) return 'Errore durante la sincronizzazione';
+function buildStatusMessage(data: ManualSyncResponse | undefined, language: Language): string {
+  if (!data) return language === 'en' ? 'Sync error' : 'Errore durante la sincronizzazione';
 
   const newActivities = data.newActivities ?? 0;
   const reportsGenerated = data.reportsGenerated ?? 0;
 
   if (data.warning && newActivities > 0) {
     return newActivities === 1
-      ? 'Corsa sincronizzata, sto aggiornando il coach'
-      : `${newActivities} corse sincronizzate, sto aggiornando il coach`;
+      ? (language === 'en' ? 'New run synced' : 'Corsa sincronizzata, sto aggiornando il coach')
+      : (language === 'en' ? `${newActivities} runs synced` : `${newActivities} corse sincronizzate, sto aggiornando il coach`);
   }
 
   if (newActivities === 0 && reportsGenerated === 0) {
-    return 'Nessuna nuova corsa';
+    return language === 'en' ? 'No new runs' : 'Nessuna nuova corsa';
   }
 
   if (reportsGenerated > 0) {
-    return reportsGenerated === 1 ? 'Report generato' : `${reportsGenerated} report generati`;
+    return reportsGenerated === 1
+      ? (language === 'en' ? 'Report generated' : 'Report generato')
+      : (language === 'en' ? `${reportsGenerated} reports generated` : `${reportsGenerated} report generati`);
   }
 
   return newActivities === 1
-    ? '1 nuova corsa sincronizzata'
-    : `${newActivities} nuove corse sincronizzate`;
+    ? (language === 'en' ? 'New run synced' : '1 nuova corsa sincronizzata')
+    : (language === 'en' ? `${newActivities} new runs synced` : `${newActivities} nuove corse sincronizzate`);
 }
 
-export default function ManualSyncButton() {
+export default function ManualSyncButton({ language = 'it' }: { language?: Language }) {
+  const currentLanguage = normalizeLanguage(language);
   const router = useRouter();
   const [state, setState] = useState<SyncState>('idle');
   const [message, setMessage] = useState<string>('');
@@ -86,7 +90,7 @@ export default function ManualSyncButton() {
       }
 
       setState(data.warning ? 'warning' : 'success');
-      setMessage(buildStatusMessage(data));
+      setMessage(buildStatusMessage(data, currentLanguage));
       setLatestActivityId(data.latestActivityId ?? null);
       router.refresh();
       window.setTimeout(() => {
@@ -112,11 +116,11 @@ export default function ManualSyncButton() {
   const label = state === 'loading'
     ? 'Sync...'
     : state === 'success'
-      ? 'Aggiornato'
+        ? (currentLanguage === 'en' ? 'Updated' : 'Aggiornato')
       : state === 'warning'
-        ? 'Aggiornato'
+        ? (currentLanguage === 'en' ? 'Updated' : 'Aggiornato')
       : state === 'error'
-        ? 'Errore'
+        ? (currentLanguage === 'en' ? 'Error' : 'Errore')
         : 'Sync';
   const Icon = state === 'success' || state === 'warning' ? Check : state === 'error' ? XCircle : RefreshCw;
 
@@ -136,7 +140,7 @@ export default function ManualSyncButton() {
           <div>{message}</div>
           {latestActivityId ? (
             <Link href={`/runs/${latestActivityId}`} className="mt-2 inline-flex font-semibold text-accent-primary">
-              Apri analisi
+              {currentLanguage === 'en' ? 'Open analysis' : 'Apri analisi'}
             </Link>
           ) : null}
         </div>

@@ -26,6 +26,7 @@ import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
+import { normalizeLanguage, t, type Language } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -202,7 +203,7 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
 /**
  * Componente Coach Decision Card - Nuova card principale del coach
  */
-function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
+function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; language: Language }) {
   return (
     <Card>
       <div className="mb-5 flex items-start gap-3">
@@ -210,12 +211,12 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
         <div className="flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">
-              Coach live
+              {t(language, 'dashboard.coachLive')}
             </h2>
             <Badge tone="cyan">{state.recoveryStatus}</Badge>
           </div>
           <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-accent-secondary">
-            Stato attuale dell'atleta
+            {t(language, 'dashboard.currentState')}
           </p>
           <p className="text-sm leading-relaxed text-neutral-300">
             {state.explanation}
@@ -226,7 +227,7 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="metric-card p-3.5">
           <div className="eyebrow mb-1">
-            Oggi
+            {t(language, 'dashboard.today')}
           </div>
           <p className="text-sm text-app-text">
             {state.todayAction}
@@ -235,7 +236,7 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
 
         <div className="metric-card p-3.5">
           <div className="eyebrow mb-1">
-            Domani
+            {t(language, 'dashboard.tomorrow')}
           </div>
           <p className="text-sm text-app-text">
             {state.tomorrowAction}
@@ -245,7 +246,7 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
 
       <div className="metric-card mb-4 p-3.5">
         <div className="eyebrow mb-1">
-          Dopodomani / Prossima corsa
+          {t(language, 'dashboard.nextRun')}
         </div>
         <p className="text-sm text-app-text">
           {state.nextAction}
@@ -621,6 +622,7 @@ export default async function HomePage() {
   `);
 
   const athleteSettings = await getAthleteSettings();
+  const language = normalizeLanguage(athleteSettings?.language);
   const activityHistoryQuery = await query(`
     SELECT * FROM activities
     WHERE type IN ('Run', 'TrailRun')
@@ -655,12 +657,13 @@ export default async function HomePage() {
     recentRuns: activityHistoryQuery.rows,
     metrics: athleteMetrics,
     rules: coachingRules,
+    language,
   });
 
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
   return (
-    <PullToRefresh>
+    <PullToRefresh language={language}>
       <PageShell>
         {/* Header con navigazione */}
         <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6">
@@ -670,11 +673,11 @@ export default async function HomePage() {
                 <Activity size={18} strokeWidth={2} />
               </div>
               <div className="min-w-0">
-                <p className="eyebrow">AI Running</p>
+                <p className="eyebrow">{t(language, 'dashboard.eyebrow')}</p>
                 <h1 className="truncate text-xl font-semibold tracking-tight text-app-text sm:text-2xl">Coach</h1>
               </div>
             </div>
-            <p className="mt-2 hidden text-sm text-app-muted sm:block">Il tuo allenatore personale basato sui dati</p>
+            <p className="mt-2 hidden text-sm text-app-muted sm:block">{t(language, 'dashboard.subtitle')}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -692,7 +695,7 @@ export default async function HomePage() {
             >
               <Settings size={17} strokeWidth={1.8} />
             </Link>
-            <ManualSyncButton />
+            <ManualSyncButton language={language} />
             <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-app-muted sm:flex">
               <UserCircle size={18} strokeWidth={1.8} />
             </div>
@@ -710,7 +713,7 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
               {/* Colonna sinistra - Coach Decision (principale) */}
               <div className="space-y-5 lg:col-span-2">
-                <CoachDecisionCard state={dynamicAthleteState} />
+                <CoachDecisionCard state={dynamicAthleteState} language={language} />
                 <LastRunCard run={lastRun} />
               </div>
 

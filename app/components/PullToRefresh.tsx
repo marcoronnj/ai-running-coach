@@ -3,11 +3,13 @@
 import { type ReactNode, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, RefreshCw } from 'lucide-react';
+import { normalizeLanguage, type Language } from '@/lib/i18n';
 
 type PullState = 'idle' | 'pulling' | 'ready' | 'loading' | 'success';
 
 interface PullToRefreshProps {
   children: ReactNode;
+  language?: Language;
 }
 
 interface ManualSyncResponse {
@@ -46,7 +48,22 @@ function isInsideScrollableElement(target: EventTarget | null) {
   return false;
 }
 
-function getPullMessage(state: PullState) {
+function getPullMessage(state: PullState, language: Language) {
+  if (language === 'en') {
+    switch (state) {
+      case 'ready':
+        return 'Release to refresh';
+      case 'loading':
+        return 'Syncing...';
+      case 'success':
+        return 'Updated';
+      case 'pulling':
+        return 'Pull to sync';
+      default:
+        return '';
+    }
+  }
+
   switch (state) {
     case 'ready':
       return 'Rilascia per aggiornare';
@@ -61,7 +78,8 @@ function getPullMessage(state: PullState) {
   }
 }
 
-export default function PullToRefresh({ children }: PullToRefreshProps) {
+export default function PullToRefresh({ children, language = 'it' }: PullToRefreshProps) {
+  const currentLanguage = normalizeLanguage(language);
   const router = useRouter();
   const [state, setState] = useState<PullState>('idle');
   const [pullDistance, setPullDistance] = useState(0);
@@ -184,7 +202,7 @@ export default function PullToRefresh({ children }: PullToRefreshProps) {
           className={state === 'loading' ? 'animate-spin text-accent-secondary' : 'text-accent-primary'}
           style={state === 'pulling' || state === 'ready' ? { transform: `rotate(${progress * 160}deg)` } : undefined}
         />
-        <span>{getPullMessage(state)}</span>
+        <span>{getPullMessage(state, currentLanguage)}</span>
       </div>
       {children}
     </div>

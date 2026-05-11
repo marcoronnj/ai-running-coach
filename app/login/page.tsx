@@ -1,4 +1,6 @@
 import { Activity } from 'lucide-react';
+import { getCurrentLanguage } from '@/lib/athlete-settings';
+import { t } from '@/lib/i18n';
 import LoginForm from './LoginForm';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +11,7 @@ export default async function LoginPage({
   searchParams?: Promise<{ next?: string }> | { next?: string };
 }) {
   const params = searchParams ? await searchParams : {};
+  const language = await getCurrentLanguage();
   const nextPath = params.next?.startsWith('/') && !params.next.startsWith('//') ? params.next : '/';
 
   return (
@@ -20,10 +23,10 @@ export default async function LoginPage({
           </div>
           <p className="eyebrow mb-1">single user</p>
           <h1 className="text-2xl font-semibold tracking-tight text-app-text">AI Running Coach</h1>
-          <p className="mt-1 text-sm text-app-muted">Accedi alla tua dashboard atleta</p>
+          <p className="mt-1 text-sm text-app-muted">{t(language, 'login.subtitle')}</p>
         </div>
 
-        <LoginForm nextPath={nextPath} />
+        <LoginForm nextPath={nextPath} language={language} />
       </section>
     </main>
   );
