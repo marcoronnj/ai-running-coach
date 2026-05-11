@@ -121,9 +121,23 @@ const SQL_STATEMENTS = [
       refresh_token TEXT NOT NULL,
       expires_at INTEGER NOT NULL,
       scope TEXT NOT NULL,
+      athlete_firstname TEXT,
+      athlete_lastname TEXT,
+      athlete_username TEXT,
+      athlete_profile TEXT,
+      athlete_profile_medium TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+  `,
+
+  `
+    ALTER TABLE strava_connections
+    ADD COLUMN IF NOT EXISTS athlete_firstname TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_lastname TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_username TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_profile TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_profile_medium TEXT;
   `,
 
   // Indice su user_id per connessione single-admin

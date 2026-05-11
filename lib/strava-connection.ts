@@ -9,6 +9,11 @@ export interface StravaConnection {
   refresh_token: string;
   expires_at: number;
   scope: string;
+  athlete_firstname?: string | null;
+  athlete_lastname?: string | null;
+  athlete_username?: string | null;
+  athlete_profile?: string | null;
+  athlete_profile_medium?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -16,9 +21,15 @@ export interface StravaConnection {
 export interface PublicStravaConnectionStatus {
   connected: boolean;
   stravaAthleteId?: string;
-  scope?: string;
   expiresAt?: number;
   updatedAt?: string;
+  athlete?: {
+    firstname?: string | null;
+    lastname?: string | null;
+    username?: string | null;
+    profile?: string | null;
+    profileMedium?: string | null;
+  };
 }
 
 let tableEnsured = false;
@@ -35,9 +46,23 @@ export async function ensureStravaConnectionsTable(): Promise<void> {
       refresh_token TEXT NOT NULL,
       expires_at INTEGER NOT NULL,
       scope TEXT NOT NULL,
+      athlete_firstname TEXT,
+      athlete_lastname TEXT,
+      athlete_username TEXT,
+      athlete_profile TEXT,
+      athlete_profile_medium TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `);
+
+  await query(`
+    ALTER TABLE strava_connections
+    ADD COLUMN IF NOT EXISTS athlete_firstname TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_lastname TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_username TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_profile TEXT,
+    ADD COLUMN IF NOT EXISTS athlete_profile_medium TEXT
   `);
 
   await query(`
@@ -70,9 +95,15 @@ export async function getPublicStravaConnectionStatus(userId: string): Promise<P
   return {
     connected: true,
     stravaAthleteId: connection.strava_athlete_id,
-    scope: connection.scope,
     expiresAt: connection.expires_at,
     updatedAt: connection.updated_at,
+    athlete: {
+      firstname: connection.athlete_firstname,
+      lastname: connection.athlete_lastname,
+      username: connection.athlete_username,
+      profile: connection.athlete_profile,
+      profileMedium: connection.athlete_profile_medium,
+    },
   };
 }
 
@@ -83,13 +114,21 @@ export async function upsertStravaConnection(input: {
   refreshToken: string;
   expiresAt: number;
   scope: string;
+  athlete?: {
+    firstname?: string | null;
+    lastname?: string | null;
+    username?: string | null;
+    profile?: string | null;
+    profileMedium?: string | null;
+  };
 }): Promise<void> {
   await ensureStravaConnectionsTable();
 
   await query(
     `INSERT INTO strava_connections
-     (id, user_id, strava_athlete_id, access_token, refresh_token, expires_at, scope)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     (id, user_id, strava_athlete_id, access_token, refresh_token, expires_at, scope,
+      athlete_firstname, athlete_lastname, athlete_username, athlete_profile, athlete_profile_medium)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      ON CONFLICT (user_id)
      DO UPDATE SET
        strava_athlete_id = EXCLUDED.strava_athlete_id,
@@ -97,6 +136,11 @@ export async function upsertStravaConnection(input: {
        refresh_token = EXCLUDED.refresh_token,
        expires_at = EXCLUDED.expires_at,
        scope = EXCLUDED.scope,
+       athlete_firstname = COALESCE(EXCLUDED.athlete_firstname, strava_connections.athlete_firstname),
+       athlete_lastname = COALESCE(EXCLUDED.athlete_lastname, strava_connections.athlete_lastname),
+       athlete_username = COALESCE(EXCLUDED.athlete_username, strava_connections.athlete_username),
+       athlete_profile = COALESCE(EXCLUDED.athlete_profile, strava_connections.athlete_profile),
+       athlete_profile_medium = COALESCE(EXCLUDED.athlete_profile_medium, strava_connections.athlete_profile_medium),
        updated_at = NOW()`,
     [
       input.userId,
@@ -106,6 +150,11 @@ export async function upsertStravaConnection(input: {
       input.refreshToken,
       input.expiresAt,
       input.scope,
+      input.athlete?.firstname ?? null,
+      input.athlete?.lastname ?? null,
+      input.athlete?.username ?? null,
+      input.athlete?.profile ?? null,
+      input.athlete?.profileMedium ?? null,
     ]
   );
 }
@@ -141,6 +190,13 @@ export async function getValidStravaAccessToken(userId: string): Promise<{ acces
     refreshToken: refreshed.refresh_token,
     expiresAt: refreshed.expires_at,
     scope: connection.scope,
+    athlete: {
+      firstname: connection.athlete_firstname,
+      lastname: connection.athlete_lastname,
+      username: connection.athlete_username,
+      profile: connection.athlete_profile,
+      profileMedium: connection.athlete_profile_medium,
+    },
   });
 
   const updatedConnection = await getStravaConnection(userId);

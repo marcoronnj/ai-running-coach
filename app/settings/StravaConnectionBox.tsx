@@ -1,8 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unlink, AlertCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unlink, AlertCircle, UserCircle } from 'lucide-react';
 import { Card, SectionHeader } from '@/app/components/ui';
 import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { normalizeLanguage, type Language } from '@/lib/i18n';
@@ -92,87 +93,155 @@ export default function StravaConnectionBox({
   }
 
   const disabled = actionState !== 'idle';
+  const athlete = status.athlete;
+  const fullName = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(' ').trim();
+  const displayName = fullName || (currentLanguage === 'en' ? 'Strava athlete' : 'Atleta Strava');
+  const initials = fullName
+    ? fullName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+    : 'S';
+  const profileImage = athlete?.profileMedium || athlete?.profile || null;
+  const profileUrl = status.stravaAthleteId ? `https://www.strava.com/athletes/${status.stravaAthleteId}` : null;
 
   return (
-    <Card>
-      <SectionHeader eyebrow="integration" title="Strava" icon={RefreshCw} />
+    <div className="space-y-4">
+      <Card>
+        <SectionHeader eyebrow="integration" title="Strava" icon={RefreshCw} />
 
-      <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-app-text">
-            <CheckCircle2
-              size={17}
-              strokeWidth={1.8}
-              className={status.connected ? 'text-[var(--success)]' : 'text-app-muted'}
-            />
-            {status.connected
-              ? (currentLanguage === 'en' ? 'Connected' : 'Collegato')
-              : (currentLanguage === 'en' ? 'Not connected' : 'Non collegato')}
+        <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-app-text">
+              <CheckCircle2
+                size={17}
+                strokeWidth={1.8}
+                className={status.connected ? 'text-[var(--success)]' : 'text-app-muted'}
+              />
+              {status.connected
+                ? (currentLanguage === 'en' ? 'Connected' : 'Collegato')
+                : (currentLanguage === 'en' ? 'Not connected' : 'Non collegato')}
+            </div>
+            <p className="mt-1 text-xs text-app-muted">
+              {status.connected
+                ? (currentLanguage === 'en'
+                  ? 'Strava profile connected correctly'
+                  : 'Profilo Strava connesso correttamente')
+                : (currentLanguage === 'en'
+                  ? 'Connect your personal Strava account to sync activities.'
+                  : 'Collega il tuo account Strava personale per sincronizzare le attività.')}
+            </p>
           </div>
-          <p className="mt-1 text-xs text-app-muted">
-            {status.connected
-              ? `Athlete ID ${status.stravaAthleteId} • scope ${status.scope}`
-              : (currentLanguage === 'en'
-                ? 'Connect your personal Strava account to use OAuth and automatic token refresh.'
-                : 'Collega il tuo account Strava personale per usare OAuth e refresh automatico token.')}
+        </div>
+
+        {message ? (
+          <div
+            className={`mb-4 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${
+              message.type === 'success'
+                ? 'border-[rgba(124,255,138,0.22)] bg-[rgba(124,255,138,0.08)] text-[var(--success)]'
+                : 'border-[rgba(255,98,98,0.22)] bg-[rgba(255,98,98,0.08)] text-[var(--danger)]'
+            }`}
+          >
+            {message.type === 'success' ? (
+              <CheckCircle2 size={16} strokeWidth={1.8} />
+            ) : (
+              <AlertCircle size={16} strokeWidth={1.8} />
+            )}
+            {message.text}
+          </div>
+        ) : null}
+
+        <div className={`grid gap-2 ${status.connected ? 'sm:grid-cols-2' : 'sm:grid-cols-1'}`}>
+          {!status.connected ? (
+            <a
+              href="/api/strava/connect"
+              className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
+            >
+              <ExternalLink size={16} strokeWidth={1.8} />
+              {currentLanguage === 'en' ? 'Connect Strava' : 'Collega Strava'}
+            </a>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={syncRuns}
+                disabled={disabled}
+                className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {actionState === 'syncing' ? (
+                  <LoaderCircle size={16} strokeWidth={1.8} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={16} strokeWidth={1.8} />
+                )}
+                {actionState === 'syncing'
+                  ? (currentLanguage === 'en' ? 'Syncing...' : 'Sincronizzo...')
+                  : (currentLanguage === 'en' ? 'Sync runs' : 'Sincronizza corse')}
+              </button>
+              <button
+                type="button"
+                onClick={disconnect}
+                disabled={disabled}
+                className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {actionState === 'disconnecting' ? (
+                  <LoaderCircle size={16} strokeWidth={1.8} className="animate-spin" />
+                ) : (
+                  <Unlink size={16} strokeWidth={1.8} />
+                )}
+                {currentLanguage === 'en' ? 'Disconnect' : 'Disconnetti'}
+              </button>
+            </>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionHeader eyebrow={currentLanguage === 'en' ? 'athlete' : 'atleta'} title={currentLanguage === 'en' ? 'Athlete' : 'Atleta'} icon={UserCircle} />
+
+        {status.connected ? (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05] text-lg font-bold text-accent-primary">
+                {profileImage ? (
+                  <Image
+                    src={profileImage}
+                    alt={displayName}
+                    width={64}
+                    height={64}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  initials
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-base font-semibold text-app-text">{displayName}</div>
+                {athlete?.username ? (
+                  <div className="mt-0.5 text-sm text-app-muted">@{athlete.username}</div>
+                ) : null}
+                {status.stravaAthleteId ? (
+                  <div className="mt-1 text-xs text-app-muted">Athlete ID {status.stravaAthleteId}</div>
+                ) : null}
+              </div>
+            </div>
+
+            {profileUrl ? (
+              <a
+                href={profileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
+              >
+                <ExternalLink size={16} strokeWidth={1.8} />
+                {currentLanguage === 'en' ? 'Open Strava profile' : 'Apri profilo Strava'}
+              </a>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-app-muted">
+            {currentLanguage === 'en'
+              ? 'Connect Strava to view athlete data.'
+              : 'Collega Strava per visualizzare i dati atleta.'}
           </p>
-        </div>
-      </div>
-
-      {message ? (
-        <div
-          className={`mb-4 flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm ${
-            message.type === 'success'
-              ? 'border-[rgba(124,255,138,0.22)] bg-[rgba(124,255,138,0.08)] text-[var(--success)]'
-              : 'border-[rgba(255,98,98,0.22)] bg-[rgba(255,98,98,0.08)] text-[var(--danger)]'
-          }`}
-        >
-          {message.type === 'success' ? (
-            <CheckCircle2 size={16} strokeWidth={1.8} />
-          ) : (
-            <AlertCircle size={16} strokeWidth={1.8} />
-          )}
-          {message.text}
-        </div>
-      ) : null}
-
-      <div className="grid gap-2 sm:grid-cols-3">
-        <a
-          href="/api/strava/connect"
-          className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
-        >
-          <ExternalLink size={16} strokeWidth={1.8} />
-          {currentLanguage === 'en' ? 'Connect Strava' : 'Collega Strava'}
-        </a>
-        <button
-          type="button"
-          onClick={syncRuns}
-          disabled={!status.connected || disabled}
-          className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {actionState === 'syncing' ? (
-            <LoaderCircle size={16} strokeWidth={1.8} className="animate-spin" />
-          ) : (
-            <RefreshCw size={16} strokeWidth={1.8} />
-          )}
-          {actionState === 'syncing'
-            ? (currentLanguage === 'en' ? 'Syncing...' : 'Sincronizzo...')
-            : (currentLanguage === 'en' ? 'Sync runs' : 'Sincronizza corse')}
-        </button>
-        <button
-          type="button"
-          onClick={disconnect}
-          disabled={!status.connected || disabled}
-          className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {actionState === 'disconnecting' ? (
-            <LoaderCircle size={16} strokeWidth={1.8} className="animate-spin" />
-          ) : (
-            <Unlink size={16} strokeWidth={1.8} />
-          )}
-          {currentLanguage === 'en' ? 'Disconnect' : 'Disconnetti'}
-        </button>
-      </div>
-    </Card>
+        )}
+      </Card>
+    </div>
   );
 }

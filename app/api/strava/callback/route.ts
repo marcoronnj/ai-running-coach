@@ -42,6 +42,13 @@ export async function GET(request: NextRequest) {
       refreshToken: tokenData.refresh_token,
       expiresAt: tokenData.expires_at,
       scope,
+      athlete: {
+        firstname: tokenData.athlete.firstname,
+        lastname: tokenData.athlete.lastname,
+        username: tokenData.athlete.username,
+        profile: tokenData.athlete.profile,
+        profileMedium: tokenData.athlete.profile_medium,
+      },
     });
 
     console.log(

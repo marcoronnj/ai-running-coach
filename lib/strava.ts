@@ -17,6 +17,7 @@ export interface StravaTokenResponse {
     id: number;
     firstname: string;
     lastname: string;
+    username?: string;
     profile_medium: string;
     profile: string;
     city: string;
