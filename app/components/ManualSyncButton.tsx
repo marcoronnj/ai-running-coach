@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import { Check, RefreshCw, XCircle } from 'lucide-react';
 
 type SyncState = 'idle' | 'loading' | 'success' | 'warning' | 'error';
@@ -48,10 +49,27 @@ export default function ManualSyncButton() {
   const router = useRouter();
   const [state, setState] = useState<SyncState>('idle');
   const [message, setMessage] = useState<string>('');
+  const [latestActivityId, setLatestActivityId] = useState<string | null>(null);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) {
+        clearTimeout(resetTimerRef.current);
+      }
+    };
+  }, []);
 
   async function handleSync() {
+    if (state === 'loading') return;
+
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+    }
+
     setState('loading');
     setMessage('');
+    setLatestActivityId(null);
 
     try {
       const response = await fetch('/api/manual-sync', {
@@ -61,21 +79,33 @@ export default function ManualSyncButton() {
         },
       });
 
-      const data = (await response.json()) as ManualSyncResponse;
+      const data = (await response.json().catch(() => null)) as ManualSyncResponse | null;
 
-      if (!data.ok) {
-        throw new Error(data.message || 'Sync non riuscito');
+      if (!response.ok || !data?.ok) {
+        throw new Error(data?.message || 'Sync non riuscito');
       }
 
       setState(data.warning ? 'warning' : 'success');
-      setMessage(`${buildStatusMessage(data)}. Sync completato, sto aggiornando i dati.`);
+      setMessage(buildStatusMessage(data));
+      setLatestActivityId(data.latestActivityId ?? null);
       router.refresh();
       window.setTimeout(() => {
         router.refresh();
       }, 500);
+
+      resetTimerRef.current = setTimeout(() => {
+        setState('idle');
+        setMessage('');
+        setLatestActivityId(null);
+      }, 4500);
     } catch (error) {
       setState('error');
       setMessage(error instanceof Error ? error.message : 'Errore durante la sincronizzazione');
+
+      resetTimerRef.current = setTimeout(() => {
+        setState('idle');
+        setMessage('');
+      }, 4500);
     }
   }
 
@@ -102,8 +132,13 @@ export default function ManualSyncButton() {
         {label}
       </button>
       {message ? (
-        <div className="absolute right-0 top-full z-10 mt-2 w-60 rounded-xl border border-white/10 bg-app-card px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/30">
-          {message}
+        <div className="absolute right-0 top-full z-10 mt-2 w-64 rounded-xl border border-white/10 bg-app-card px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/30">
+          <div>{message}</div>
+          {latestActivityId ? (
+            <Link href={`/runs/${latestActivityId}`} className="mt-2 inline-flex font-semibold text-accent-primary">
+              Apri analisi
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -10,7 +10,15 @@ export async function POST() {
 
   if (!session || !isAdminUser(session)) {
     return NextResponse.json(
-      { ok: false, message: 'Accesso admin richiesto', newActivities: 0 },
+      {
+        ok: false,
+        message: 'Accesso admin richiesto',
+        newActivities: 0,
+        latestActivityId: null,
+        latestReportGenerated: false,
+        telegramSent: false,
+        warning: null,
+      },
       { status: 403 }
     );
   }
@@ -23,12 +31,12 @@ export async function POST() {
     return NextResponse.json(
       {
         ok: payload.ok,
-        message: payload.message,
-        warning: payload.warning,
+        message: payload.message ?? (payload.ok ? 'Sync completato' : 'Sync non riuscito'),
+        warning: payload.warning ?? null,
         mode: payload.mode,
-        newActivities: payload.newActivities,
-        latestActivityId: payload.latestActivityId,
-        latestActivityName: payload.latestActivityName,
+        newActivities: payload.newActivities ?? 0,
+        latestActivityId: payload.latestActivityId ?? null,
+        latestActivityName: payload.latestActivityName ?? null,
         latestReportGenerated: payload.latestReportGenerated ?? false,
         telegramSent: payload.telegramSent ?? false,
         retryReportsProcessed: payload.retryReportsProcessed ?? 0,
@@ -41,7 +49,15 @@ export async function POST() {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[MANUAL SYNC] Error:', message);
     return NextResponse.json(
-      { ok: false, message, newActivities: 0 },
+      {
+        ok: false,
+        message,
+        newActivities: 0,
+        latestActivityId: null,
+        latestReportGenerated: false,
+        telegramSent: false,
+        warning: null,
+      },
       { status: 500 }
     );
   }
@@ -53,6 +69,10 @@ export async function GET() {
       ok: false,
       message: 'Metodo GET non consentito. Usa POST.',
       newActivities: 0,
+      latestActivityId: null,
+      latestReportGenerated: false,
+      telegramSent: false,
+      warning: null,
     },
     { status: 405 }
   );

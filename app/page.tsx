@@ -24,6 +24,7 @@ import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
+import PullToRefresh from '@/app/components/PullToRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -656,7 +657,8 @@ export default async function HomePage() {
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
 
   return (
-    <PageShell>
+    <PullToRefresh>
+      <PageShell>
         {/* Header con navigazione */}
         <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6">
           <div className="min-w-0">
@@ -718,6 +720,7 @@ export default async function HomePage() {
             </div>
           </div>
         )}
-    </PageShell>
+      </PageShell>
+    </PullToRefresh>
   );
 }
