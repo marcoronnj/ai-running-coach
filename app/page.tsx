@@ -210,10 +210,13 @@ function CoachDecisionCard({ state }: { state: DynamicAthleteState }) {
         <div className="flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">
-              Stato atleta dinamico
+              Coach live
             </h2>
             <Badge tone="cyan">{state.recoveryStatus}</Badge>
           </div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-accent-secondary">
+            Stato attuale dell'atleta
+          </p>
           <p className="text-sm leading-relaxed text-neutral-300">
             {state.explanation}
           </p>

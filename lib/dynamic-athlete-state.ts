@@ -73,16 +73,35 @@ function normalizeRisk(value: unknown): OverloadRisk {
 function extractTechnicalFocus(report: any | null, metrics: any): string {
   const candidates = [
     report?.suggested_focus,
-    report?.next_48h,
     Array.isArray(report?.weekly_plan) ? report.weekly_plan[0]?.description : null,
     Array.isArray(report?.weekly_plan) ? report.weekly_plan[0]?.name : null,
     metrics?.suggestedFocus,
   ];
 
   const focus = candidates.find((item) => typeof item === 'string' && item.trim().length > 0);
-  if (focus) return focus.trim();
+  if (focus) return normalizeTechnicalFocus(focus.trim());
 
-  return '30-40 minuti easy/recovery molto facile';
+  return '30-40 minuti easy in Z2 bassa, respirazione facile, chiusura con mobilità leggera.';
+}
+
+function normalizeTechnicalFocus(focus: string): string {
+  const normalized = focus.toLowerCase();
+
+  if (
+    normalized.includes('mantenimento') ||
+    normalized.includes('recupero attivo') ||
+    normalized.includes('recupero e mobilità')
+  ) {
+    return '30-40 minuti recovery molto facile, FC bassa/Z2, oppure camminata facile e mobilità leggera.';
+  }
+
+  if (normalized.includes('easy') || normalized.includes('facile')) {
+    return focus.includes('Z2') || focus.includes('FC')
+      ? focus
+      : `${focus.replace(/\.$/, '')}, tenendo FC bassa/Z2 e passo conversazionale.`;
+  }
+
+  return focus;
 }
 
 function calculateRecentVolume(recentRuns: any[]) {
@@ -204,15 +223,38 @@ function calculateOverloadRisk({
   return risk;
 }
 
-function buildActions(daysSinceLatestRun: number | null, hasRunToday: boolean, latestRun: any, focus: string) {
+function buildActions({
+  daysSinceLatestRun,
+  hasRunToday,
+  latestRun,
+  focus,
+  readinessScore,
+  fatigueScore,
+  overloadRisk,
+  rules,
+}: {
+  daysSinceLatestRun: number | null;
+  hasRunToday: boolean;
+  latestRun: any;
+  focus: string;
+  readinessScore: number | null;
+  fatigueScore: number | null;
+  overloadRisk: OverloadRisk;
+  rules: any;
+}) {
   const distance = formatKm(latestRun?.distance_m);
   const persistedFocus = focus.endsWith('.') ? focus : `${focus}.`;
+  const forcedRecovery =
+    overloadRisk === 'alto' ||
+    (fatigueScore !== null && fatigueScore >= 60) ||
+    (readinessScore !== null && readinessScore < 40) ||
+    rules?.allowedIntensity === 'recovery';
 
   if (hasRunToday) {
     return {
       todayAction: `Corsa completata: ${distance}. Ora solo recupero leggero, mobilità o camminata facile.`,
       tomorrowAction: 'Recupero o riposo completo. Evita qualità.',
-      nextAction: `Dopodomani: ${persistedFocus}`,
+      nextAction: `Dopodomani: 30-40 minuti recovery molto facile, FC bassa/Z2, solo se le gambe sono fresche.`,
       timeline: [
         {
           label: 'Oggi',
@@ -227,20 +269,41 @@ function buildActions(daysSinceLatestRun: number | null, hasRunToday: boolean, l
         },
         {
           label: 'Dopodomani',
-          title: 'Prossima seduta facile',
-          description: persistedFocus,
+          title: 'Recovery run opzionale',
+          description: '30-40 minuti molto facili, FC bassa/Z2, senza progressioni.',
         },
+      ],
+    };
+  }
+
+  if (forcedRecovery) {
+    const reason = overloadRisk === 'alto'
+      ? 'rischio overload alto'
+      : fatigueScore !== null && fatigueScore >= 60
+        ? `fatigue alta (${fatigueScore}/100)`
+        : readinessScore !== null && readinessScore < 40
+          ? `readiness bassa (${readinessScore}/100)`
+          : 'intensità limitata a recovery';
+
+    return {
+      todayAction: `Recupero oggi: riposo, camminata facile 20-30 minuti o mobilità. Motivo: ${reason}.`,
+      tomorrowAction: 'Se la fatica scende: 25-35 minuti recovery molto facile in Z1/Z2 bassa. Altrimenti riposo.',
+      nextAction: 'Dopodomani riparti con easy run 30-40 minuti solo se gambe e sonno sono buoni.',
+      timeline: [
+        { label: 'Oggi', title: 'Recupero necessario', description: `Riposo o camminata facile. ${reason}.` },
+        { label: 'Domani', title: 'Recovery opzionale', description: '25-35 minuti molto facili, FC bassa, niente qualità.' },
+        { label: 'Dopodomani', title: 'Easy run prudente', description: '30-40 minuti in Z2 bassa solo se recuperato.' },
       ],
     };
   }
 
   if (daysSinceLatestRun === 1) {
     return {
-      todayAction: 'Recupero o riposo consigliato.',
+      todayAction: 'Recupero oggi: riposo, mobilità leggera o camminata facile 20-30 minuti.',
       tomorrowAction: `Easy run se le gambe sono fresche: ${persistedFocus}`,
       nextAction: 'Dopodomani valuta una progressione leggera solo se recupero e gambe sono buoni.',
       timeline: [
-        { label: 'Oggi', title: 'Recupero consigliato', description: 'Riposo, mobilità o camminata facile.' },
+        { label: 'Oggi', title: 'Recupero consigliato', description: 'Riposo, mobilità leggera o camminata facile 20-30 minuti.' },
         { label: 'Domani', title: 'Easy run se fresco', description: persistedFocus },
         { label: 'Dopodomani', title: 'Valuta progressione leggera', description: 'Solo se non senti fatica residua.' },
       ],
@@ -250,7 +313,7 @@ function buildActions(daysSinceLatestRun: number | null, hasRunToday: boolean, l
   if (daysSinceLatestRun !== null && daysSinceLatestRun >= 2 && daysSinceLatestRun <= 3) {
     return {
       todayAction: `Puoi correre easy/recovery se ti senti fresco: ${persistedFocus}`,
-      tomorrowAction: 'Recupero leggero.',
+      tomorrowAction: 'Recupero leggero: mobilità, camminata facile o riposo.',
       nextAction: 'Dopodomani seconda easy run opzionale, senza qualità.',
       timeline: [
         { label: 'Oggi', title: 'Easy/recovery possibile', description: persistedFocus },
@@ -263,23 +326,23 @@ function buildActions(daysSinceLatestRun: number | null, hasRunToday: boolean, l
   if (daysSinceLatestRun !== null && daysSinceLatestRun >= 4 && daysSinceLatestRun <= 6) {
     return {
       todayAction: `È consigliato tornare a correre con una easy run controllata: ${persistedFocus}`,
-      tomorrowAction: 'Recupero.',
+      tomorrowAction: 'Recupero: camminata facile, mobilità o riposo.',
       nextAction: 'Dopodomani possibile seconda easy run se la prima è stata leggera.',
       timeline: [
         { label: 'Oggi', title: 'Torna a correre facile', description: persistedFocus },
-        { label: 'Domani', title: 'Recupero', description: 'Lascia assorbire il rientro.' },
-        { label: 'Dopodomani', title: 'Seconda easy run possibile', description: 'Solo facile e controllata.' },
+        { label: 'Domani', title: 'Recupero', description: 'Camminata facile o mobilità: lascia assorbire il rientro.' },
+        { label: 'Dopodomani', title: 'Seconda easy run possibile', description: 'Solo facile e controllata, FC bassa/Z2.' },
       ],
     };
   }
 
   if (daysSinceLatestRun !== null && daysSinceLatestRun >= 7) {
     return {
-      todayAction: `Riparti facile: ${persistedFocus || "25-35 minuti easy senza qualità."}`,
+      todayAction: `Riparti facile: ${persistedFocus || '25-35 minuti easy senza qualità, FC bassa/Z2.'}`,
       tomorrowAction: 'Recupero o camminata facile.',
       nextAction: 'Dopodomani valuta una seconda easy breve, senza qualità.',
       timeline: [
-        { label: 'Oggi', title: 'Ripartenza facile', description: persistedFocus || "25-35 minuti easy senza qualità." },
+        { label: 'Oggi', title: 'Ripartenza facile', description: persistedFocus || '25-35 minuti easy senza qualità, FC bassa/Z2.' },
         { label: 'Domani', title: 'Recupero', description: 'Niente qualità dopo una pausa lunga.' },
         { label: 'Dopodomani', title: 'Seconda easy breve opzionale', description: 'Decidi in base alle gambe.' },
       ],
@@ -291,9 +354,9 @@ function buildActions(daysSinceLatestRun: number | null, hasRunToday: boolean, l
     tomorrowAction: 'Sincronizza una corsa o mantieni attività leggera.',
     nextAction: 'Prossima corsa facile quando hai dati aggiornati.',
     timeline: [
-      { label: 'Oggi', title: 'Recupero attivo', description: 'Camminata facile o mobilità.' },
+      { label: 'Oggi', title: 'Recupero attivo', description: 'Camminata facile 20-30 minuti o mobilità leggera.' },
       { label: 'Domani', title: 'Valuta dati', description: 'Sincronizza una nuova corsa se disponibile.' },
-      { label: 'Prossima corsa', title: 'Easy run', description: 'Riparti senza qualità.' },
+      { label: 'Dopodomani', title: 'Easy run', description: 'Riparti senza qualità, FC bassa/Z2.' },
     ],
   };
 }
@@ -320,7 +383,16 @@ export function buildDynamicAthleteState({
   const overloadRisk = calculateOverloadRisk({ metrics, fatigueScore, daysSinceLatestRun, hasRunToday });
   const readinessScore = calculateReadiness({ fatigueScore, metrics, daysSinceLatestRun, overloadRisk });
   const consistencyScore = calculateConsistency(metrics, recentRuns, daysSinceLatestRun);
-  const actions = buildActions(daysSinceLatestRun, hasRunToday, latestRun, suggestedFocus);
+  const actions = buildActions({
+    daysSinceLatestRun,
+    hasRunToday,
+    latestRun,
+    focus: suggestedFocus,
+    readinessScore,
+    fatigueScore,
+    overloadRisk,
+    rules,
+  });
 
   const recoveryStatus = hasRunToday
     ? 'post-corsa'
@@ -341,7 +413,7 @@ export function buildDynamicAthleteState({
     fatigueScore !== null
       ? `La fatica dinamica è ${fatigueScore}/100 dopo decadimento dal valore del report o dalle metriche.`
       : 'Fatica non disponibile: uso fallback prudente nelle azioni.',
-    `Il focus tecnico resta: ${suggestedFocus}`,
+    `Indicazione pratica corrente: ${suggestedFocus}`,
   ];
 
   if (rules?.allowedIntensity) {

@@ -26,9 +26,6 @@ import {
 } from 'lucide-react';
 import { query, queryOne } from '@/lib/db';
 import { buildRunJudgement } from '@/lib/run-analysis';
-import { getAthleteSettings } from '@/lib/athlete-settings';
-import { calculateCoachingMetrics, CoachingMetrics } from '@/lib/coaching-metrics';
-import { getDaysSince } from '@/lib/date-utils';
 import { Card, IconBox, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -115,50 +112,6 @@ function formatTime(value: string): string {
 
 function getScoreColor(score?: number): string {
   return scoreTone(score);
-}
-
-function getReadinessLabel(score?: number): string {
-  if (score === undefined || score === null) return 'N/A';
-  if (score >= 80) return 'Alta';
-  if (score >= 60) return 'Moderata';
-  return 'Bassa';
-}
-
-function getFatigueLabel(score?: number): string {
-  if (score === undefined || score === null) return 'N/A';
-  if (score <= 30) return 'Bassa';
-  if (score <= 60) return 'Media';
-  return 'Alta';
-}
-
-function getConsistencyLabel(score?: number): string {
-  if (score === undefined || score === null) return 'N/A';
-  if (score >= 80) return 'Solida';
-  if (score >= 60) return 'Buona';
-  return 'In costruzione';
-}
-
-function getRunAwareNext48h(run: RunDetailData, next48h: string): string {
-  const hasRunToday = getDaysSince(run.start_date) === 0;
-
-  if (!hasRunToday) {
-    return next48h;
-  }
-
-  return [
-    `Oggi: corsa completata (${formatKm(run.distance_m)}). Ora solo recupero leggero, camminata facile o mobilità.`,
-    'Domani: niente corsa se senti gambe pesanti. Recupero o riposo completo.',
-    'Dopodomani: se le gambe sono fresche, 30-40 minuti recovery molto facile, FC bassa.',
-  ].join(' ');
-}
-
-function getRiskLevelLabel(riskLevel?: string): string {
-  switch (riskLevel?.toLowerCase()) {
-    case 'basso': return 'Basso';
-    case 'medio': return 'Medio';
-    case 'alto': return 'Alto';
-    default: return 'N/A';
-  }
 }
 
 function parseWeeklyPlan(raw: unknown): Array<{ name: string; description: string; intensity: string; duration: string }> {
@@ -299,16 +252,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     const weeklyPlan = parseWeeklyPlan(run.weekly_plan);
     const coachNotes = parseCoachNotes(run.coach_notes);
     const hasReport = !!run.title || !!run.full_report || !!run.summary;
-    const athleteSettings = await getAthleteSettings();
-    const history90d = await query(`
-      SELECT *
-      FROM activities
-      WHERE type IN ('Run', 'TrailRun')
-        AND start_date >= NOW() - INTERVAL '90 days'
-      ORDER BY start_date DESC
-    `);
-    const currentMetrics = calculateCoachingMetrics(history90d.rows, athleteSettings);
-    const next48h = run.next_48h ? getRunAwareNext48h(run, run.next_48h) : null;
+    const next48h = run.next_48h || null;
 
     return (
       <PageShell>
@@ -378,9 +322,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             <div className="space-y-5">
-              <CurrentStatusSection
-                metrics={currentMetrics}
-              />
+              <HistoricalReportNotice runDate={run.start_date} />
               <StravaLinkCard stravaId={run.strava_id} />
             </div>
           </div>
@@ -568,7 +510,7 @@ function SessionJudgementSection({ judgement }: { judgement: { label: string; su
             <p className="font-semibold text-app-text">{judgement.effort}</p>
           </div>
           <div className="metric-card p-3.5">
-            <p className="eyebrow mb-2">Recupero</p>
+            <p className="eyebrow mb-2">Post-corsa</p>
             <p className="font-semibold text-app-text">{judgement.recoveryHint}</p>
           </div>
           <div className="metric-card p-3.5">
@@ -581,43 +523,23 @@ function SessionJudgementSection({ judgement }: { judgement: { label: string; su
   );
 }
 
-function CurrentStatusSection({ metrics }: { metrics: CoachingMetrics | null }) {
-  if (!metrics) {
-    return (
-      <Card>
-        <SectionHeader eyebrow="now" title="Stato attuale" icon={Gauge} />
-        <p className="text-sm text-app-muted">Dati non ancora sufficienti per valutare lo stato forma.</p>
-      </Card>
-    );
-  }
-
+function HistoricalReportNotice({ runDate }: { runDate: string }) {
   return (
     <Card>
-      <SectionHeader eyebrow="now" title="Stato attuale" icon={Gauge} />
+      <SectionHeader eyebrow="storico" title="Report della seduta" icon={Info} />
       <div className="space-y-3">
-        <StatusRow label="Readiness" value={getReadinessLabel(metrics.readinessScore)} detail={`${metrics.readinessScore}`} icon={Zap} />
-        <StatusRow label="Fatigue" value={getFatigueLabel(metrics.fatigueScore)} detail={`${metrics.fatigueScore}`} icon={Activity} />
-        <StatusRow label="Consistency" value={getConsistencyLabel(metrics.consistencyScore)} detail={`${metrics.consistencyScore}`} icon={TrendingUp} />
-        <StatusRow label="Rischio" value={getRiskLevelLabel(metrics.overloadRisk)} detail={metrics.overloadRisk} icon={AlertTriangle} />
-        <div className="metric-card p-3.5">
-          <p className="eyebrow mb-2">Focus consigliato</p>
-          <p className="text-sm leading-relaxed text-app-text">{metrics.suggestedFocus}</p>
-        </div>
+        <p className="text-sm leading-relaxed text-neutral-200">
+          Questa pagina è una fotografia della corsa del {formatDate(runDate)}. Le indicazioni qui sotto sono quelle generate dopo quella seduta e non rappresentano necessariamente il coach live di oggi.
+        </p>
+        <Link
+          href="/"
+          className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-app-text"
+        >
+          <Gauge size={16} strokeWidth={1.8} />
+          Vedi coach live
+        </Link>
       </div>
     </Card>
-  );
-}
-
-function StatusRow({ label, value, detail, icon }: { label: string; value: string; detail: string; icon: LucideIcon }) {
-  return (
-    <div className="metric-card flex items-center gap-3 p-3.5">
-      <IconBox icon={icon} />
-      <div className="flex-1">
-        <div className="eyebrow">{label}</div>
-        <div className="font-semibold text-app-text">{value}</div>
-      </div>
-      <div className="text-sm text-app-muted">{detail}</div>
-    </div>
   );
 }
 
@@ -685,7 +607,7 @@ function StravaLinkCard({ stravaId }: { stravaId: string }) {
 function CoachAnalysisSection({ run }: { run: RunDetailData }) {
   return (
     <Card>
-      <SectionHeader eyebrow="coach" title="Analisi del coach" icon={Brain} />
+      <SectionHeader eyebrow="storico" title="Analisi generata dopo la seduta" icon={Brain} />
 
       <div className="space-y-3">
         {run.title && (
@@ -715,7 +637,7 @@ function CoachAnalysisSection({ run }: { run: RunDetailData }) {
 
           {run.suggested_focus && (
             <div className="metric-card p-3.5">
-              <p className="eyebrow mb-2">Focus consigliato</p>
+              <p className="eyebrow mb-2">Focus post-seduta</p>
               <p className="font-semibold text-app-text">{run.suggested_focus}</p>
             </div>
           )}
@@ -731,12 +653,15 @@ function Next48hSection({ next48h, suggestedFocus }: { next48h: string; suggeste
       <div className="flex items-start gap-4">
         <IconBox icon={Clock} tone="cyan" />
         <div className="flex-1">
-          <p className="eyebrow mb-1">recovery window</p>
-          <h3 className="mb-3 text-lg font-semibold text-app-text">Prossime 48 ore</h3>
+          <p className="eyebrow mb-1">report storico</p>
+          <h3 className="mb-2 text-lg font-semibold text-app-text">Indicazioni post-corsa</h3>
+          <p className="mb-3 text-xs leading-relaxed text-app-muted">
+            Consigli generati dopo questa seduta: usali come contesto storico, non come prescrizione live di oggi.
+          </p>
           <p className="mb-4 text-sm leading-relaxed text-neutral-200">{next48h}</p>
           {suggestedFocus && (
             <div className="mt-4 border-t border-[rgba(54,252,225,0.18)] pt-4">
-              <p className="eyebrow mb-1 text-accent-secondary">Indicazione</p>
+              <p className="eyebrow mb-1 text-accent-secondary">Focus generato allora</p>
               <p className="font-medium text-app-text">{suggestedFocus}</p>
             </div>
           )}
