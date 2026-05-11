@@ -18,11 +18,13 @@ import {
 import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getAthleteSettings } from '@/lib/athlete-settings';
+import { verifySession } from '@/lib/auth';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
-import { formatDateIT, formatDaysSince, getTodayInAppTimezone } from '@/lib/date-utils';
+import { formatDateLocalized, formatDaysSinceLocalized, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
@@ -109,7 +111,15 @@ function formatDuration(seconds: number): string {
 /**
  * Helper: Ottieni label interpretativa per risk level
  */
-function getRiskLabel(riskLevel?: string): string {
+function getRiskLabel(riskLevel: string | undefined, language: Language): string {
+  if (language === 'en') {
+    switch (riskLevel?.toLowerCase()) {
+      case 'basso': return 'Low';
+      case 'medio': return 'Medium';
+      case 'alto': return 'High';
+      default: return 'N/A';
+    }
+  }
   switch (riskLevel?.toLowerCase()) {
     case 'basso': return 'Basso';
     case 'medio': return 'Medio';
@@ -122,25 +132,63 @@ function getReportStatus(run?: DashboardRun | null): 'ready' | 'waiting' {
   return hasCoachReport(run) ? 'ready' : 'waiting';
 }
 
-function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
-  const labels = {
-    ready: 'Report pronto',
-    waiting: 'Report in attesa',
-  };
-
+function ReportStatusBadge({ status, language }: { status: 'ready' | 'waiting'; language: Language }) {
   return (
-    <Badge tone={status === 'ready' ? 'success' : 'warning'}>{labels[status]}</Badge>
+    <Badge tone={status === 'ready' ? 'success' : 'warning'}>
+      {status === 'ready' ? t(language, 'report.ready') : t(language, 'report.pending')}
+    </Badge>
   );
 }
 
 /**
  * Helper: Ottieni label per settimana
  */
-function getWeekLabel(runs: number, distanceKm: number): string {
+function getWeekLabel(runs: number, distanceKm: number, language: Language): string {
+  if (language === 'en') {
+    if (runs === 0) return 'Rest';
+    if (distanceKm < 10) return 'Light';
+    if (distanceKm < 25) return 'Moderate';
+    return 'Loaded';
+  }
   if (runs === 0) return 'Riposo';
   if (distanceKm < 10) return 'Leggera';
   if (distanceKm < 25) return 'Moderata';
   return 'Carica';
+}
+
+function AthleteAvatar({ status }: { status?: PublicStravaConnectionStatus }) {
+  const athlete = status?.athlete;
+  const fullName = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(' ').trim();
+  const image = athlete?.profileMedium || athlete?.profile;
+  const initials = fullName
+    ? fullName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+    : '';
+
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt={fullName || 'Strava athlete'}
+        width={36}
+        height={36}
+        className="h-9 w-9 shrink-0 rounded-xl border border-[rgba(54,252,225,0.32)] object-cover shadow-[0_0_18px_rgba(54,252,225,0.12)]"
+      />
+    );
+  }
+
+  if (initials) {
+    return (
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgba(54,252,225,0.32)] bg-white/[0.05] text-sm font-bold text-accent-primary shadow-[0_0_18px_rgba(54,252,225,0.12)]">
+        {initials}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-primary text-black">
+      <Activity size={18} strokeWidth={2} />
+    </div>
+  );
 }
 
 /**
@@ -160,24 +208,24 @@ function calculateWeeklyAverage(trend: WeeklyTrendItem[]): number {
 /**
  * Componente Hero - Today / Coach Status
  */
-function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) {
-  const today = formatDateIT(getTodayInAppTimezone());
-  const lastRunLabel = lastRun ? formatDaysSince(lastRun.start_date) : null;
+function HeroSection({ lastRun, language }: { lastRun: DashboardRun | null | undefined; language: Language }) {
+  const today = formatDateLocalized(getTodayInAppTimezone(), language);
+  const lastRunLabel = lastRun ? formatDaysSinceLocalized(lastRun.start_date, language) : null;
   const reportStatus = getReportStatus(lastRun);
 
   return (
     <Card className="mb-5 overflow-hidden border-[rgba(215,255,63,0.16)] bg-[linear-gradient(135deg,rgba(215,255,63,0.09),rgba(54,252,225,0.045)_42%,rgba(17,17,17,0.94))]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="eyebrow mb-1">Today status</p>
+          <p className="eyebrow mb-1">{t(language, 'dashboard.todayStatus')}</p>
           <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">
             {today}
           </h1>
           <div className="mt-1 text-sm text-app-muted">
             {lastRunLabel ? (
-              <span>Ultima corsa: {lastRunLabel}</span>
+              <span>{t(language, 'dashboard.lastRun')}: {lastRunLabel}</span>
             ) : (
-              <span>Nessuna corsa ancora sincronizzata</span>
+              <span>{t(language, 'dashboard.noRunsSynced')}</span>
             )}
           </div>
         </div>
@@ -188,9 +236,9 @@ function HeroSection({ lastRun }: { lastRun: DashboardRun | null | undefined }) 
             <div className="eyebrow">Coach</div>
             <div className="mt-1 font-medium text-app-text">
               {lastRun ? (
-                <ReportStatusBadge status={reportStatus} />
+                <ReportStatusBadge status={reportStatus} language={language} />
               ) : (
-                'In attesa dati'
+                t(language, 'dashboard.dataPending')
               )}
             </div>
           </div>
@@ -274,7 +322,7 @@ function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; la
 /**
  * Componente Metriche Atleta - Più leggibili con label interpretative
  */
-function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null | undefined }) {
+function AthleteMetricsCard({ metrics, language }: { metrics: DynamicAthleteState | null | undefined; language: Language }) {
   if (!metrics) return null;
 
   const hasValidMetrics = metrics.readinessScore !== null || metrics.fatigueScore !== null || metrics.consistencyScore !== null;
@@ -283,7 +331,7 @@ function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null |
 
   return (
     <Card>
-      <SectionHeader eyebrow="body battery" title="Stato atleta" icon={Gauge} />
+      <SectionHeader eyebrow="body battery" title={t(language, 'dashboard.athleteStatus')} icon={Gauge} />
 
       <div className="space-y-3">
         {metrics.readinessScore !== null && metrics.readinessLabel && (
@@ -321,17 +369,17 @@ function AthleteMetricsCard({ metrics }: { metrics: DynamicAthleteState | null |
             <div className="flex items-center justify-between">
               <div>
                 <div className="eyebrow mb-1">
-                  Rischio Overload
+                  {t(language, 'dashboard.overloadRisk')}
                 </div>
                 <div className="font-medium text-app-text">
-                  {getRiskLabel(metrics.overloadRisk)}
+                  {getRiskLabel(metrics.overloadRisk, language)}
                 </div>
                 <div className="mt-1 text-xs text-app-muted">
-                  Aggiornato con fatica dinamica e giorni dall'ultima corsa.
+                  {t(language, 'dashboard.updatedWithDynamicFatigue')}
                 </div>
               </div>
               <span className={cn('rounded-full border px-2.5 py-1 text-xs font-semibold capitalize', riskTone(metrics.overloadRisk))}>
-                {metrics.overloadRisk}
+                {getRiskLabel(metrics.overloadRisk, language)}
               </span>
             </div>
           </div>
@@ -388,7 +436,7 @@ function MetricItem({
 /**
  * Componente Ultima Corsa - Migliorata con bottone Strava
  */
-function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
+function LastRunCard({ run, language }: { run: DashboardRun | null | undefined; language: Language }) {
   if (!run) return null;
 
   const reportStatus = getReportStatus(run);
@@ -398,13 +446,13 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
     <Card>
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <p className="eyebrow">latest activity</p>
-          <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">Ultima corsa</h2>
+          <p className="eyebrow">{t(language, 'dashboard.latestActivity')}</p>
+          <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">{t(language, 'dashboard.latestRun')}</h2>
           <div className="mt-1 text-xs text-app-muted">
-            {formatDateIT(run.start_date)}
+            {formatDateLocalized(run.start_date, language)}
           </div>
         </div>
-        <ReportStatusBadge status={reportStatus} />
+        <ReportStatusBadge status={reportStatus} language={language} />
       </div>
 
       <div className="mb-5 space-y-4">
@@ -415,17 +463,17 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
           </p>
         ) : (
           <p className="text-sm text-neutral-300">
-            Analisi AI in attesa di generazione.
+            {t(language, 'dashboard.aiAnalysisPending')}
           </p>
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          <MetricTile label="Distanza" value={formatKm(run.distance_m)} icon={Footprints} tone="lime" />
-          <MetricTile label="Durata" value={formatDuration(run.moving_time_s)} icon={CalendarDays} tone="cyan" />
-          <MetricTile label="Passo medio" value={run.average_speed ? formatPace(run.average_speed) : 'N/A'} icon={Gauge} />
+          <MetricTile label={t(language, 'dashboard.distance')} value={formatKm(run.distance_m)} icon={Footprints} tone="lime" />
+          <MetricTile label={t(language, 'dashboard.duration')} value={formatDuration(run.moving_time_s)} icon={CalendarDays} tone="cyan" />
+          <MetricTile label={t(language, 'dashboard.avgPace')} value={run.average_speed ? formatPace(run.average_speed) : 'N/A'} icon={Gauge} />
 
           {run.average_heartrate && (
-            <MetricTile label="FC media" value={`${Math.round(run.average_heartrate)} bpm`} icon={HeartPulse} tone="danger" />
+            <MetricTile label={t(language, 'dashboard.avgHr')} value={`${Math.round(run.average_heartrate)} bpm`} icon={HeartPulse} tone="danger" />
           )}
         </div>
       </div>
@@ -435,7 +483,7 @@ function LastRunCard({ run }: { run: DashboardRun | null | undefined }) {
           href={`/runs/${run.id}`}
           className="pressable inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-sm font-bold text-black"
         >
-          <span>Apri analisi</span>
+          <span>{t(language, 'dashboard.openFullAnalysis')}</span>
           <ArrowRight size={16} strokeWidth={2} />
         </Link>
 
@@ -469,7 +517,7 @@ function formatPace(speedMs: number): string {
 /**
  * Componente Trend Settimanale - Più interpretativo
  */
-function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
+function WeeklyTrendCard({ trend, language }: { trend: WeeklyTrendItem[] | null; language: Language }) {
   if (!trend || trend.length === 0) return null;
 
   const weeklyAverage = calculateWeeklyAverage(trend);
@@ -479,7 +527,7 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
 
   return (
     <Card>
-      <SectionHeader eyebrow="training load" title="Trend settimanale" icon={TrendingUp} />
+      <SectionHeader eyebrow="training load" title={t(language, 'dashboard.weeklyTrend')} icon={TrendingUp} />
 
       <div className="metric-card mb-4 p-3.5">
         <div className="mb-3 flex items-center justify-between gap-3">
@@ -488,16 +536,16 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
               {currentWeek.week}
             </div>
             <div>
-              <div className="font-medium text-app-text">Questa settimana</div>
+              <div className="font-medium text-app-text">{t(language, 'dashboard.thisWeek')}</div>
               <div className="text-xs text-app-muted">
-                {currentWeek.runs} uscite
+                {currentWeek.runs} {t(language, 'dashboard.outings')}
               </div>
             </div>
           </div>
           <div className="text-right">
             <div className="text-2xl font-semibold text-app-text">{formatKm(currentWeek.total_distance)}</div>
             <div className="text-xs text-app-muted">
-              {getWeekLabel(currentWeek.runs, currentKm)}
+              {getWeekLabel(currentWeek.runs, currentKm, language)}
             </div>
           </div>
         </div>
@@ -507,7 +555,7 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
 
         {weeklyAverage > 0 && (
           <div className="mt-3 text-xs text-app-muted">
-            Media recente: {weeklyAverage.toFixed(1)} km/settimana
+            {t(language, 'dashboard.recentAverage')}: {weeklyAverage.toFixed(1)} km/{language === 'en' ? 'week' : 'settimana'}
             {currentKm > weeklyAverage * 1.2 && (
               <span className="ml-2 text-[var(--success)]">+20%</span>
             )}
@@ -520,7 +568,7 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
 
       <div className="space-y-2">
         <div className="eyebrow mb-2">
-          Ultime settimane
+          {t(language, 'dashboard.lastWeeks')}
         </div>
         {trend.slice(1, 5).map((week, index) => {
           const weekKm = week.total_distance / 1000;
@@ -533,12 +581,12 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
                 <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
                   <div className="h-full rounded-full bg-white/35" style={{ width: `${Math.min(100, (weekKm / maxKm) * 100)}%` }} />
                 </div>
-                <div className="text-xs text-app-muted">{week.runs} uscite</div>
+                <div className="text-xs text-app-muted">{week.runs} {t(language, 'dashboard.outings')}</div>
               </div>
               <div className="text-right">
                 <div className="text-sm font-semibold text-app-text">{formatKm(week.total_distance)}</div>
                 <div className="text-xs text-app-muted">
-                  {getWeekLabel(week.runs, weekKm)}
+                  {getWeekLabel(week.runs, weekKm, language)}
                 </div>
               </div>
             </div>
@@ -552,17 +600,18 @@ function WeeklyTrendCard({ trend }: { trend: WeeklyTrendItem[] | null }) {
 /**
  * Componente Link Profilo Strava
  */
-function StravaProfileLink() {
+function StravaProfileLink({ status, language }: { status?: PublicStravaConnectionStatus; language: Language }) {
+  const href = status?.stravaAthleteId ? `https://www.strava.com/athletes/${status.stravaAthleteId}` : 'https://www.strava.com';
   return (
     <Card className="p-3">
       <a
-        href="https://www.strava.com/athletes/533234"
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-app-text"
       >
         <ExternalLink size={16} strokeWidth={1.8} />
-        <span>Apri profilo Strava</span>
+        <span>{t(language, 'dashboard.openStravaProfile')}</span>
       </a>
     </Card>
   );
@@ -571,22 +620,21 @@ function StravaProfileLink() {
 /**
  * Componente per empty state
  */
-function EmptyState() {
+function EmptyState({ language }: { language: Language }) {
   return (
     <Card className="p-8 text-center sm:p-10">
       <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[rgba(215,255,63,0.2)] bg-[rgba(215,255,63,0.08)] text-accent-primary">
         <Footprints size={24} strokeWidth={1.8} />
       </div>
 
-      <h2 className="mb-3 text-xl font-semibold text-app-text">Nessuna corsa ancora sincronizzata</h2>
+      <h2 className="mb-3 text-xl font-semibold text-app-text">{t(language, 'dashboard.emptyTitle')}</h2>
 
       <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-app-muted">
-        Le tue corse appariranno qui automaticamente dopo la prima sincronizzazione con Strava.
-        Controlla che il cron job sia attivo o avvia una sync manuale.
+        {t(language, 'dashboard.emptyBody')}
       </p>
 
       <div className="text-xs text-app-muted">
-        La sincronizzazione avviene automaticamente ogni 6 ore
+        {t(language, 'dashboard.emptyFootnote')}
       </div>
     </Card>
   );
@@ -623,6 +671,10 @@ export default async function HomePage() {
 
   const athleteSettings = await getAthleteSettings();
   const language = normalizeLanguage(athleteSettings?.language);
+  const session = await verifySession();
+  const stravaStatus = session
+    ? await getPublicStravaConnectionStatus(session.email)
+    : undefined;
   const activityHistoryQuery = await query(`
     SELECT * FROM activities
     WHERE type IN ('Run', 'TrailRun')
@@ -669,9 +721,7 @@ export default async function HomePage() {
         <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-primary text-black">
-                <Activity size={18} strokeWidth={2} />
-              </div>
+              <AthleteAvatar status={stravaStatus} />
               <div className="min-w-0">
                 <p className="eyebrow">{t(language, 'dashboard.eyebrow')}</p>
                 <h1 className="truncate text-xl font-semibold tracking-tight text-app-text sm:text-2xl">Coach</h1>
@@ -703,25 +753,25 @@ export default async function HomePage() {
         </div>
 
         {!hasData ? (
-          <EmptyState />
+          <EmptyState language={language} />
         ) : (
             <div className="space-y-5 sm:space-y-6">
             {/* Hero Section */}
-            <HeroSection lastRun={lastRun} />
+            <HeroSection lastRun={lastRun} language={language} />
 
             {/* Layout principale */}
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
               {/* Colonna sinistra - Coach Decision (principale) */}
               <div className="space-y-5 lg:col-span-2">
                 <CoachDecisionCard state={dynamicAthleteState} language={language} />
-                <LastRunCard run={lastRun} />
+                <LastRunCard run={lastRun} language={language} />
               </div>
 
               {/* Colonna destra - Metriche e trend */}
               <div className="space-y-5 lg:col-span-1">
-                <AthleteMetricsCard metrics={dynamicAthleteState} />
-                <WeeklyTrendCard trend={weeklyTrend} />
-                <StravaProfileLink />
+                <AthleteMetricsCard metrics={dynamicAthleteState} language={language} />
+                <WeeklyTrendCard trend={weeklyTrend} language={language} />
+                <StravaProfileLink status={stravaStatus} language={language} />
               </div>
             </div>
           </div>

@@ -19,7 +19,7 @@ import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
-import { formatDateIT } from '@/lib/date-utils';
+import { formatDateLocalized } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone } from '@/app/components/ui';
@@ -47,31 +47,45 @@ function getReportStatus(run?: { title?: string; summary?: string; full_report?:
   return hasCoachReport(run) ? 'ready' : 'waiting';
 }
 
-function ReportStatusBadge({ status }: { status: 'ready' | 'waiting' }) {
-  const labels = {
-    ready: 'Report pronto',
-    waiting: 'Report in attesa',
-  };
+function getRiskLabel(riskLevel: string | undefined, language: Language): string {
+  if (language === 'en') {
+    switch (riskLevel?.toLowerCase()) {
+      case 'basso': return 'Low';
+      case 'medio': return 'Medium';
+      case 'alto': return 'High';
+      default: return 'N/A';
+    }
+  }
+  switch (riskLevel?.toLowerCase()) {
+    case 'basso': return 'Basso';
+    case 'medio': return 'Medio';
+    case 'alto': return 'Alto';
+    default: return 'N/A';
+  }
+}
 
+function ReportStatusBadge({ status, language }: { status: 'ready' | 'waiting'; language: Language }) {
   return (
-    <Badge tone={status === 'ready' ? 'success' : 'warning'}>{labels[status]}</Badge>
+    <Badge tone={status === 'ready' ? 'success' : 'warning'}>
+      {t(language, status === 'ready' ? 'report.ready' : 'report.pending')}
+    </Badge>
   );
 }
 
 /**
  * Componente per il profilo atleta
  */
-function AthleteProfileCard({ settings }: { settings: any }) {
+function AthleteProfileCard({ settings, language }: { settings: any; language: Language }) {
   if (!settings) return null;
 
   return (
     <Card>
-      <SectionHeader eyebrow="profile" title="Profilo atleta" icon={User} />
+      <SectionHeader eyebrow="profile" title={language === 'en' ? 'Athlete profile' : 'Profilo atleta'} icon={User} />
 
       <div className="space-y-3">
         {settings.profile_summary && (
           <div className="metric-card p-3">
-            <div className="eyebrow mb-1">Sommario</div>
+            <div className="eyebrow mb-1">{language === 'en' ? 'Summary' : 'Sommario'}</div>
             <div className="text-sm text-app-text">{settings.profile_summary}</div>
           </div>
         )}
@@ -79,9 +93,9 @@ function AthleteProfileCard({ settings }: { settings: any }) {
         <div className="grid grid-cols-2 gap-3">
           {settings.age && (
             <div className="metric-card p-3">
-              <div className="eyebrow">Età</div>
+              <div className="eyebrow">{language === 'en' ? 'Age' : 'Età'}</div>
               <div className="text-lg font-semibold text-app-text">{settings.age}</div>
-              <div className="text-xs text-app-muted">anni</div>
+              <div className="text-xs text-app-muted">{language === 'en' ? 'years' : 'anni'}</div>
             </div>
           )}
 
@@ -97,14 +111,14 @@ function AthleteProfileCard({ settings }: { settings: any }) {
 
         {settings.main_goal && (
           <div className="metric-card p-3">
-            <div className="eyebrow mb-1">Obiettivo principale</div>
+            <div className="eyebrow mb-1">{language === 'en' ? 'Main goal' : 'Obiettivo principale'}</div>
             <div className="text-sm font-medium text-app-text">{settings.main_goal}</div>
           </div>
         )}
 
         {settings.experience_level && (
           <div className="metric-card p-3">
-            <div className="eyebrow mb-1">Livello esperienza</div>
+            <div className="eyebrow mb-1">{language === 'en' ? 'Experience level' : 'Livello esperienza'}</div>
             <div className="text-sm text-app-text">{settings.experience_level}</div>
           </div>
         )}
@@ -116,12 +130,12 @@ function AthleteProfileCard({ settings }: { settings: any }) {
 /**
  * Componente per le metriche attuali
  */
-function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, rules: any }) {
+function CurrentMetricsCard({ metrics, rules, language }: { metrics: DynamicAthleteState, rules: any; language: Language }) {
   if (!metrics) return null;
 
   return (
     <Card>
-      <SectionHeader eyebrow="current state" title="Metriche attuali" icon={Gauge} />
+      <SectionHeader eyebrow="current state" title={language === 'en' ? 'Current metrics' : 'Metriche attuali'} icon={Gauge} />
 
       <div className="mb-4 grid grid-cols-2 gap-3">
         <MetricTile label="Readiness" value={metrics.readinessScore ?? 'N/A'} detail={metrics.readinessLabel || 'Readiness'} icon={Activity} tone="lime" progress={metrics.readinessScore} />
@@ -132,15 +146,15 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, 
             <p className="eyebrow">Overload</p>
             <IconBox icon={ShieldAlert} tone={metrics.overloadRisk === 'alto' ? 'danger' : metrics.overloadRisk === 'medio' ? 'warning' : 'success'} />
           </div>
-          <div className="text-lg font-semibold capitalize text-app-text">{metrics.overloadRisk}</div>
-          <span className={cn('mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize', riskTone(metrics.overloadRisk))}>{metrics.overloadRisk}</span>
+          <div className="text-lg font-semibold capitalize text-app-text">{getRiskLabel(metrics.overloadRisk, language)}</div>
+          <span className={cn('mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold capitalize', riskTone(metrics.overloadRisk))}>{getRiskLabel(metrics.overloadRisk, language)}</span>
         </div>
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3">
         {metrics.explanation && (
           <div className="metric-card p-3">
-            <div className="eyebrow mb-1">Spiegazione dinamica</div>
+            <div className="eyebrow mb-1">{language === 'en' ? 'Dynamic explanation' : 'Spiegazione dinamica'}</div>
             <div className="text-sm text-app-text">{metrics.explanation}</div>
           </div>
         )}
@@ -148,20 +162,20 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, 
 
       <div className="space-y-3">
         <div>
-          <div className="eyebrow mb-1">Focus consigliato</div>
+          <div className="eyebrow mb-1">{language === 'en' ? 'Suggested focus' : 'Focus consigliato'}</div>
           <div className="text-sm font-medium text-app-text">{metrics.suggestedFocus}</div>
         </div>
 
         {rules && (
           <div>
-            <div className="eyebrow mb-1">Intensità massima</div>
+            <div className="eyebrow mb-1">{language === 'en' ? 'Max intensity' : 'Intensità massima'}</div>
             <div className="text-sm font-medium capitalize text-app-text">{rules.allowedIntensity}</div>
           </div>
         )}
 
         {rules?.blockedWorkouts && rules.blockedWorkouts.length > 0 && (
           <div>
-            <div className="eyebrow mb-2">Avvertenze</div>
+            <div className="eyebrow mb-2">{language === 'en' ? 'Warnings' : 'Avvertenze'}</div>
             <ul className="space-y-1">
               {rules.blockedWorkouts.map((warning: string, index: number) => (
                 <li key={index} className="flex gap-2 text-sm text-[var(--warning)]"><ShieldAlert size={15} strokeWidth={1.8} /> {warning}</li>
@@ -177,13 +191,13 @@ function CurrentMetricsCard({ metrics, rules }: { metrics: DynamicAthleteState, 
 /**
  * Componente per il trend delle ultime settimane
  */
-function WeeklyTrendCard({ trend }: { trend: any[] }) {
+function WeeklyTrendCard({ trend, language }: { trend: any[]; language: Language }) {
   if (!trend || trend.length === 0) return null;
   const maxKm = Math.max(...trend.map((week) => week.total_distance / 1000), 1);
 
   return (
     <Card>
-      <SectionHeader eyebrow="volume" title="Trend ultime 4 settimane" icon={TrendingUp} />
+      <SectionHeader eyebrow="volume" title={language === 'en' ? 'Last 4 weeks trend' : 'Trend ultime 4 settimane'} icon={TrendingUp} />
 
       <div className="space-y-2.5">
         {trend.map((week, index) => (
@@ -197,7 +211,7 @@ function WeeklyTrendCard({ trend }: { trend: any[] }) {
                   <div className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary" style={{ width: `${Math.min(100, ((week.total_distance / 1000) / maxKm) * 100)}%` }} />
                 </div>
                 <div className="text-xs text-app-muted">
-                  {week.runs} uscite • {formatKm(week.total_distance)}
+                  {week.runs} {language === 'en' ? 'runs' : 'uscite'} • {formatKm(week.total_distance)}
                 </div>
               </div>
             </div>
@@ -216,7 +230,7 @@ function WeeklyTrendCard({ trend }: { trend: any[] }) {
 /**
  * Componente per l'ultimo report
  */
-function LatestReportCard({ report, run }: { report: any; run: any }) {
+function LatestReportCard({ report, run, language }: { report: any; run: any; language: Language }) {
   if (!run) return null;
 
   const status = getReportStatus(run);
@@ -227,23 +241,23 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
       <Card>
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <p className="eyebrow">latest activity</p>
-            <h2 className="text-lg font-semibold text-app-text">Ultima corsa</h2>
-            <p className="text-sm text-app-muted">{formatDateIT(run.start_date)}</p>
+            <p className="eyebrow">{t(language, 'dashboard.latestActivity')}</p>
+            <h2 className="text-lg font-semibold text-app-text">{t(language, 'dashboard.latestRun')}</h2>
+            <p className="text-sm text-app-muted">{formatDateLocalized(run.start_date, language)}</p>
           </div>
-          <ReportStatusBadge status={status} />
+          <ReportStatusBadge status={status} language={language} />
         </div>
 
         <div className="space-y-4">
           <div>
             <div className="mb-2 text-base font-semibold text-app-text">{run.name}</div>
-            <div className="text-sm text-neutral-300">Analisi AI in attesa di generazione.</div>
+            <div className="text-sm text-neutral-300">{t(language, 'dashboard.aiAnalysisPending')}</div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <MetricTile label="Distanza" value={formatKm(run.distance_m)} icon={Activity} tone="lime" />
-            <MetricTile label="Passo" value={formatPace(run.average_speed)} icon={Gauge} tone="cyan" />
-            <MetricTile label="Stato" value="In attesa" icon={Brain} />
+            <MetricTile label={t(language, 'dashboard.distance')} value={formatKm(run.distance_m)} icon={Activity} tone="lime" />
+            <MetricTile label={language === 'en' ? 'Pace' : 'Passo'} value={formatPace(run.average_speed)} icon={Gauge} tone="cyan" />
+            <MetricTile label={language === 'en' ? 'Status' : 'Stato'} value={language === 'en' ? 'Pending' : 'In attesa'} icon={Brain} />
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -252,7 +266,7 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
               className="pressable inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-5 py-2.5 text-sm font-bold text-black"
             >
               <ArrowRight size={16} strokeWidth={2} />
-              Apri corsa
+              {language === 'en' ? 'Open run' : 'Apri corsa'}
             </Link>
             {run.strava_id && (
               <a
@@ -276,10 +290,10 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <p className="eyebrow">latest report</p>
-          <h2 className="text-lg font-semibold text-app-text">Ultima corsa</h2>
-          <p className="mt-1 text-sm text-app-muted">{formatDateIT(run.start_date)}</p>
+          <h2 className="text-lg font-semibold text-app-text">{t(language, 'dashboard.latestRun')}</h2>
+          <p className="mt-1 text-sm text-app-muted">{formatDateLocalized(run.start_date, language)}</p>
         </div>
-        <ReportStatusBadge status={status} />
+        <ReportStatusBadge status={status} language={language} />
       </div>
 
       <div className="space-y-4">
@@ -290,13 +304,13 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
         </div>
 
         <div className="metric-card p-3.5">
-          <div className="eyebrow mb-2">Prossime 48 ore</div>
+          <div className="eyebrow mb-2">{language === 'en' ? 'Next 48 hours' : 'Prossime 48 ore'}</div>
           <div className="text-sm text-app-text">{report.next_48h}</div>
         </div>
 
         {report.weekly_plan && report.weekly_plan.length > 0 && (
           <div>
-            <div className="eyebrow mb-3">Piano settimanale</div>
+            <div className="eyebrow mb-3">{language === 'en' ? 'Weekly plan' : 'Piano settimanale'}</div>
             <div className="space-y-2">
               {report.weekly_plan.slice(0, 3).map((item: any, index: number) => (
                 <div key={index} className="rounded-xl bg-white/[0.035] p-3">
@@ -314,7 +328,7 @@ function LatestReportCard({ report, run }: { report: any; run: any }) {
 
         {report.coach_notes && report.coach_notes.length > 0 && (
           <div>
-            <div className="eyebrow mb-2">Note coach</div>
+            <div className="eyebrow mb-2">{language === 'en' ? 'Coach notes' : 'Note coach'}</div>
             <ul className="space-y-1">
               {report.coach_notes.map((note: string, index: number) => (
                 <li key={index} className="flex gap-2 text-sm text-accent-secondary"><Sparkles size={15} strokeWidth={1.8} /> {note}</li>
@@ -477,8 +491,8 @@ export default async function CoachPage() {
               <p className="mt-1 text-sm text-app-muted">{t(language, 'coach.subtitle')}</p>
               {latestRun ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-                  <span className="text-app-muted">Ultima corsa: {formatDateIT(latestRun.start_date)}</span>
-                  <ReportStatusBadge status={reportStatus} />
+                  <span className="text-app-muted">{t(language, 'dashboard.lastRun')}: {formatDateLocalized(latestRun.start_date, language)}</span>
+                  <ReportStatusBadge status={reportStatus} language={language} />
                 </div>
               ) : null}
             </div>
@@ -498,15 +512,15 @@ export default async function CoachPage() {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
             {/* Colonna sinistra - Profilo e metriche */}
             <div className="space-y-5 lg:col-span-1">
-              <AthleteProfileCard settings={athleteSettings} />
-              <CurrentMetricsCard metrics={dynamicAthleteState} rules={rules} />
+              <AthleteProfileCard settings={athleteSettings} language={language} />
+              <CurrentMetricsCard metrics={dynamicAthleteState} rules={rules} language={language} />
             </div>
 
             {/* Colonna destra - Trend e report */}
             <div className="space-y-5 lg:col-span-2">
               <CoachDecisionCard state={dynamicAthleteState} language={language} />
-              <WeeklyTrendCard trend={weeklyTrend} />
-              <LatestReportCard report={latestReport} run={latestRun} />
+              <WeeklyTrendCard trend={weeklyTrend} language={language} />
+              <LatestReportCard report={latestReport} run={latestRun} language={language} />
             </div>
           </div>
       </PageShell>

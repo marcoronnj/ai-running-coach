@@ -19,6 +19,33 @@ type TranslationKey =
   | 'dashboard.today'
   | 'dashboard.tomorrow'
   | 'dashboard.nextRun'
+  | 'dashboard.todayStatus'
+  | 'dashboard.lastRun'
+  | 'dashboard.noRunsSynced'
+  | 'dashboard.dataPending'
+  | 'dashboard.athleteStatus'
+  | 'dashboard.overloadRisk'
+  | 'dashboard.updatedWithDynamicFatigue'
+  | 'dashboard.latestActivity'
+  | 'dashboard.latestRun'
+  | 'dashboard.aiAnalysisPending'
+  | 'dashboard.distance'
+  | 'dashboard.duration'
+  | 'dashboard.avgPace'
+  | 'dashboard.avgHr'
+  | 'dashboard.openAnalysis'
+  | 'dashboard.openFullAnalysis'
+  | 'dashboard.weeklyTrend'
+  | 'dashboard.thisWeek'
+  | 'dashboard.outings'
+  | 'dashboard.recentAverage'
+  | 'dashboard.lastWeeks'
+  | 'dashboard.openStravaProfile'
+  | 'dashboard.emptyTitle'
+  | 'dashboard.emptyBody'
+  | 'dashboard.emptyFootnote'
+  | 'report.ready'
+  | 'report.pending'
   | 'coach.eyebrow'
   | 'coach.subtitle'
   | 'settings.eyebrow'
@@ -94,6 +121,33 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'dashboard.today': 'Oggi',
     'dashboard.tomorrow': 'Domani',
     'dashboard.nextRun': 'Dopodomani / Prossima corsa',
+    'dashboard.todayStatus': 'Stato di oggi',
+    'dashboard.lastRun': 'Ultima corsa',
+    'dashboard.noRunsSynced': 'Nessuna corsa ancora sincronizzata',
+    'dashboard.dataPending': 'In attesa dati',
+    'dashboard.athleteStatus': 'Stato atleta',
+    'dashboard.overloadRisk': 'Rischio Overload',
+    'dashboard.updatedWithDynamicFatigue': "Aggiornato con fatica dinamica e giorni dall'ultima corsa.",
+    'dashboard.latestActivity': 'latest activity',
+    'dashboard.latestRun': 'Ultima corsa',
+    'dashboard.aiAnalysisPending': 'Analisi AI in attesa di generazione.',
+    'dashboard.distance': 'Distanza',
+    'dashboard.duration': 'Durata',
+    'dashboard.avgPace': 'Passo medio',
+    'dashboard.avgHr': 'FC media',
+    'dashboard.openAnalysis': 'Apri analisi',
+    'dashboard.openFullAnalysis': 'Apri analisi completa',
+    'dashboard.weeklyTrend': 'Trend settimanale',
+    'dashboard.thisWeek': 'Questa settimana',
+    'dashboard.outings': 'uscite',
+    'dashboard.recentAverage': 'Media recente',
+    'dashboard.lastWeeks': 'Ultime settimane',
+    'dashboard.openStravaProfile': 'Apri profilo Strava',
+    'dashboard.emptyTitle': 'Nessuna corsa ancora sincronizzata',
+    'dashboard.emptyBody': 'Le tue corse appariranno qui automaticamente dopo la prima sincronizzazione con Strava. Controlla che il cron job sia attivo o avvia una sync manuale.',
+    'dashboard.emptyFootnote': 'La sincronizzazione avviene automaticamente ogni 6 ore',
+    'report.ready': 'Report pronto',
+    'report.pending': 'Report in attesa',
     'coach.eyebrow': 'coach hub',
     'coach.subtitle': 'Analisi compatta del tuo stato di forma',
     'settings.eyebrow': 'IMPOSTAZIONI',
@@ -164,10 +218,37 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'dashboard.eyebrow': 'AI Running',
     'dashboard.subtitle': 'Your data-driven personal running coach',
     'dashboard.coachLive': 'Live coach',
-    'dashboard.currentState': 'Current athlete state',
+    'dashboard.currentState': 'Current athlete status',
     'dashboard.today': 'Today',
     'dashboard.tomorrow': 'Tomorrow',
     'dashboard.nextRun': 'Day after tomorrow / Next run',
+    'dashboard.todayStatus': 'Today status',
+    'dashboard.lastRun': 'Last run',
+    'dashboard.noRunsSynced': 'No runs synced yet',
+    'dashboard.dataPending': 'Waiting for data',
+    'dashboard.athleteStatus': 'Athlete status',
+    'dashboard.overloadRisk': 'Overload risk',
+    'dashboard.updatedWithDynamicFatigue': 'Updated with dynamic fatigue and days since last run.',
+    'dashboard.latestActivity': 'latest activity',
+    'dashboard.latestRun': 'Last run',
+    'dashboard.aiAnalysisPending': 'AI analysis pending.',
+    'dashboard.distance': 'Distance',
+    'dashboard.duration': 'Duration',
+    'dashboard.avgPace': 'Average pace',
+    'dashboard.avgHr': 'Average HR',
+    'dashboard.openAnalysis': 'Open analysis',
+    'dashboard.openFullAnalysis': 'Open full analysis',
+    'dashboard.weeklyTrend': 'Weekly trend',
+    'dashboard.thisWeek': 'This week',
+    'dashboard.outings': 'runs',
+    'dashboard.recentAverage': 'Recent average',
+    'dashboard.lastWeeks': 'Last weeks',
+    'dashboard.openStravaProfile': 'Open Strava profile',
+    'dashboard.emptyTitle': 'No runs synced yet',
+    'dashboard.emptyBody': 'Your runs will appear here automatically after the first Strava sync. Check that the cron job is active or start a manual sync.',
+    'dashboard.emptyFootnote': 'Sync runs automatically every 6 hours',
+    'report.ready': 'Report ready',
+    'report.pending': 'Report pending',
     'coach.eyebrow': 'coach hub',
     'coach.subtitle': 'Compact analysis of your current fitness state',
     'settings.eyebrow': 'SETTINGS',

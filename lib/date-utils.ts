@@ -55,15 +55,23 @@ export function daysSinceInRome(value: DateInput, today: Date = new Date()): num
   return delta >= 0 ? delta : 0;
 }
 
-export function formatDateIT(value: DateInput): string {
+export function getDateLocale(language: unknown): 'it-IT' | 'en-US' {
+  return language === 'en' ? 'en-US' : 'it-IT';
+}
+
+export function formatDateLocalized(value: DateInput, language: unknown): string {
   const date = toDate(value);
-  return new Intl.DateTimeFormat('it-IT', {
+  return new Intl.DateTimeFormat(getDateLocale(language), {
     timeZone: APP_TIMEZONE,
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   }).format(date);
+}
+
+export function formatDateIT(value: DateInput): string {
+  return formatDateLocalized(value, 'it');
 }
 
 export function formatTimeIT(value: DateInput): string {
@@ -91,9 +99,18 @@ export function getDaysSince(value: DateInput): number {
   return daysSinceInRome(value);
 }
 
-export function formatDaysSince(value: DateInput): string {
+export function formatDaysSinceLocalized(value: DateInput, language: unknown): string {
   const days = getDaysSince(value);
+  if (language === 'en') {
+    if (days === 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return `${days} days ago`;
+  }
   if (days === 0) return 'oggi';
   if (days === 1) return 'ieri';
   return `${days} giorni fa`;
+}
+
+export function formatDaysSince(value: DateInput): string {
+  return formatDaysSinceLocalized(value, 'it');
 }

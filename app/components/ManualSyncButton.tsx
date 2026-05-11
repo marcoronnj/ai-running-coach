@@ -121,7 +121,7 @@ export default function ManualSyncButton({ language = 'it' }: { language?: Langu
         ? (currentLanguage === 'en' ? 'Updated' : 'Aggiornato')
       : state === 'error'
         ? (currentLanguage === 'en' ? 'Error' : 'Errore')
-        : 'Sync';
+        : (currentLanguage === 'en' ? 'Sync' : 'Sincronizza');
   const Icon = state === 'success' || state === 'warning' ? Check : state === 'error' ? XCircle : RefreshCw;
 
   return (

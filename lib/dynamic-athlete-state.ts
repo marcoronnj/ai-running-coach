@@ -40,12 +40,12 @@ function asNumber(value: unknown): number | null {
 
 function formatKm(meters: unknown): string {
   const value = asNumber(meters);
-  if (!value || value <= 0) return 'corsa';
+  if (!value || value <= 0) return '';
   return `${(value / 1000).toFixed(1)} km`;
 }
 
 function readinessLabel(score: number | null, language: Language): string {
-  if (score === null) return 'dati insufficienti';
+  if (score === null) return language === 'en' ? 'insufficient data' : 'dati insufficienti';
   if (language === 'en') {
     if (score >= 75) return 'good';
     if (score >= 50) return 'moderate';
@@ -86,7 +86,11 @@ function normalizeRisk(value: unknown): OverloadRisk {
   return 'dati insufficienti';
 }
 
-function extractTechnicalFocus(report: any | null, metrics: any): string {
+function extractTechnicalFocus(report: any | null, metrics: any, language: Language): string {
+  if (language === 'en') {
+    return '30-40 minutes easy/recovery, low HR / Z2, conversational pace, finish with light mobility.';
+  }
+
   const candidates = [
     report?.suggested_focus,
     Array.isArray(report?.weekly_plan) ? report.weekly_plan[0]?.description : null,
@@ -260,7 +264,7 @@ function buildActions({
   rules: any;
   language: Language;
 }) {
-  const distance = formatKm(latestRun?.distance_m);
+  const distance = formatKm(latestRun?.distance_m) || (language === 'en' ? 'run' : 'corsa');
   const persistedFocus = focus.endsWith('.') ? focus : `${focus}.`;
   const forcedRecovery =
     overloadRisk === 'alto' ||
@@ -493,7 +497,7 @@ export function buildDynamicAthleteState({
   const currentLanguage = normalizeLanguage(language);
   const daysSinceLatestRun = latestRun?.start_date ? daysSinceInRome(latestRun.start_date, today) : null;
   const hasRunToday = latestRun?.start_date ? isSameDayInRome(latestRun.start_date, today) : false;
-  const suggestedFocus = extractTechnicalFocus(latestReport, metrics);
+  const suggestedFocus = extractTechnicalFocus(latestReport, metrics, currentLanguage);
   const fatigueScore = calculateFatigue({ latestReport, metrics, recentRuns, daysSinceLatestRun });
   const overloadRisk = calculateOverloadRisk({ metrics, fatigueScore, daysSinceLatestRun, hasRunToday });
   const readinessScore = calculateReadiness({ fatigueScore, metrics, daysSinceLatestRun, overloadRisk });
