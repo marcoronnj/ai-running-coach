@@ -95,7 +95,7 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
  */
 export async function sendTestMessage(): Promise<boolean> {
   const testMessage = `
-🤖 <b>AI Running Coach</b>
+<b>Veyro</b>
 
 ✅ <i>Test Telegram riuscito!</i>
 

@@ -487,7 +487,7 @@ export default async function CoachPage() {
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="eyebrow mb-1">{t(language, 'coach.eyebrow')}</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">AI Running Coach</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">Veyro</h1>
               <p className="mt-1 text-sm text-app-muted">{t(language, 'coach.subtitle')}</p>
               {latestRun ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">

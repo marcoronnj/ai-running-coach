@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Running Coach",
-  description: "Il tuo allenatore personale basato sui dati Strava",
+  title: "Veyro",
+  description: "Performance running intelligence",
 };
 
 export default function RootLayout({
