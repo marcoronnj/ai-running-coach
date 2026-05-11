@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Veyro",
   description: "Performance running intelligence",
+  icons: {
+    icon: "/icon.png",
+  },
 };
 
 export default function RootLayout({
