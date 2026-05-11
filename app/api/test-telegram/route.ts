@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendTestMessage } from '@/lib/telegram';
+import { isTelegramNotificationsEnabled, sendTestMessage } from '@/lib/telegram';
 
 /**
  * API Route: GET /api/test-telegram
- * Invia un messaggio di test a Telegram per verificare la configurazione
+ * Invia un messaggio di test a Telegram solo se ENABLE_TELEGRAM_NOTIFICATIONS=true
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +33,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!isTelegramNotificationsEnabled()) {
+      return NextResponse.json(
+        {
+          ok: true,
+          message: 'Telegram disabilitato. Nessun messaggio inviato.',
+          telegramEnabled: false,
+          notificationsSent: false,
+        },
+        { status: 200 }
+      );
+    }
+
     console.log('[TEST-TELEGRAM] Invio messaggio di test...');
 
     // Invia il messaggio di test
@@ -44,6 +56,8 @@ export async function GET(request: NextRequest) {
         {
           ok: true,
           message: 'Messaggio di test inviato con successo a Telegram',
+          telegramEnabled: true,
+          notificationsSent: true,
         },
         { status: 200 }
       );
@@ -54,6 +68,8 @@ export async function GET(request: NextRequest) {
           ok: false,
           error: 'Invio messaggio fallito',
           message: 'Controlla i log del server per i dettagli dell\'errore',
+          telegramEnabled: true,
+          notificationsSent: false,
         },
         { status: 500 }
       );

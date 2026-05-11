@@ -1,6 +1,6 @@
 import { query } from '@/lib/db';
 import { getAppUrl } from '@/lib/app-url';
-import { sendTelegramMessage } from '@/lib/telegram';
+import { isTelegramNotificationsEnabled, sendTelegramMessage } from '@/lib/telegram';
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
@@ -44,10 +44,11 @@ export interface ProcessReportOptions {
 export async function processReportForActivity(
   activity: DBActivity,
   options: ProcessReportOptions = {}
-): Promise<{ report: CoachReport; telegramSent: boolean }> {
-  const sendTelegram = options.sendTelegram === true;
+): Promise<{ report: CoachReport; telegramSent: boolean; notificationsSent: boolean; telegramEnabled: boolean }> {
+  const telegramEnabled = isTelegramNotificationsEnabled();
+  const sendTelegram = telegramEnabled && options.sendTelegram === true;
   console.log(
-    `[RUN-REPORT] Generazione report activity id=${activity.id} mode=${options.syncMode ?? 'n/a'} reason=${options.reason ?? 'n/a'} telegram=${sendTelegram ? 'yes' : 'no'}`
+    `[RUN-REPORT] Generazione report activity id=${activity.id} mode=${options.syncMode ?? 'n/a'} reason=${options.reason ?? 'n/a'} telegramEnabled=${telegramEnabled ? 'yes' : 'no'} telegram=${sendTelegram ? 'yes' : 'no'}`
   );
 
   const history90d = await getActivityHistory90d(activity.start_date);
@@ -78,10 +79,10 @@ export async function processReportForActivity(
     : false;
 
   if (!sendTelegram) {
-    console.log(`[RUN-REPORT] Telegram skipped for activity id=${activity.id}`);
+    console.log(`[RUN-REPORT] Telegram skipped for activity id=${activity.id} enabled=${telegramEnabled ? 'yes' : 'no'}`);
   }
 
-  return { report, telegramSent };
+  return { report, telegramSent, notificationsSent: telegramSent, telegramEnabled };
 }
 
 async function saveCoachReport(activityId: string, report: CoachReport): Promise<void> {

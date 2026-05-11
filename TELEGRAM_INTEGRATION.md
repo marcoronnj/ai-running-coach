@@ -1,5 +1,9 @@
 # Telegram Integration
 
+> Stato attuale: Telegram è disabilitato di default.
+> Per inviare messaggi serve impostare esplicitamente `ENABLE_TELEGRAM_NOTIFICATIONS=true`.
+> `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` sono opzionali e non bastano da soli ad abilitare l'invio.
+
 ## 📁 File Creati
 
 ```
@@ -44,6 +48,7 @@ cat .env.local | grep TELEGRAM
 
 Dovresti vedere:
 ```env
+ENABLE_TELEGRAM_NOTIFICATIONS=false
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=686664665
 CRON_SECRET=agsdigadsi6hajks3233dd

@@ -17,6 +17,8 @@ export async function POST() {
         latestActivityId: null,
         latestReportGenerated: false,
         telegramSent: false,
+        notificationsSent: false,
+        telegramEnabled: false,
         warning: null,
       },
       { status: 403 }
@@ -39,6 +41,8 @@ export async function POST() {
         latestActivityName: payload.latestActivityName ?? null,
         latestReportGenerated: payload.latestReportGenerated ?? false,
         telegramSent: payload.telegramSent ?? false,
+        notificationsSent: payload.notificationsSent ?? payload.telegramSent ?? false,
+        telegramEnabled: payload.telegramEnabled ?? false,
         retryReportsProcessed: payload.retryReportsProcessed ?? 0,
         reportsGenerated: payload.reportsGenerated ?? payload.processedWithReports ?? 0,
         duration: payload.duration,
@@ -56,6 +60,8 @@ export async function POST() {
         latestActivityId: null,
         latestReportGenerated: false,
         telegramSent: false,
+        notificationsSent: false,
+        telegramEnabled: false,
         warning: null,
       },
       { status: 500 }
@@ -72,6 +78,8 @@ export async function GET() {
       latestActivityId: null,
       latestReportGenerated: false,
       telegramSent: false,
+      notificationsSent: false,
+      telegramEnabled: false,
       warning: null,
     },
     { status: 405 }

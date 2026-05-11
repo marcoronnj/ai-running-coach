@@ -1,6 +1,7 @@
 import { query } from '@/lib/db';
 import { type DBActivity } from '@/lib/coach';
 import { getActivitiesWithoutReport, processReportForActivity } from '@/lib/run-report';
+import { isTelegramNotificationsEnabled } from '@/lib/telegram';
 import {
   filterRunningActivities,
   formatActivityForDB,
@@ -23,6 +24,8 @@ export interface StravaSyncPayload {
   latestActivityName?: string;
   latestReportGenerated?: boolean;
   telegramSent?: boolean;
+  notificationsSent?: boolean;
+  telegramEnabled?: boolean;
   pendingReports?: number;
   pendingReportsFound?: number;
   retryReportsProcessed?: number;
@@ -33,6 +36,8 @@ export interface StravaSyncPayload {
     name: string;
     reportGenerated: boolean;
     telegramSent: boolean;
+    notificationsSent?: boolean;
+    telegramEnabled?: boolean;
     error?: string;
   }>;
   duration?: string;
@@ -58,6 +63,7 @@ export async function runStravaSync(
 
   try {
     console.log(`[SYNC] Inizio sincronizzazione Strava mode=${mode}`);
+    const telegramEnabled = isTelegramNotificationsEnabled();
 
     const accessToken = options.accessToken;
 
@@ -87,6 +93,8 @@ export async function runStravaSync(
           reportsGenerated: 0,
           retryReportsProcessed: 0,
           telegramSent: false,
+          notificationsSent: false,
+          telegramEnabled,
           duration,
         },
         status: 200,
@@ -123,6 +131,8 @@ export async function runStravaSync(
           reportsGenerated: 0,
           retryReportsProcessed: 0,
           telegramSent: false,
+          notificationsSent: false,
+          telegramEnabled,
           duration,
         },
         status: 200,
@@ -137,9 +147,9 @@ export async function runStravaSync(
 
     for (const activity of newActivities) {
       try {
-        const shouldSendTelegram = latestNewActivity?.id === activity.id;
+        const shouldSendTelegram = telegramEnabled && latestNewActivity?.id === activity.id;
         console.log(
-          `[SYNC] Report nuova activity id=${activity.id} latest=${shouldSendTelegram ? 'yes' : 'no'} telegram=${shouldSendTelegram ? 'yes' : 'no'}`
+          `[SYNC] Report nuova activity id=${activity.id} latest=${latestNewActivity?.id === activity.id ? 'yes' : 'no'} telegramEnabled=${telegramEnabled ? 'yes' : 'no'} telegram=${shouldSendTelegram ? 'yes' : 'no'}`
         );
 
         const result = await processReportForActivity(activity, {
@@ -159,6 +169,8 @@ export async function runStravaSync(
           name: activity.name,
           reportGenerated: true,
           telegramSent: activityTelegramSent,
+          notificationsSent: activityTelegramSent,
+          telegramEnabled,
         });
 
         console.log(`[SYNC] Report completato activity id=${activity.id} telegram=${activityTelegramSent ? 'yes' : 'no'}`);
@@ -172,6 +184,8 @@ export async function runStravaSync(
           name: activity.name,
           reportGenerated: false,
           telegramSent: false,
+          notificationsSent: false,
+          telegramEnabled,
           error: errorMessage,
         });
       }
@@ -193,6 +207,8 @@ export async function runStravaSync(
           name: activity.name,
           reportGenerated: true,
           telegramSent: false,
+          notificationsSent: false,
+          telegramEnabled,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -204,6 +220,8 @@ export async function runStravaSync(
           name: activity.name,
           reportGenerated: false,
           telegramSent: false,
+          notificationsSent: false,
+          telegramEnabled,
           error: errorMessage,
         });
       }
@@ -233,6 +251,8 @@ export async function runStravaSync(
         latestActivityName: latestNewActivity?.name,
         latestReportGenerated,
         telegramSent,
+        notificationsSent: telegramSent,
+        telegramEnabled,
         pendingReportsFound: activitiesWithoutReport.length,
         retryReportsProcessed,
         processedWithReports: reportsGenerated,
@@ -257,6 +277,8 @@ export async function runStravaSync(
         mode,
         newActivities: 0,
         telegramSent: false,
+        notificationsSent: false,
+        telegramEnabled: isTelegramNotificationsEnabled(),
         retryReportsProcessed: 0,
         duration,
       },

@@ -235,10 +235,10 @@ Se OpenAI restituisce testo invece di JSON valido, viene creato un **fallback re
    import { generateCompleteCoachReport } from '@/lib/coach';
    ```
 
-2. **Integra con Telegram:**
+2. **Integra con Telegram solo se abilitato:**
    ```typescript
-   // Usa report.full_report per messaggio Telegram
-   await sendTelegramMessage(report.full_report);
+   // Telegram è spento di default.
+   // Richiede ENABLE_TELEGRAM_NOTIFICATIONS=true.
    ```
 
 3. **Dashboard web:**

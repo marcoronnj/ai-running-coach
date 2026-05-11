@@ -8,6 +8,11 @@
  * @returns Promise<boolean> - true se inviato con successo, false altrimenti
  */
 export async function sendTelegramMessage(text: string): Promise<boolean> {
+  if (!isTelegramNotificationsEnabled()) {
+    console.log('[TELEGRAM] Notifiche disabilitate. ENABLE_TELEGRAM_NOTIFICATIONS non è true.');
+    return false;
+  }
+
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -147,7 +152,15 @@ ${report.full_report.replace(/\n/g, '\n')}
  * @returns boolean
  */
 export function isTelegramConfigured(): boolean {
-  return !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
+  return isTelegramNotificationsEnabled() && !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
+}
+
+/**
+ * Feature flag per abilitare le notifiche Telegram.
+ * Default: false, anche se token e chat id sono presenti.
+ */
+export function isTelegramNotificationsEnabled(): boolean {
+  return process.env.ENABLE_TELEGRAM_NOTIFICATIONS === 'true';
 }
 
 /**
@@ -156,15 +169,18 @@ export function isTelegramConfigured(): boolean {
  */
 export function getTelegramConfig(): {
   configured: boolean;
+  enabled: boolean;
   hasToken: boolean;
   hasChatId: boolean;
   tokenPrefix?: string;
 } {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
+  const enabled = isTelegramNotificationsEnabled();
 
   return {
-    configured: !!(token && chatId),
+    configured: enabled && !!(token && chatId),
+    enabled,
     hasToken: !!token,
     hasChatId: !!chatId,
     tokenPrefix: token ? token.substring(0, 10) + '...' : undefined,
