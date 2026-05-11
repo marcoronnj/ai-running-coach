@@ -3,6 +3,7 @@ import { Activity, ArrowLeft, Brain, CheckCircle2, LogOut, Settings, Timer, User
 import { requireAuth } from '@/lib/auth';
 import { queryOne } from '@/lib/db';
 import { getPublicStravaConnectionStatus } from '@/lib/strava-connection';
+import { formatDateTimeIT } from '@/lib/date-utils';
 import { Card, MetricTile, PageShell, SectionHeader } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -49,12 +50,7 @@ async function getAccountStats(): Promise<AccountStats> {
 
 function formatDate(value?: string): string {
   if (!value) return 'N/D';
-  return new Date(value).toLocaleString('it-IT', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatDateTimeIT(value);
 }
 
 export default async function AccountPage() {

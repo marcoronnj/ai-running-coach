@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { query, queryOne } from '@/lib/db';
 import { buildRunJudgement } from '@/lib/run-analysis';
+import { formatDateIT, formatTimeIT } from '@/lib/date-utils';
 import { Card, IconBox, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -90,24 +91,6 @@ function formatDuration(seconds: number): string {
   }
 
   return `${minutes} min`;
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return date.toLocaleDateString('it-IT', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-function formatTime(value: string): string {
-  const date = new Date(value);
-  return date.toLocaleTimeString('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function getScoreColor(score?: number): string {
@@ -228,6 +211,15 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       ? JSON.parse(run.raw_json)
       : run.raw_json || {};
 
+    console.log('[RUN_DETAIL][TIMEZONE]', {
+      activityId: run.id,
+      dbStartDateUtc: run.start_date,
+      stravaStartDateUtc: rawJson?.start_date ?? null,
+      stravaStartDateLocal: rawJson?.start_date_local ?? null,
+      displayDateRome: formatDateIT(run.start_date),
+      displayTimeRome: formatTimeIT(run.start_date),
+    });
+
     const averageCadence = rawJson?.average_cadence ?? rawJson?.cadence;
     const calories = rawJson?.calories;
     const sufferScore = rawJson?.suffer_score;
@@ -263,7 +255,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               <p className="eyebrow mb-1">Analisi corsa</p>
               <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{run.name}</h1>
               <p className="mt-1 text-sm text-app-muted">
-                {formatDate(run.start_date)} • {formatTime(run.start_date)}
+                {formatDateIT(run.start_date)} • {formatTimeIT(run.start_date)}
               </p>
             </div>
 
@@ -529,7 +521,7 @@ function HistoricalReportNotice({ runDate }: { runDate: string }) {
       <SectionHeader eyebrow="storico" title="Report della seduta" icon={Info} />
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-neutral-200">
-          Questa pagina è una fotografia della corsa del {formatDate(runDate)}. Le indicazioni qui sotto sono quelle generate dopo quella seduta e non rappresentano necessariamente il coach live di oggi.
+          Questa pagina è una fotografia della corsa del {formatDateIT(runDate)}. Le indicazioni qui sotto sono quelle generate dopo quella seduta e non rappresentano necessariamente il coach live di oggi.
         </p>
         <Link
           href="/"

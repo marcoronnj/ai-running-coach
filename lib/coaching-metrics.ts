@@ -1,5 +1,6 @@
 import { DBActivity } from './coach';
 import { AthleteSettings } from './athlete-settings';
+import { daysSinceInRome } from './date-utils';
 
 /**
  * Metriche di coaching calcolate dalle attività recenti
@@ -86,7 +87,7 @@ export function calculateCoachingMetrics(
 
   // Giorni dall'ultima corsa
   const daysSinceLastRun = activities.length > 0
-    ? Math.floor((now.getTime() - new Date(activities[0].start_date).getTime()) / (1000 * 60 * 60 * 24))
+    ? daysSinceInRome(activities[0].start_date, now)
     : 999;
 
   // === CALCOLO READINESS SCORE ===

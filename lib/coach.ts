@@ -1,6 +1,7 @@
 import { AthleteSettings } from './athlete-settings';
 import { CoachingMetrics } from './coaching-metrics';
 import { CoachingRules } from './coaching-rules';
+import { formatDateIT } from './date-utils';
 import {
   getDailyOpenAIModel,
   getOpenAIClient,
@@ -80,7 +81,7 @@ export function buildCoachPrompt(
 ): string {
   const formatActivity = (activity: DBActivity, isNewRun = false) => {
     const prefix = isNewRun ? 'NUOVA CORSA (da analizzare):' : 'STORICO:';
-    const date = new Date(activity.start_date).toLocaleDateString('it-IT');
+    const date = formatDateIT(activity.start_date);
     const distance = formatKm(activity.distance_m);
     const pace = formatPace(activity.average_speed);
     const time = formatDuration(activity.moving_time_s);

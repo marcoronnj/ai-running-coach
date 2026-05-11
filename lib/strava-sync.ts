@@ -2,6 +2,7 @@ import { query } from '@/lib/db';
 import { type DBActivity } from '@/lib/coach';
 import { getActivitiesWithoutReport, processReportForActivity } from '@/lib/run-report';
 import { isTelegramNotificationsEnabled } from '@/lib/telegram';
+import { formatDateTimeIT } from '@/lib/date-utils';
 import {
   filterRunningActivities,
   formatActivityForDB,
@@ -303,6 +304,17 @@ async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivi
   for (const activity of activities) {
     try {
       const dbData = formatActivityForDB(activity);
+
+      console.log('[SYNC][TIMEZONE]', {
+        stravaId: activity.id,
+        name: activity.name,
+        stravaStartDateUtc: activity.start_date,
+        stravaStartDateLocal: activity.start_date_local,
+        stravaTimezone: activity.timezone ?? null,
+        stravaUtcOffsetSeconds: activity.utc_offset ?? null,
+        dbStartDateUtc: dbData.start_date,
+        displayRome: formatDateTimeIT(dbData.start_date),
+      });
 
       const result = await query(
         `INSERT INTO activities

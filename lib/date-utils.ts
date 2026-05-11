@@ -1,7 +1,13 @@
 export const APP_TIMEZONE = 'Europe/Rome';
 
-function getAppDateParts(value: string | Date) {
-  const date = typeof value === 'string' ? new Date(value) : value;
+type DateInput = string | Date;
+
+function toDate(value: DateInput): Date {
+  return typeof value === 'string' ? new Date(value) : value;
+}
+
+function getAppDateParts(value: DateInput) {
+  const date = toDate(value);
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: APP_TIMEZONE,
     year: 'numeric',
@@ -36,21 +42,21 @@ export function startOfTodayRome(today: Date = new Date()): Date {
   return datePartsToUtcDate(getAppDateParts(today));
 }
 
-export function isSameDayInRome(a: string | Date, b: string | Date = new Date()): boolean {
+export function isSameDayInRome(a: DateInput, b: DateInput = new Date()): boolean {
   const first = getAppDateParts(a);
   const second = getAppDateParts(b);
   return first.year === second.year && first.month === second.month && first.day === second.day;
 }
 
-export function daysSinceInRome(value: string | Date, today: Date = new Date()): number {
+export function daysSinceInRome(value: DateInput, today: Date = new Date()): number {
   const target = datePartsToUtcDate(getAppDateParts(value));
   const current = datePartsToUtcDate(getAppDateParts(today));
   const delta = Math.round((current.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
   return delta >= 0 ? delta : 0;
 }
 
-export function formatDateIT(value: string | Date): string {
-  const date = typeof value === 'string' ? new Date(value) : value;
+export function formatDateIT(value: DateInput): string {
+  const date = toDate(value);
   return new Intl.DateTimeFormat('it-IT', {
     timeZone: APP_TIMEZONE,
     weekday: 'long',
@@ -60,11 +66,32 @@ export function formatDateIT(value: string | Date): string {
   }).format(date);
 }
 
-export function getDaysSince(value: string | Date): number {
+export function formatTimeIT(value: DateInput): string {
+  const date = toDate(value);
+  return new Intl.DateTimeFormat('it-IT', {
+    timeZone: APP_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+export function formatDateTimeIT(value: DateInput): string {
+  const date = toDate(value);
+  return new Intl.DateTimeFormat('it-IT', {
+    timeZone: APP_TIMEZONE,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+export function getDaysSince(value: DateInput): number {
   return daysSinceInRome(value);
 }
 
-export function formatDaysSince(value: string | Date): string {
+export function formatDaysSince(value: DateInput): string {
   const days = getDaysSince(value);
   if (days === 0) return 'oggi';
   if (days === 1) return 'ieri';
