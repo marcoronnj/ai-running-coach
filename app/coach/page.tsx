@@ -11,16 +11,17 @@ import {
   ShieldAlert,
   Sparkles,
   TrendingUp,
-  User,
 } from 'lucide-react';
 import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
+import { verifySession } from '@/lib/auth';
 import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone } from '@/app/components/ui';
 import { normalizeLanguage, t, type Language } from '@/lib/i18n';
@@ -72,15 +73,54 @@ function ReportStatusBadge({ status, language }: { status: 'ready' | 'waiting'; 
   );
 }
 
+function AthleteAvatar({ status, size = 'lg' }: { status?: PublicStravaConnectionStatus; size?: 'md' | 'lg' }) {
+  const athlete = status?.athlete;
+  const fullName = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(' ').trim();
+  const image = athlete?.profileMedium || athlete?.profile;
+  const initials = fullName
+    ? fullName.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('')
+    : '';
+  const className = size === 'lg'
+    ? 'h-12 w-12 rounded-2xl text-base'
+    : 'h-9 w-9 rounded-xl text-sm';
+
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt={fullName || 'Strava athlete'}
+        width={size === 'lg' ? 48 : 36}
+        height={size === 'lg' ? 48 : 36}
+        className={`${className} shrink-0 border border-[rgba(54,252,225,0.32)] object-cover shadow-[0_0_22px_rgba(54,252,225,0.14)]`}
+      />
+    );
+  }
+
+  return (
+    <div className={`${className} flex shrink-0 items-center justify-center border border-[rgba(54,252,225,0.32)] bg-white/[0.05] font-bold text-accent-primary shadow-[0_0_22px_rgba(54,252,225,0.14)]`}>
+      {initials || 'A'}
+    </div>
+  );
+}
+
 /**
  * Componente per il profilo atleta
  */
-function AthleteProfileCard({ settings, language }: { settings: any; language: Language }) {
+function AthleteProfileCard({ settings, language, stravaStatus }: { settings: any; language: Language; stravaStatus?: PublicStravaConnectionStatus }) {
   if (!settings) return null;
+  const athlete = stravaStatus?.athlete;
+  const fullName = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(' ').trim();
+  const displayName = fullName || (language === 'en' ? 'Athlete' : 'Atleta');
 
   return (
     <Card>
-      <SectionHeader eyebrow="profile" title={language === 'en' ? 'Athlete profile' : 'Profilo atleta'} icon={User} />
+      <div className="mb-5 flex items-center gap-3">
+        <AthleteAvatar status={stravaStatus} />
+        <div className="min-w-0">
+          <p className="eyebrow mb-1">{language === 'en' ? 'Athlete profile' : 'Profilo atleta'}</p>
+          <h2 className="truncate text-lg font-semibold tracking-tight text-app-text">{displayName}</h2>
+        </div>
+      </div>
 
       <div className="space-y-3">
         {settings.profile_summary && (
@@ -416,6 +456,10 @@ export default async function CoachPage() {
     // Ottieni impostazioni atleta
     const athleteSettings = await getAthleteSettings();
     const language = normalizeLanguage(athleteSettings?.language);
+    const session = await verifySession();
+    const stravaStatus = session
+      ? await getPublicStravaConnectionStatus(session.email)
+      : undefined;
 
     // Ottieni storico ultime 90 giorni per metriche
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -512,7 +556,7 @@ export default async function CoachPage() {
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
             {/* Colonna sinistra - Profilo e metriche */}
             <div className="space-y-5 lg:col-span-1">
-              <AthleteProfileCard settings={athleteSettings} language={language} />
+              <AthleteProfileCard settings={athleteSettings} language={language} stravaStatus={stravaStatus} />
               <CurrentMetricsCard metrics={dynamicAthleteState} rules={rules} language={language} />
             </div>
 

@@ -723,11 +723,9 @@ export default async function HomePage() {
             <div className="flex items-center gap-2">
               <AthleteAvatar status={stravaStatus} />
               <div className="min-w-0">
-                <p className="eyebrow">{t(language, 'dashboard.eyebrow')}</p>
-                <h1 className="truncate text-xl font-semibold tracking-tight text-app-text sm:text-2xl">Veyro</h1>
+                <h1 className="truncate text-2xl font-semibold tracking-tight text-accent-primary sm:text-3xl">Veyro</h1>
               </div>
             </div>
-            <p className="mt-2 hidden text-sm text-app-muted sm:block">{t(language, 'dashboard.subtitle')}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
