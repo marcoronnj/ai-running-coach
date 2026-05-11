@@ -1,5 +1,5 @@
 import { query, queryOne } from '@/lib/db';
-import { isTokenExpired, refreshStravaToken } from '@/lib/strava';
+import { getAuthenticatedStravaAthlete, isTokenExpired, refreshStravaToken, type StravaAthleteProfile } from '@/lib/strava';
 
 export interface StravaConnection {
   id: string;
@@ -157,6 +157,38 @@ export async function upsertStravaConnection(input: {
       input.athlete?.profileMedium ?? null,
     ]
   );
+}
+
+export async function updateStravaAthleteProfile(userId: string, athlete: StravaAthleteProfile): Promise<void> {
+  await ensureStravaConnectionsTable();
+
+  await query(
+    `UPDATE strava_connections
+     SET strava_athlete_id = $2,
+         athlete_firstname = $3,
+         athlete_lastname = $4,
+         athlete_username = $5,
+         athlete_profile = $6,
+         athlete_profile_medium = $7,
+         updated_at = NOW()
+     WHERE user_id = $1`,
+    [
+      userId,
+      String(athlete.id),
+      athlete.firstname ?? null,
+      athlete.lastname ?? null,
+      athlete.username ?? null,
+      athlete.profile ?? null,
+      athlete.profile_medium ?? null,
+    ]
+  );
+}
+
+export async function refreshStravaAthleteProfile(userId: string): Promise<StravaAthleteProfile> {
+  const { accessToken } = await getValidStravaAccessToken(userId);
+  const athlete = await getAuthenticatedStravaAthlete(accessToken);
+  await updateStravaAthleteProfile(userId, athlete);
+  return athlete;
 }
 
 export async function disconnectStravaConnection(userId: string): Promise<void> {

@@ -30,6 +30,18 @@ export interface StravaTokenResponse {
   };
 }
 
+export interface StravaAthleteProfile {
+  id: number;
+  username?: string | null;
+  firstname?: string | null;
+  lastname?: string | null;
+  profile?: string | null;
+  profile_medium?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
 export interface StravaActivity {
   id: number;
   name: string;
@@ -317,6 +329,36 @@ export async function getRecentActivities(accessToken: string): Promise<StravaAc
     console.error('[STRAVA] Unexpected activities fetch error:', error);
     throw new Error('Errore imprevisto durante il recupero delle attività Strava');
   }
+}
+
+export async function getAuthenticatedStravaAthlete(accessToken: string): Promise<StravaAthleteProfile> {
+  if (!accessToken) {
+    throw new Error('Access token è obbligatorio');
+  }
+
+  const response = await fetch('https://www.strava.com/api/v3/athlete', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error('[STRAVA] Athlete profile fetch failed:', {
+      status: response.status,
+      body: errorData,
+    });
+    throw new Error(`Errore recupero atleta Strava (${response.status})`);
+  }
+
+  const athlete = (await response.json()) as StravaAthleteProfile;
+
+  if (!athlete.id) {
+    throw new Error('Risposta atleta Strava incompleta');
+  }
+
+  return athlete;
 }
 
 /**

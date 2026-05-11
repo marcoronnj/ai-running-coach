@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unlink, AlertCircle, UserCircle } from 'lucide-react';
@@ -8,7 +7,7 @@ import { Card, SectionHeader } from '@/app/components/ui';
 import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { normalizeLanguage, type Language } from '@/lib/i18n';
 
-type ActionState = 'idle' | 'syncing' | 'disconnecting';
+type ActionState = 'idle' | 'syncing' | 'disconnecting' | 'refreshing-athlete';
 type Message = { type: 'success' | 'error'; text: string } | null;
 
 export default function StravaConnectionBox({
@@ -86,6 +85,41 @@ export default function StravaConnectionBox({
       setMessage({
         type: 'error',
         text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error while disconnecting' : 'Errore durante la disconnessione'),
+      });
+    } finally {
+      setActionState('idle');
+    }
+  }
+
+  async function refreshAthlete() {
+    setActionState('refreshing-athlete');
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/strava/refresh-athlete', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+      const data = (await response.json()) as { ok?: boolean; message?: string; firstname?: string | null; lastname?: string | null };
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.message || (currentLanguage === 'en' ? 'Athlete refresh failed' : 'Aggiornamento dati atleta non riuscito'));
+      }
+
+      const updatedName = [data.firstname, data.lastname].filter(Boolean).join(' ').trim();
+      setMessage({
+        type: 'success',
+        text: updatedName
+          ? (currentLanguage === 'en' ? `Athlete data updated: ${updatedName}` : `Dati atleta aggiornati: ${updatedName}`)
+          : (currentLanguage === 'en' ? 'Athlete data updated' : 'Dati atleta aggiornati'),
+      });
+      router.refresh();
+    } catch (error) {
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error while updating athlete data' : 'Errore durante l’aggiornamento dati atleta'),
       });
     } finally {
       setActionState('idle');
@@ -200,7 +234,7 @@ export default function StravaConnectionBox({
             <div className="flex items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.05] text-lg font-bold text-accent-primary">
                 {profileImage ? (
-                  <Image
+                  <img
                     src={profileImage}
                     alt={displayName}
                     width={64}
@@ -223,15 +257,32 @@ export default function StravaConnectionBox({
             </div>
 
             {profileUrl ? (
-              <a
-                href={profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
-              >
-                <ExternalLink size={16} strokeWidth={1.8} />
-                {currentLanguage === 'en' ? 'Open Strava profile' : 'Apri profilo Strava'}
-              </a>
+              <div className="grid gap-2 sm:min-w-52">
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
+                >
+                  <ExternalLink size={16} strokeWidth={1.8} />
+                  {currentLanguage === 'en' ? 'Open Strava profile' : 'Apri profilo Strava'}
+                </a>
+                <button
+                  type="button"
+                  onClick={refreshAthlete}
+                  disabled={disabled}
+                  className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {actionState === 'refreshing-athlete' ? (
+                    <LoaderCircle size={16} strokeWidth={1.8} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={16} strokeWidth={1.8} />
+                  )}
+                  {actionState === 'refreshing-athlete'
+                    ? (currentLanguage === 'en' ? 'Updating...' : 'Aggiorno...')
+                    : (currentLanguage === 'en' ? 'Update athlete data' : 'Aggiorna dati atleta')}
+                </button>
+              </div>
             ) : null}
           </div>
         ) : (
