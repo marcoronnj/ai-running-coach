@@ -39,6 +39,17 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-satoshi), sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
 ::selection {
   background: rgba(215, 255, 63, 0.28);
   color: var(--text);

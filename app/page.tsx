@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
@@ -756,7 +757,14 @@ export default async function HomePage() {
             <div className="flex items-center gap-2">
               <AthleteAvatar status={stravaStatus} />
               <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-accent-primary sm:text-3xl">Veiro</h1>
+                <Image
+                  src="/logo.svg"
+                  alt="Veiro"
+                  width={80}
+                  height={30}
+                  priority
+                  className="block h-6 w-auto sm:h-[30px]"
+                />
               </div>
             </div>
           </div>
