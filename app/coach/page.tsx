@@ -23,6 +23,7 @@ import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
+import { fallbackDynamicAthleteState, logServerError, safeResolve } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone } from '@/app/components/ui';
 import { normalizeLanguage, t, type Language } from '@/lib/i18n';
@@ -450,29 +451,40 @@ function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; la
 export default async function CoachPage() {
   try {
     // Ottieni impostazioni atleta
-    const athleteSettings = await getAthleteSettings();
+    const athleteSettings = await safeResolve('coach.athleteSettings', getAthleteSettings, null);
     const language = normalizeLanguage(athleteSettings?.language);
-    const session = await verifySession();
+    const session = await safeResolve('coach.session', verifySession, null);
     const stravaStatus = session
-      ? await getPublicStravaConnectionStatus(session.email)
+      ? await safeResolve('coach.stravaStatus', () => getPublicStravaConnectionStatus(session.email), undefined)
       : undefined;
 
     // Ottieni storico ultime 90 giorni per metriche
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const activitiesQuery = await query(
+    const activities = await safeResolve('coach.activities', async () => {
+      const result = await query(
       `SELECT * FROM activities
        WHERE type IN ('Run', 'TrailRun')
        AND start_date >= $1
        ORDER BY start_date DESC`,
       [ninetyDaysAgo.toISOString()]
-    );
+      );
+      return result.rows;
+    }, []);
 
     // Calcola metriche e regole
-    const metrics = calculateCoachingMetrics(activitiesQuery.rows, athleteSettings);
-    const rules = getCoachingRules(metrics, athleteSettings);
+    let metrics: ReturnType<typeof calculateCoachingMetrics> | null = null;
+    let rules: ReturnType<typeof getCoachingRules> | null = null;
+
+    try {
+      metrics = calculateCoachingMetrics(activities, athleteSettings);
+      rules = getCoachingRules(metrics, athleteSettings);
+    } catch (error) {
+      logServerError('coach.coachingMetrics', error);
+    }
 
     // Ottieni trend ultime 4 settimane
-    const trendQuery = await query(`
+    const weeklyTrend = await safeResolve('coach.weeklyTrend', async () => {
+      const result = await query(`
       WITH weekly_stats AS (
         SELECT
           DATE_TRUNC('week', start_date) as week_start,
@@ -492,10 +504,11 @@ export default async function CoachPage() {
       ORDER BY week_start DESC
       LIMIT 4
     `);
+      return result.rows;
+    }, []);
 
-    const latestRun = await getLatestRunWithReport();
+    const latestRun = await safeResolve('coach.latestRun', getLatestRunWithReport, null);
     const reportStatus = getReportStatus(latestRun);
-    const weeklyTrend = trendQuery.rows;
     const latestReport = latestRun && hasCoachReport(latestRun)
       ? ({
           title: latestRun?.title || 'Report Coach',
@@ -512,14 +525,20 @@ export default async function CoachPage() {
         } as any)
       : null;
 
-    const dynamicAthleteState = buildDynamicAthleteState({
-      latestRun,
-      latestReport,
-      recentRuns: activitiesQuery.rows,
-      metrics,
-      rules,
-      language,
-    });
+    let dynamicAthleteState = fallbackDynamicAthleteState(language);
+
+    try {
+      dynamicAthleteState = buildDynamicAthleteState({
+        latestRun,
+        latestReport,
+        recentRuns: activities,
+        metrics,
+        rules,
+        language,
+      });
+    } catch (error) {
+      logServerError('coach.dynamicAthleteState', error);
+    }
 
     return (
       <PageShell>
@@ -575,11 +594,10 @@ export default async function CoachPage() {
             <ShieldAlert size={24} strokeWidth={1.8} />
           </div>
 
-          <h2 className="mb-3 text-xl font-semibold text-app-text">Errore di caricamento</h2>
+          <h2 className="mb-3 text-xl font-semibold text-app-text">Dati temporaneamente non disponibili</h2>
 
           <p className="mb-6 text-sm leading-relaxed text-app-muted">
-            Si è verificato un errore nel caricamento dei dati del coach.
-            Controlla la connessione al database e riprova.
+            Veyro non è riuscita a preparare questa vista. Torna alla dashboard e riprova tra poco.
           </p>
 
           <Link

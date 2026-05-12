@@ -93,9 +93,6 @@ export default function ManualSyncButton({ language = 'it', iconOnly = false }: 
       setMessage(buildStatusMessage(data, currentLanguage));
       setLatestActivityId(data.latestActivityId ?? null);
       router.refresh();
-      window.setTimeout(() => {
-        router.refresh();
-      }, 500);
 
       resetTimerRef.current = setTimeout(() => {
         setState('idle');

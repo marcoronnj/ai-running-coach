@@ -89,7 +89,6 @@ export default function PullToRefresh({ children, language = 'it' }: PullToRefre
 
     try {
       router.refresh();
-      window.setTimeout(() => router.refresh(), 500);
       window.setTimeout(() => {
         setState('success');
         setPullDistance(48);

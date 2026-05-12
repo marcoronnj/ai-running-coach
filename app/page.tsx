@@ -12,6 +12,7 @@ import {
   HeartPulse,
   Moon,
   Settings,
+  ShieldAlert,
   TrendingUp,
   UserCircle,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized, formatDaysSinceLocalized, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
+import { fallbackDynamicAthleteState, logServerError, safeResolve } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
@@ -629,15 +631,45 @@ function EmptyState({ language }: { language: Language }) {
   );
 }
 
+function DataUnavailableNotice({ language }: { language: Language }) {
+  return (
+    <Card className="border-[rgba(255,216,77,0.18)] bg-[rgba(255,216,77,0.045)]">
+      <div className="flex gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgba(255,216,77,0.22)] bg-[rgba(255,216,77,0.1)] text-[var(--warning)]">
+          <ShieldAlert size={18} strokeWidth={1.8} />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-app-text">
+            {language === 'en' ? 'Data temporarily unavailable' : 'Dati temporaneamente non disponibili'}
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-app-muted">
+            {language === 'en'
+              ? 'Veyro could not load every data source. The page stays available and will recover on the next refresh.'
+              : 'Veyro non è riuscita a caricare tutte le sorgenti dati. La pagina resta disponibile e si riprenderà al prossimo aggiornamento.'}
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /**
  * Pagina principale della dashboard - Coach at a Glance
  */
 export default async function HomePage() {
+  const athleteSettings = await safeResolve('home.athleteSettings', getAthleteSettings, null);
+  const language = normalizeLanguage(athleteSettings?.language);
+  const session = await safeResolve('home.session', verifySession, null);
+  const stravaStatus = session
+    ? await safeResolve('home.stravaStatus', () => getPublicStravaConnectionStatus(session.email), undefined)
+    : undefined;
+
   // Query per l'ultima corsa con il suo report (ultimo disponibile)
-  const lastRun = await getLatestRunWithReport();
+  const lastRun = await safeResolve('home.latestRun', getLatestRunWithReport, null);
 
   // Query per il trend delle ultime 6 settimane
-  const trendQuery = await query(`
+  const weeklyTrend = await safeResolve('home.weeklyTrend', async () => {
+    const result = await query<WeeklyTrendItem>(`
     WITH weekly_stats AS (
       SELECT
         DATE_TRUNC('week', start_date) as week_start,
@@ -657,23 +689,28 @@ export default async function HomePage() {
     ORDER BY week_start DESC
     LIMIT 6
   `);
+    return result.rows;
+  }, []);
 
-  const athleteSettings = await getAthleteSettings();
-  const language = normalizeLanguage(athleteSettings?.language);
-  const session = await verifySession();
-  const stravaStatus = session
-    ? await getPublicStravaConnectionStatus(session.email)
-    : undefined;
-  const activityHistoryQuery = await query(`
+  const activityHistory = await safeResolve('home.activityHistory', async () => {
+    const result = await query(`
     SELECT * FROM activities
     WHERE type IN ('Run', 'TrailRun')
       AND start_date >= NOW() - INTERVAL '90 days'
     ORDER BY start_date DESC
   `);
+    return result.rows;
+  }, []);
 
-  const athleteMetrics = calculateCoachingMetrics(activityHistoryQuery.rows, athleteSettings);
-  const coachingRules = getCoachingRules(athleteMetrics, athleteSettings);
-  const weeklyTrend = trendQuery.rows as WeeklyTrendItem[];
+  let athleteMetrics: ReturnType<typeof calculateCoachingMetrics> | null = null;
+  let coachingRules: ReturnType<typeof getCoachingRules> | null = null;
+
+  try {
+    athleteMetrics = calculateCoachingMetrics(activityHistory, athleteSettings);
+    coachingRules = getCoachingRules(athleteMetrics, athleteSettings);
+  } catch (error) {
+    logServerError('home.coachingMetrics', error);
+  }
 
   // Query per il report più recente
   const latestReport = lastRun && hasCoachReport(lastRun)
@@ -692,16 +729,23 @@ export default async function HomePage() {
       }
     : null;
 
-  const dynamicAthleteState = buildDynamicAthleteState({
-    latestRun: lastRun,
-    latestReport,
-    recentRuns: activityHistoryQuery.rows,
-    metrics: athleteMetrics,
-    rules: coachingRules,
-    language,
-  });
+  let dynamicAthleteState = fallbackDynamicAthleteState(language);
+
+  try {
+    dynamicAthleteState = buildDynamicAthleteState({
+      latestRun: lastRun,
+      latestReport,
+      recentRuns: activityHistory,
+      metrics: athleteMetrics,
+      rules: coachingRules,
+      language,
+    });
+  } catch (error) {
+    logServerError('home.dynamicAthleteState', error);
+  }
 
   const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
+  const hasPartialDataFailure = !athleteMetrics || activityHistory.length === 0 && weeklyTrend.length === 0 && !lastRun;
 
   return (
     <PullToRefresh language={language}>
@@ -738,6 +782,8 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
+
+        {hasPartialDataFailure ? <DataUnavailableNotice language={language} /> : null}
 
         {!hasData ? (
           <EmptyState language={language} />
