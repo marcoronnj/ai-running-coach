@@ -12,16 +12,6 @@ interface PullToRefreshProps {
   language?: Language;
 }
 
-interface ManualSyncResponse {
-  ok?: boolean;
-  message?: string;
-  warning?: string;
-  newActivities?: number;
-  latestActivityId?: string;
-  latestReportGenerated?: boolean;
-  telegramSent?: boolean;
-}
-
 const THRESHOLD_PX = 70;
 const MAX_PULL_PX = 108;
 
@@ -54,11 +44,11 @@ function getPullMessage(state: PullState, language: Language) {
       case 'ready':
         return 'Release to refresh';
       case 'loading':
-        return 'Syncing...';
+        return 'Refreshing...';
       case 'success':
         return 'Updated';
       case 'pulling':
-        return 'Pull to sync';
+        return 'Pull to refresh';
       default:
         return '';
     }
@@ -68,11 +58,11 @@ function getPullMessage(state: PullState, language: Language) {
     case 'ready':
       return 'Rilascia per aggiornare';
     case 'loading':
-      return 'Sincronizzazione...';
+      return 'Aggiornamento...';
     case 'success':
       return 'Aggiornato';
     case 'pulling':
-      return 'Trascina per sincronizzare';
+      return 'Trascina per aggiornare';
     default:
       return '';
   }
@@ -88,47 +78,33 @@ export default function PullToRefresh({ children, language = 'it' }: PullToRefre
   const loadingRef = useRef(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function runSync() {
+  function runRefresh() {
     loadingRef.current = true;
     setState('loading');
     setPullDistance(THRESHOLD_PX);
 
+    if (resetTimerRef.current) {
+      clearTimeout(resetTimerRef.current);
+    }
+
     try {
-      const response = await fetch('/api/manual-sync', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-      const data = (await response.json().catch(() => null)) as ManualSyncResponse | null;
-
-      if (!response.ok || !data?.ok) {
-        throw new Error(data?.message || 'Sync non riuscito');
-      }
-
       router.refresh();
+      window.setTimeout(() => router.refresh(), 500);
       window.setTimeout(() => {
-        router.refresh();
-      }, 500);
-
-      setState('success');
-      setPullDistance(48);
+        setState('success');
+        setPullDistance(48);
+      }, 300);
     } catch (error) {
-      console.error('[PULL TO REFRESH] Sync failed:', error);
+      console.error('[PULL TO REFRESH] Refresh failed:', error);
+      window.location.reload();
+    }
+
+    resetTimerRef.current = setTimeout(() => {
+      loadingRef.current = false;
+      activeRef.current = false;
       setState('idle');
       setPullDistance(0);
-    } finally {
-      if (resetTimerRef.current) {
-        clearTimeout(resetTimerRef.current);
-      }
-
-      resetTimerRef.current = setTimeout(() => {
-        loadingRef.current = false;
-        activeRef.current = false;
-        setState('idle');
-        setPullDistance(0);
-      }, 1200);
-    }
+    }, 1200);
   }
 
   function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
@@ -169,7 +145,7 @@ export default function PullToRefresh({ children, language = 'it' }: PullToRefre
     activeRef.current = false;
 
     if (shouldRefresh) {
-      void runSync();
+      runRefresh();
       return;
     }
 
