@@ -18,7 +18,6 @@ import {
   LineChart,
   MapPin,
   Mountain,
-  Settings,
   Sparkles,
   Timer,
   TrendingUp,
@@ -29,7 +28,7 @@ import { buildRunJudgement } from '@/lib/run-analysis';
 import { formatDateIT, formatTimeIT } from '@/lib/date-utils';
 import { getCurrentLanguage } from '@/lib/athlete-settings';
 import { t, type Language } from '@/lib/i18n';
-import { Card, IconBox, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
+import { Card, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,17 +81,19 @@ function formatSpeed(speedMs: number): string {
   return `${(speedMs * 3.6).toFixed(1)} km/h`;
 }
 
-function formatDuration(seconds: number): string {
-  if (!seconds || seconds <= 0) return '0 min';
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
+function formatPreciseDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0:00';
+
+  const totalSeconds = Math.round(seconds);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
 
   if (hours > 0) {
-    return `${hours}h ${remainingMinutes}m`;
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
   }
 
-  return `${minutes} min`;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
 }
 
 function getScoreColor(score?: number): string {
@@ -288,14 +289,15 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-5">
-              <MetricsGrid run={run} elapsedTime={elapsedTime} maxSpeed={maxSpeed} />
-              <RunExtraMetricsSection
+              <MetricsGrid
+                run={run}
+                language={language}
+                elapsedTime={elapsedTime}
+                maxSpeed={maxSpeed}
                 averageCadence={averageCadence}
                 calories={calories}
                 sufferScore={sufferScore}
                 averageWatts={averageWatts}
-                maxSpeed={maxSpeed}
-                elapsedTime={elapsedTime}
               />
               <SessionJudgementSection judgement={judgement} language={language} />
               {hasReport && <CoachAnalysisSection run={run} />}
@@ -310,7 +312,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                 />
               )}
               {weeklyPlan.length > 0 && <WeeklyPlanSection weeklyPlan={weeklyPlan} />}
-              {hasReport && run.full_report && <FullReportSection fullReport={run.full_report} />}
+              {hasReport && run.full_report && <FullReportSection fullReport={run.full_report} language={language} />}
               {coachNotes.length > 0 && <CoachNotesSection notes={coachNotes} />}
               {!hasReport && <NoReportMessage />}
               {hasSplits && <RunSplitsSection splits={splits} />}
@@ -384,46 +386,79 @@ function NoReportMessage() {
   );
 }
 
-function MetricsGrid({ run, elapsedTime, maxSpeed }: { run: RunDetailData; elapsedTime?: number; maxSpeed?: number }) {
+function MetricsGrid({
+  run,
+  language,
+  elapsedTime,
+  maxSpeed,
+  averageCadence,
+  calories,
+  sufferScore,
+  averageWatts,
+}: {
+  run: RunDetailData;
+  language: Language;
+  elapsedTime?: number;
+  maxSpeed?: number;
+  averageCadence?: number;
+  calories?: number;
+  sufferScore?: number;
+  averageWatts?: number;
+}) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      <MetricCard label="Distanza" value={formatKm(run.distance_m)} icon={MapPin} tone="lime" />
-      <MetricCard label="Durata" value={formatDuration(run.moving_time_s)} icon={Timer} tone="cyan" />
-      {elapsedTime && elapsedTime !== run.moving_time_s && (
-        <MetricCard label="Elapsed time" value={formatDuration(elapsedTime)} icon={Clock} />
-      )}
-      <MetricCard label="Passo medio" value={formatPace(run.average_speed)} icon={Footprints} tone="lime" />
-      <MetricCard label="Velocità media" value={formatSpeed(run.average_speed)} icon={Zap} tone="cyan" />
-      {run.average_heartrate && (
-        <MetricCard
-          label="FC media"
-          value={`${Math.round(run.average_heartrate)} bpm`}
-          icon={HeartPulse}
-          tone="danger"
-        />
-      )}
-      {run.max_heartrate && (
-        <MetricCard
-          label="FC max"
-          value={`${Math.round(run.max_heartrate)} bpm`}
-          icon={HeartPulse}
-          tone="danger"
-        />
-      )}
-      {typeof run.total_elevation_gain === 'number' && (
-        <MetricCard
-          label="Dislivello"
-          value={`${Math.round(run.total_elevation_gain)} m`}
-          icon={Mountain}
-        />
-      )}
-      {run.type && (
-        <MetricCard label="Tipo" value={run.type} icon={Activity} />
-      )}
-      {maxSpeed && (
-        <MetricCard label="Velocità max" value={formatSpeed(maxSpeed)} icon={Gauge} />
-      )}
-    </div>
+    <Card>
+      <SectionHeader eyebrow="run data" title={t(language, 'run.metrics')} icon={Gauge} className="mb-3" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <MetricCard label="Distanza" value={formatKm(run.distance_m)} icon={MapPin} tone="lime" />
+        <MetricCard label={t(language, 'run.duration')} value={formatPreciseDuration(run.moving_time_s)} icon={Timer} tone="cyan" />
+        <MetricCard label="Passo medio" value={formatPace(run.average_speed)} icon={Footprints} tone="lime" />
+        <MetricCard label="Velocità media" value={formatSpeed(run.average_speed)} icon={Zap} tone="cyan" />
+        {run.average_heartrate && (
+          <MetricCard
+            label="FC media"
+            value={`${Math.round(run.average_heartrate)} bpm`}
+            icon={HeartPulse}
+            tone="danger"
+          />
+        )}
+        {run.max_heartrate && (
+          <MetricCard
+            label="FC max"
+            value={`${Math.round(run.max_heartrate)} bpm`}
+            icon={HeartPulse}
+            tone="danger"
+          />
+        )}
+        {typeof run.total_elevation_gain === 'number' && (
+          <MetricCard
+            label="Dislivello"
+            value={`${Math.round(run.total_elevation_gain)} m`}
+            icon={Mountain}
+          />
+        )}
+        {run.type && (
+          <MetricCard label="Tipo" value={run.type} icon={Activity} />
+        )}
+        {maxSpeed && (
+          <MetricCard label={t(language, 'run.maxSpeed')} value={formatSpeed(maxSpeed)} icon={Gauge} />
+        )}
+        {averageCadence !== undefined && (
+          <MetricCard label={t(language, 'run.averageCadence')} value={`${Math.round(averageCadence)} spm`} icon={Footprints} />
+        )}
+        {calories !== undefined && (
+          <MetricCard label="Calorie" value={`${Math.round(calories)} kcal`} icon={Flame} tone="warning" />
+        )}
+        {sufferScore !== undefined && (
+          <MetricCard label="Suffer score" value={`${sufferScore}`} icon={Activity} tone="danger" />
+        )}
+        {averageWatts !== undefined && (
+          <MetricCard label={t(language, 'run.averageWatts')} value={`${Math.round(averageWatts)} W`} icon={Battery} tone="lime" />
+        )}
+        {elapsedTime !== undefined && (
+          <MetricCard label={t(language, 'run.elapsedTime')} value={formatPreciseDuration(elapsedTime)} icon={Clock} />
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -440,52 +475,6 @@ function MetricCard({
 }) {
   return (
     <MetricTile label={label} value={value} icon={icon} tone={tone} />
-  );
-}
-
-function RunExtraMetricsSection({
-  averageCadence,
-  calories,
-  sufferScore,
-  averageWatts,
-  maxSpeed,
-  elapsedTime,
-}: {
-  averageCadence?: number;
-  calories?: number;
-  sufferScore?: number;
-  averageWatts?: number;
-  maxSpeed?: number;
-  elapsedTime?: number;
-}) {
-  const hasExtra = averageCadence || calories || sufferScore || averageWatts || maxSpeed || elapsedTime;
-  if (!hasExtra) return null;
-
-  return (
-    <Card>
-      <SectionHeader eyebrow="details" title="Metriche extra" icon={Settings} />
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {averageCadence !== undefined && (
-          <MetricCard label="Cadenza media" value={`${Math.round(averageCadence)} spm`} icon={Footprints} />
-        )}
-        {calories !== undefined && (
-          <MetricCard label="Calorie" value={`${Math.round(calories)} kcal`} icon={Flame} tone="warning" />
-        )}
-        {sufferScore !== undefined && (
-          <MetricCard label="Suffer score" value={`${sufferScore}`} icon={Activity} tone="danger" />
-        )}
-        {averageWatts !== undefined && (
-          <MetricCard label="Watt medio" value={`${Math.round(averageWatts)} W`} icon={Battery} tone="lime" />
-        )}
-        {maxSpeed !== undefined && (
-          <MetricCard label="Velocità max" value={formatSpeed(maxSpeed)} icon={Gauge} />
-        )}
-        {elapsedTime !== undefined && (
-          <MetricCard label="Elapsed time" value={formatDuration(elapsedTime)} icon={Clock} />
-        )}
-      </div>
-    </Card>
   );
 }
 
@@ -644,23 +633,24 @@ function CoachAnalysisSection({ run }: { run: RunDetailData }) {
 
 function Next48hSection({ next48h, suggestedFocus, language }: { next48h: string; suggestedFocus?: string; language: Language }) {
   return (
-    <Card className="border-[rgba(54,252,225,0.22)] bg-[linear-gradient(135deg,rgba(54,252,225,0.09),rgba(17,17,17,0.94))]">
-      <div className="flex items-start gap-4">
-        <IconBox icon={Clock} tone="cyan" />
-        <div className="flex-1">
-          <p className="eyebrow mb-1">historical report</p>
-          <h3 className="mb-2 text-lg font-semibold text-app-text">{t(language, 'run.postRunGuidance')}</h3>
-          <p className="mb-3 text-xs leading-relaxed text-app-muted">
-            {t(language, 'run.postRunGuidanceHelp')}
-          </p>
-          <p className="mb-4 text-sm leading-relaxed text-neutral-200">{next48h}</p>
-          {suggestedFocus && (
-            <div className="mt-4 border-t border-[rgba(54,252,225,0.18)] pt-4">
-              <p className="eyebrow mb-1 text-accent-secondary">{t(language, 'run.generatedThen')}</p>
-              <p className="font-medium text-app-text">{suggestedFocus}</p>
-            </div>
-          )}
-        </div>
+    <Card className="border-[rgba(54,252,225,0.22)] bg-[linear-gradient(135deg,rgba(54,252,225,0.09),rgba(17,17,17,0.94))] shadow-[0_0_28px_rgba(54,252,225,0.07)]">
+      <SectionHeader
+        eyebrow={t(language, 'run.historicalReportEyebrow')}
+        title={t(language, 'run.postRunGuidance')}
+        icon={Clock}
+        className="mb-3"
+      />
+      <div className="space-y-3">
+        <p className="text-xs leading-5 text-app-muted">
+          {t(language, 'run.postRunGuidanceHelp')}
+        </p>
+        <p className="text-sm leading-6 text-neutral-200">{next48h}</p>
+        {suggestedFocus && (
+          <div className="border-t border-[rgba(54,252,225,0.18)] pt-3">
+            <p className="eyebrow mb-1 text-accent-secondary">{t(language, 'run.generatedThen')}</p>
+            <p className="text-sm font-semibold leading-5 text-app-text">{suggestedFocus}</p>
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -748,15 +738,61 @@ function WeeklyPlanSection({
   );
 }
 
-function FullReportSection({ fullReport }: { fullReport: string }) {
+type ReportBlock =
+  | { type: 'heading'; text: string }
+  | { type: 'paragraph'; text: string };
+
+function parseFullReport(fullReport: string): ReportBlock[] {
+  const blocks: ReportBlock[] = [];
+  let paragraph: string[] = [];
+
+  const flushParagraph = () => {
+    const text = paragraph.join('\n').trim();
+    if (text) {
+      blocks.push({ type: 'paragraph', text });
+    }
+    paragraph = [];
+  };
+
+  for (const line of fullReport.split(/\r?\n/)) {
+    const heading = line.match(/^##\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      blocks.push({ type: 'heading', text: heading[1].trim() });
+      continue;
+    }
+
+    if (!line.trim()) {
+      flushParagraph();
+      continue;
+    }
+
+    paragraph.push(line);
+  }
+
+  flushParagraph();
+  return blocks;
+}
+
+function FullReportSection({ fullReport, language }: { fullReport: string; language: Language }) {
+  const blocks = parseFullReport(fullReport);
+
   return (
     <Card>
-      <SectionHeader eyebrow="full text" title="Report completo" icon={Info} />
+      <SectionHeader eyebrow="full text" title={t(language, 'run.fullReport')} icon={Info} />
 
-      <div className="prose prose-invert max-w-none">
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">
-          {fullReport}
-        </div>
+      <div className="space-y-3">
+        {blocks.map((block, index) => (
+          block.type === 'heading' ? (
+            <h3 key={`${block.type}-${index}`} className="pt-1 text-sm font-semibold tracking-tight text-app-text">
+              {block.text}
+            </h3>
+          ) : (
+            <p key={`${block.type}-${index}`} className="whitespace-pre-wrap text-sm leading-6 text-neutral-300">
+              {block.text}
+            </p>
+          )
+        ))}
       </div>
     </Card>
   );

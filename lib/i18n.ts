@@ -94,6 +94,14 @@ type TranslationKey =
   | 'run.historicalReport'
   | 'run.historicalNotice'
   | 'run.viewLiveCoach'
+  | 'run.metrics'
+  | 'run.duration'
+  | 'run.elapsedTime'
+  | 'run.averageCadence'
+  | 'run.averageWatts'
+  | 'run.maxSpeed'
+  | 'run.fullReport'
+  | 'run.historicalReportEyebrow'
   | 'run.postRunGuidance'
   | 'run.postRunGuidanceHelp'
   | 'run.generatedThen'
@@ -120,12 +128,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'common.password': 'Password',
     'dashboard.eyebrow': 'Performance running intelligence',
     'dashboard.subtitle': 'Performance running intelligence',
-    'dashboard.coachLive': 'Coach live',
+    'dashboard.coachLive': 'COACH LIVE',
     'dashboard.currentState': "Stato attuale dell'atleta",
     'dashboard.today': 'Oggi',
     'dashboard.tomorrow': 'Domani',
     'dashboard.nextRun': 'Dopodomani / Prossima corsa',
-    'dashboard.todayStatus': 'Stato di oggi',
+    'dashboard.todayStatus': 'STATO DI OGGI',
     'dashboard.lastRun': 'Ultima corsa',
     'dashboard.noRunsSynced': 'Nessuna corsa ancora sincronizzata',
     'dashboard.dataPending': 'In attesa dati',
@@ -200,6 +208,14 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'run.historicalReport': 'Report della seduta',
     'run.historicalNotice': 'Questa pagina è una fotografia della corsa. Le indicazioni qui sotto sono quelle generate dopo quella seduta e non rappresentano necessariamente il coach live di oggi.',
     'run.viewLiveCoach': 'Vedi coach live',
+    'run.metrics': 'Metriche',
+    'run.duration': 'Durata',
+    'run.elapsedTime': 'Tempo trascorso',
+    'run.averageCadence': 'Cadenza media',
+    'run.averageWatts': 'Watt medio',
+    'run.maxSpeed': 'Velocità max',
+    'run.fullReport': 'Report completo',
+    'run.historicalReportEyebrow': 'HISTORICAL REPORT',
     'run.postRunGuidance': 'Indicazioni post-corsa',
     'run.postRunGuidanceHelp': 'Consigli generati dopo questa seduta: usali come contesto storico, non come prescrizione live di oggi.',
     'run.generatedThen': 'Focus generato allora',
@@ -225,12 +241,12 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'common.password': 'Password',
     'dashboard.eyebrow': 'Performance running intelligence',
     'dashboard.subtitle': 'Performance running intelligence',
-    'dashboard.coachLive': 'Live coach',
+    'dashboard.coachLive': 'LIVE COACH',
     'dashboard.currentState': 'Current athlete status',
     'dashboard.today': 'Today',
     'dashboard.tomorrow': 'Tomorrow',
     'dashboard.nextRun': 'Day after tomorrow / Next run',
-    'dashboard.todayStatus': 'Today status',
+    'dashboard.todayStatus': 'TODAY STATUS',
     'dashboard.lastRun': 'Last run',
     'dashboard.noRunsSynced': 'No runs synced yet',
     'dashboard.dataPending': 'Waiting for data',
@@ -305,6 +321,14 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'run.historicalReport': 'Session report',
     'run.historicalNotice': 'This page is a snapshot of that run. The guidance below was generated after that session and does not necessarily represent today’s live coach.',
     'run.viewLiveCoach': 'View live coach',
+    'run.metrics': 'Metrics',
+    'run.duration': 'Duration',
+    'run.elapsedTime': 'Elapsed time',
+    'run.averageCadence': 'Average cadence',
+    'run.averageWatts': 'Average watts',
+    'run.maxSpeed': 'Max speed',
+    'run.fullReport': 'Full report',
+    'run.historicalReportEyebrow': 'HISTORICAL REPORT',
     'run.postRunGuidance': 'Post-run guidance',
     'run.postRunGuidanceHelp': 'Guidance generated after this session: use it as historical context, not as today’s live prescription.',
     'run.generatedThen': 'Focus generated then',

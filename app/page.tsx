@@ -211,37 +211,32 @@ function calculateWeeklyAverage(trend: WeeklyTrendItem[]): number {
 function HeroSection({ lastRun, language }: { lastRun: DashboardRun | null | undefined; language: Language }) {
   const today = formatDateLocalized(getTodayInAppTimezone(), language);
   const lastRunLabel = lastRun ? formatDaysSinceLocalized(lastRun.start_date, language) : null;
-  const reportStatus = getReportStatus(lastRun);
+  const lastRunDetails = lastRun
+    ? [
+        lastRun.distance_m > 0 ? formatKm(lastRun.distance_m) : null,
+        lastRun.moving_time_s > 0 ? formatDuration(lastRun.moving_time_s) : null,
+        lastRun.average_speed > 0 ? formatPace(lastRun.average_speed) : null,
+      ].filter(Boolean)
+    : [];
 
   return (
     <Card className="mb-5 overflow-hidden border-[rgba(215,255,63,0.16)] bg-[linear-gradient(135deg,rgba(215,255,63,0.09),rgba(54,252,225,0.045)_42%,rgba(17,17,17,0.94))]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="eyebrow mb-1">{t(language, 'dashboard.todayStatus')}</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">
-            {today}
-          </h1>
-          <div className="mt-1 text-sm text-app-muted">
-            {lastRunLabel ? (
+      <div>
+        <p className="eyebrow mb-1">{t(language, 'dashboard.todayStatus')}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">
+          {today}
+        </h1>
+        <div className="mt-1 text-sm leading-snug text-app-muted">
+          {lastRunLabel ? (
+            <span className="flex flex-wrap gap-x-1.5 gap-y-1">
               <span>{t(language, 'dashboard.lastRun')}: {lastRunLabel}</span>
-            ) : (
-              <span>{t(language, 'dashboard.noRunsSynced')}</span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 p-3 sm:min-w-52">
-          <IconBox icon={Brain} tone="lime" />
-          <div className="text-right">
-            <div className="eyebrow">Coach</div>
-            <div className="mt-1 font-medium text-app-text">
-              {lastRun ? (
-                <ReportStatusBadge status={reportStatus} language={language} />
-              ) : (
-                t(language, 'dashboard.dataPending')
-              )}
-            </div>
-          </div>
+              {lastRunDetails.map((detail) => (
+                <span key={detail}>· {detail}</span>
+              ))}
+            </span>
+          ) : (
+            <span>{t(language, 'dashboard.noRunsSynced')}</span>
+          )}
         </div>
       </div>
     </Card>
@@ -254,23 +249,17 @@ function HeroSection({ lastRun, language }: { lastRun: DashboardRun | null | und
 function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; language: Language }) {
   return (
     <Card>
-      <div className="mb-5 flex items-start gap-3">
-        <IconBox icon={state.hasRunToday ? Check : Brain} tone={state.hasRunToday ? 'success' : 'cyan'} />
-        <div className="flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold tracking-tight text-app-text sm:text-lg">
-              {t(language, 'dashboard.coachLive')}
-            </h2>
-            <Badge tone="cyan">{state.recoveryStatus}</Badge>
-          </div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-accent-secondary">
-            {t(language, 'dashboard.currentState')}
-          </p>
-          <p className="text-sm leading-relaxed text-neutral-300">
-            {state.explanation}
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        eyebrow={t(language, 'dashboard.coachLive')}
+        title={t(language, 'dashboard.currentState')}
+        icon={state.hasRunToday ? Check : Brain}
+        action={<Badge tone="cyan">{state.recoveryStatus}</Badge>}
+        className="mb-3 items-start"
+      />
+
+      <p className="mb-4 text-[13px] leading-5 text-neutral-300">
+        {state.explanation}
+      </p>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="metric-card p-3.5">
