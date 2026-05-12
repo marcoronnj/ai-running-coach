@@ -5,7 +5,7 @@ export interface ReportDisplayData {
 }
 
 export function containsItalianText(value: string): boolean {
-  return /\b(corsa|corse|correre|uscita|uscite|recupero|riposo|domani|dopodomani|oggi|ieri|seduta|allenamento|allenamenti|allenarsi|fatica|continuità|sovraccarico|consigliato|consigliata|prossime|prossima|riepilogo|camminata|mobilità|atleta|gambe|minuti|facile|leggera|bassa|alta|medio|media|dimagrire|competitivo|resistenza|preparazione)\b/i.test(value);
+  return /\b(corsa|corse|correre|uscita|uscite|recupero|riposo|domani|dopodomani|oggi|ieri|seduta|sedute|allenamento|allenamenti|allenarsi|fatica|continuità|sovraccarico|consigliato|consigliata|consigliati|prossime|prossima|prossimo|riepilogo|camminata|mobilità|atleta|gambe|minuti|facile|leggera|bassa|alta|medio|media|dimagrire|competitivo|resistenza|preparazione|ottima|ottimo|buona|buono|mantieni|evita|riprendi|settimana|settimane|passo|frequenza|cardiaca|dislivello|salita|discesa|qualità|soglia|lento|lenta|veloce|progressivo|progressione|consiglio|indicazione|respirazione|sonno|segnali|rientro|sforzo)\b/i.test(value);
 }
 
 function cleanMarkdown(value: string): string {

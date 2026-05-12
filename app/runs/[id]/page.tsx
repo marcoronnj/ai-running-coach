@@ -29,6 +29,7 @@ import { formatDateIT, formatDateLocalized, formatTimeIT } from '@/lib/date-util
 import { getCurrentLanguage } from '@/lib/athlete-settings';
 import { t, type Language } from '@/lib/i18n';
 import { Card, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
+import { containsItalianText } from '@/lib/report-display';
 
 export const dynamic = 'force-dynamic';
 
@@ -81,14 +82,14 @@ function formatSpeed(speedMs: number): string {
   return `${(speedMs * 3.6).toFixed(1)} km/h`;
 }
 
-function containsItalianText(value?: string | null): boolean {
-  if (!value) return false;
-  return /\b(corsa|corse|recupero|riposo|domani|dopodomani|oggi|seduta|allenamento|fatica|continuità|sovraccarico|consigliato|prossime|riepilogo|camminata|mobilità|atleta)\b/i.test(value);
-}
-
 function localizedReportText(value: string | undefined, language: Language, fallback: string): string {
   if (!value) return fallback;
   if (language === 'en' && containsItalianText(value)) return fallback;
+  return value;
+}
+
+function localizedRunName(value: string, language: Language): string {
+  if (language === 'en' && containsItalianText(value)) return 'Run activity';
   return value;
 }
 
@@ -111,30 +112,43 @@ function getScoreColor(score?: number): string {
   return scoreTone(score);
 }
 
-function parseWeeklyPlan(raw: unknown): Array<{ name: string; description: string; intensity: string; duration: string }> {
+function parseWeeklyPlan(raw: unknown, language: Language): Array<{ name: string; description: string; intensity: string; duration: string }> {
+  const localizeItem = (item: any) => {
+    const parsed = {
+      name: String(item?.name ?? (language === 'en' ? 'Workout' : 'Allenamento')),
+      description: String(item?.description ?? ''),
+      intensity: String(item?.intensity ?? 'easy'),
+      duration: String(item?.duration ?? ''),
+    };
+
+    if (
+      language === 'en' &&
+      [parsed.name, parsed.description, parsed.duration].some((value) => value && containsItalianText(value))
+    ) {
+      return {
+        name: 'Historical workout',
+        description: 'This workout was generated before the current language setting. Use the live coach for current guidance.',
+        intensity: parsed.intensity,
+        duration: '',
+      };
+    }
+
+    return parsed;
+  };
+
   if (!raw) {
     return [];
   }
 
   if (Array.isArray(raw)) {
-    return raw.map((item) => ({
-      name: String((item as any).name ?? 'Allenamento'),
-      description: String((item as any).description ?? ''),
-      intensity: String((item as any).intensity ?? 'easy'),
-      duration: String((item as any).duration ?? ''),
-    }));
+    return raw.map(localizeItem);
   }
 
   if (typeof raw === 'string') {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.map((item) => ({
-          name: String((item as any).name ?? 'Allenamento'),
-          description: String((item as any).description ?? ''),
-          intensity: String((item as any).intensity ?? 'easy'),
-          duration: String((item as any).duration ?? ''),
-        }));
+        return parsed.map(localizeItem);
       }
     } catch {
       return [];
@@ -256,10 +270,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       risk_level: run.risk_level,
     }, language);
 
-    const weeklyPlan = parseWeeklyPlan(run.weekly_plan);
+    const weeklyPlan = parseWeeklyPlan(run.weekly_plan, language);
     const coachNotes = parseCoachNotes(run.coach_notes);
     const hasReport = !!run.title || !!run.full_report || !!run.summary;
     const next48h = run.next_48h || null;
+    const runName = localizedRunName(run.name, language);
 
     return (
       <PageShell>
@@ -268,7 +283,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="eyebrow mb-1">{t(language, 'run.analysisEyebrow')}</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{run.name}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{runName}</h1>
               <p className="mt-1 text-sm text-app-muted">
                 {formatDateLocalized(run.start_date, language)} • {formatTimeIT(run.start_date)}
               </p>
