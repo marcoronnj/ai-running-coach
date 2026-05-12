@@ -1,40 +1,27 @@
+import Image from 'next/image';
+
 export default function Loading() {
   return (
-    <main className="app-screen">
-      <div className="app-container space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="h-7 w-28 animate-pulse rounded-xl bg-white/[0.08]" />
-            <div className="mt-2 h-4 w-40 animate-pulse rounded-lg bg-white/[0.05]" />
+    <main className="min-h-dvh bg-app-bg text-app-text">
+      <div className="flex min-h-dvh items-center justify-center px-6 py-[calc(env(safe-area-inset-top,0px)+2rem)]">
+        <section className="flex w-full max-w-xs flex-col items-center text-center">
+          <Image
+            src="/logo.svg"
+            alt="Veiro"
+            width={112}
+            height={42}
+            priority
+            className="mb-7 block h-[30px] w-auto"
+          />
+
+          <div className="mb-3 h-px w-full overflow-hidden rounded-full bg-white/[0.08]">
+            <div className="h-full w-2/3 animate-[loading-bar_1.25s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-accent-primary via-accent-secondary to-accent-primary" />
           </div>
-          <div className="h-10 w-10 animate-pulse rounded-xl bg-white/[0.08]" />
-        </div>
 
-        <section className="premium-card p-4 sm:p-5">
-          <div className="h-4 w-24 animate-pulse rounded-lg bg-white/[0.06]" />
-          <div className="mt-3 h-8 w-48 animate-pulse rounded-xl bg-white/[0.08]" />
-          <div className="mt-3 h-4 w-full max-w-sm animate-pulse rounded-lg bg-white/[0.05]" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-app-muted">
+            Preparazione dashboard
+          </p>
         </section>
-
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          <section className="premium-card p-4 sm:p-5 lg:col-span-2">
-            <div className="h-5 w-44 animate-pulse rounded-lg bg-white/[0.08]" />
-            <div className="mt-4 space-y-3">
-              <div className="h-16 animate-pulse rounded-2xl bg-white/[0.05]" />
-              <div className="h-16 animate-pulse rounded-2xl bg-white/[0.05]" />
-              <div className="h-16 animate-pulse rounded-2xl bg-white/[0.05]" />
-            </div>
-          </section>
-
-          <section className="premium-card p-4 sm:p-5">
-            <div className="h-5 w-32 animate-pulse rounded-lg bg-white/[0.08]" />
-            <div className="mt-4 space-y-3">
-              <div className="h-14 animate-pulse rounded-2xl bg-white/[0.05]" />
-              <div className="h-14 animate-pulse rounded-2xl bg-white/[0.05]" />
-              <div className="h-14 animate-pulse rounded-2xl bg-white/[0.05]" />
-            </div>
-          </section>
-        </div>
       </div>
     </main>
   );

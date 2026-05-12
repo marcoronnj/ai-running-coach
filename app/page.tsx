@@ -27,7 +27,7 @@ import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized, formatDaysSinceLocalized, getTodayInAppTimezone } from '@/lib/date-utils';
 import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
-import { fallbackDynamicAthleteState, logServerError, safeResolve } from '@/lib/resilient-data';
+import { fallbackDynamicAthleteState, logServerError, safeResult } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
@@ -654,66 +654,123 @@ function DataUnavailableNotice({ language }: { language: Language }) {
   );
 }
 
+function MetricsUpdatingCard({ language }: { language: Language }) {
+  return (
+    <Card>
+      <SectionHeader eyebrow="body battery" title={t(language, 'dashboard.athleteStatus')} icon={Gauge} />
+      <div className="metric-card p-3.5">
+        <div className="eyebrow mb-1">
+          {language === 'en' ? 'Metrics' : 'Metriche'}
+        </div>
+        <p className="text-sm text-app-text">
+          {language === 'en' ? 'Metrics are updating' : 'Metriche in aggiornamento'}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-app-muted">
+          {language === 'en'
+            ? 'The dashboard remains available while Veiro refreshes training context.'
+            : 'La dashboard resta disponibile mentre Veiro aggiorna il contesto di allenamento.'}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function TrendUpdatingCard({ language }: { language: Language }) {
+  return (
+    <Card>
+      <SectionHeader eyebrow="training load" title={t(language, 'dashboard.weeklyTrend')} icon={TrendingUp} />
+      <div className="metric-card p-3.5">
+        <p className="text-sm text-app-text">
+          {language === 'en' ? 'Trend temporarily unavailable' : 'Trend temporaneamente non disponibile'}
+        </p>
+        <p className="mt-1 text-xs leading-relaxed text-app-muted">
+          {language === 'en'
+            ? 'It will come back automatically on the next refresh.'
+            : 'Tornerà automaticamente al prossimo aggiornamento.'}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 /**
  * Pagina principale della dashboard - Coach at a Glance
  */
 export default async function HomePage() {
-  const athleteSettings = await safeResolve('home.athleteSettings', getAthleteSettings, null);
+  const athleteSettingsResult = await safeResult('home.athleteSettings', getAthleteSettings, null);
+  const athleteSettings = athleteSettingsResult.data;
   const language = normalizeLanguage(athleteSettings?.language);
-  const session = await safeResolve('home.session', verifySession, null);
-  const stravaStatus = session
-    ? await safeResolve('home.stravaStatus', () => getPublicStravaConnectionStatus(session.email), undefined)
-    : undefined;
+  const sessionResult = await safeResult('home.session', verifySession, null);
+  const session = sessionResult.data;
+  const stravaStatusResult = session
+    ? await safeResult('home.stravaStatus', () => getPublicStravaConnectionStatus(session.email), undefined)
+    : { data: undefined, failed: false };
+  const stravaStatus = stravaStatusResult.data;
 
-  // Query per l'ultima corsa con il suo report (ultimo disponibile)
-  const lastRun = await safeResolve('home.latestRun', getLatestRunWithReport, null);
+  const lastRunResult = await safeResult('home.latestRun', getLatestRunWithReport, null);
+  const lastRun = lastRunResult.data;
 
-  // Query per il trend delle ultime 6 settimane
-  const weeklyTrend = await safeResolve('home.weeklyTrend', async () => {
+  const weeklyTrendResult = await safeResult('home.weeklyTrend', async () => {
     const result = await query<WeeklyTrendItem>(`
-    WITH weekly_stats AS (
+      WITH weekly_stats AS (
+        SELECT
+          DATE_TRUNC('week', start_date) as week_start,
+          COUNT(*) as runs,
+          SUM(distance_m) as total_distance
+        FROM activities
+        WHERE type IN ('Run', 'TrailRun')
+          AND start_date >= NOW() - INTERVAL '6 weeks'
+        GROUP BY DATE_TRUNC('week', start_date)
+        ORDER BY week_start DESC
+      )
       SELECT
-        DATE_TRUNC('week', start_date) as week_start,
-        COUNT(*) as runs,
-        SUM(distance_m) as total_distance
-      FROM activities
-      WHERE type IN ('Run', 'TrailRun')
-        AND start_date >= NOW() - INTERVAL '6 weeks'
-      GROUP BY DATE_TRUNC('week', start_date)
+        EXTRACT(WEEK FROM week_start)::INTEGER as week,
+        runs,
+        total_distance
+      FROM weekly_stats
       ORDER BY week_start DESC
-    )
-    SELECT
-      EXTRACT(WEEK FROM week_start)::INTEGER as week,
-      runs,
-      total_distance
-    FROM weekly_stats
-    ORDER BY week_start DESC
-    LIMIT 6
-  `);
+      LIMIT 6
+    `);
     return result.rows;
-  }, []);
+  }, [] as WeeklyTrendItem[]);
+  const weeklyTrend = weeklyTrendResult.data;
 
-  const activityHistory = await safeResolve('home.activityHistory', async () => {
+  const activityHistoryResult = await safeResult('home.activityHistory', async () => {
     const result = await query(`
-    SELECT * FROM activities
-    WHERE type IN ('Run', 'TrailRun')
-      AND start_date >= NOW() - INTERVAL '90 days'
-    ORDER BY start_date DESC
-  `);
+      SELECT * FROM activities
+      WHERE type IN ('Run', 'TrailRun')
+        AND start_date >= NOW() - INTERVAL '90 days'
+      ORDER BY start_date DESC
+    `);
     return result.rows;
   }, []);
+  const activityHistory = activityHistoryResult.data;
 
   let athleteMetrics: ReturnType<typeof calculateCoachingMetrics> | null = null;
   let coachingRules: ReturnType<typeof getCoachingRules> | null = null;
+  let metricsFailed = activityHistoryResult.failed;
 
-  try {
-    athleteMetrics = calculateCoachingMetrics(activityHistory, athleteSettings);
-    coachingRules = getCoachingRules(athleteMetrics, athleteSettings);
-  } catch (error) {
-    logServerError('home.coachingMetrics', error);
+  if (!activityHistoryResult.failed) {
+    try {
+      athleteMetrics = calculateCoachingMetrics(activityHistory, athleteSettings);
+      coachingRules = getCoachingRules(athleteMetrics, athleteSettings);
+    } catch (error) {
+      metricsFailed = true;
+      logServerError('home.coachingMetrics', error);
+    }
   }
 
-  // Query per il report più recente
+  const dataFailures = [
+    athleteSettingsResult.failed,
+    sessionResult.failed,
+    stravaStatusResult.failed,
+    lastRunResult.failed,
+    weeklyTrendResult.failed,
+    activityHistoryResult.failed,
+    metricsFailed,
+  ];
+  const hasPartialDataFailure = dataFailures.some(Boolean);
+
   const latestReport = lastRun && hasCoachReport(lastRun)
     ? {
         title: lastRun?.title || 'Report Coach',
@@ -742,11 +799,11 @@ export default async function HomePage() {
       language,
     });
   } catch (error) {
+    metricsFailed = true;
     logServerError('home.dynamicAthleteState', error);
   }
 
-  const hasData = lastRun || (weeklyTrend && weeklyTrend.length > 0);
-  const hasPartialDataFailure = !athleteMetrics || activityHistory.length === 0 && weeklyTrend.length === 0 && !lastRun;
+  const hasData = Boolean(lastRun) || weeklyTrend.length > 0;
 
   return (
     <PullToRefresh language={language}>
@@ -810,8 +867,16 @@ export default async function HomePage() {
 
               {/* Colonna destra - Metriche e trend */}
               <div className="space-y-5 lg:col-span-1">
-                <AthleteMetricsCard metrics={dynamicAthleteState} language={language} />
-                <WeeklyTrendCard trend={weeklyTrend} language={language} />
+                {metricsFailed || !athleteMetrics ? (
+                  <MetricsUpdatingCard language={language} />
+                ) : (
+                  <AthleteMetricsCard metrics={dynamicAthleteState} language={language} />
+                )}
+                {weeklyTrend.length > 0 ? (
+                  <WeeklyTrendCard trend={weeklyTrend} language={language} />
+                ) : weeklyTrendResult.failed ? (
+                  <TrendUpdatingCard language={language} />
+                ) : null}
                 <StravaProfileLink status={stravaStatus} language={language} />
               </div>
             </div>

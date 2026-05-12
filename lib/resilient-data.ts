@@ -21,6 +21,24 @@ export async function safeResolve<T>(
   }
 }
 
+export interface SafeResult<T> {
+  data: T;
+  failed: boolean;
+}
+
+export async function safeResult<T>(
+  scope: string,
+  loader: () => Promise<T>,
+  fallback: T
+): Promise<SafeResult<T>> {
+  try {
+    return { data: await loader(), failed: false };
+  } catch (error) {
+    logServerError(scope, error);
+    return { data: fallback, failed: true };
+  }
+}
+
 export function fallbackDynamicAthleteState(language: Language = 'it'): DynamicAthleteState {
   const currentLanguage = normalizeLanguage(language);
   const isEnglish = currentLanguage === 'en';

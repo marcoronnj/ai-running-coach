@@ -1,8 +1,9 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect } from 'react';
-import { RefreshCw, ShieldAlert } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { Home, RefreshCw, ShieldAlert } from 'lucide-react';
 
 export default function Error({
   error,
@@ -11,7 +12,10 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [isEnglish, setIsEnglish] = useState(false);
+
   useEffect(() => {
+    setIsEnglish(navigator.language.toLowerCase().startsWith('en'));
     console.error('[APP_ERROR_BOUNDARY] Route render failed', {
       message: error.message,
       digest: error.digest,
@@ -19,9 +23,18 @@ export default function Error({
     });
   }, [error]);
 
+  const title = isEnglish
+    ? 'We couldn’t load your data right now.'
+    : 'Non siamo riusciti a caricare temporaneamente i dati.';
+  const body = isEnglish
+    ? 'Veiro is still available. Try again or return to the dashboard.'
+    : 'Veiro resta disponibile. Riprova oppure torna alla dashboard.';
+  const retryLabel = isEnglish ? 'Try again' : 'Riprova';
+  const dashboardLabel = isEnglish ? 'Dashboard' : 'Dashboard';
+
   return (
-    <main className="app-screen">
-      <div className="app-container flex min-h-[80vh] items-center justify-center">
+    <main className="min-h-dvh bg-app-bg text-app-text">
+      <div className="flex min-h-dvh items-center justify-center px-4 py-[calc(env(safe-area-inset-top,0px)+2rem)]">
         <section className="premium-card fade-in w-full max-w-md p-5 text-center sm:p-6">
           <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[rgba(255,216,77,0.22)] bg-[rgba(255,216,77,0.1)] text-[var(--warning)]">
             <ShieldAlert size={24} strokeWidth={1.8} />
@@ -36,20 +49,29 @@ export default function Error({
             className="mx-auto mb-3 block h-6 w-auto sm:h-[30px]"
           />
           <h1 className="mb-3 text-xl font-semibold tracking-tight text-app-text">
-            Dati temporaneamente non disponibili
+            {title}
           </h1>
           <p className="mb-6 text-sm leading-relaxed text-app-muted">
-            L’app è rimasta aperta, ma questa vista non è riuscita a caricarsi. Riprova tra poco.
+            {body}
           </p>
 
-          <button
-            type="button"
-            onClick={reset}
-            className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-sm font-bold text-black"
-          >
-            <RefreshCw size={16} strokeWidth={2} />
-            Riprova
-          </button>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={reset}
+              className="pressable inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-4 py-2.5 text-sm font-bold text-black"
+            >
+              <RefreshCw size={16} strokeWidth={2} />
+              {retryLabel}
+            </button>
+            <Link
+              href="/"
+              className="pressable inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-app-text"
+            >
+              <Home size={16} strokeWidth={1.8} />
+              {dashboardLabel}
+            </Link>
+          </div>
         </section>
       </div>
     </main>

@@ -35,9 +35,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${satoshi.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${satoshi.variable} h-full bg-app-bg antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col bg-app-bg text-app-text">{children}</body>
     </html>
   );
 }
