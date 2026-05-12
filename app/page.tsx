@@ -25,7 +25,7 @@ import { getCoachingRules } from '@/lib/coaching-rules';
 import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized, formatDaysSinceLocalized, getTodayInAppTimezone } from '@/lib/date-utils';
-import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import { containsItalianText, getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { fallbackDynamicAthleteState, logServerError, safeResult } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
@@ -433,6 +433,7 @@ function LastRunCard({ run, language }: { run: DashboardRun | null | undefined; 
 
   const reportStatus = getReportStatus(run);
   const reportExcerpt = getCoachReportExcerpt(run, 220, language);
+  const runName = language === 'en' && containsItalianText(run.name) ? 'Latest run' : run.name;
 
   return (
     <Card>
@@ -448,7 +449,7 @@ function LastRunCard({ run, language }: { run: DashboardRun | null | undefined; 
       </div>
 
       <div className="mb-5 space-y-4">
-        <h3 className="text-lg font-semibold text-app-text">{run.name}</h3>
+        <h3 className="text-lg font-semibold text-app-text">{runName}</h3>
         {reportExcerpt ? (
           <p className="text-sm leading-relaxed text-neutral-300">
             {reportExcerpt}

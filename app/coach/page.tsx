@@ -22,7 +22,7 @@ import { verifySession } from '@/lib/auth';
 import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized } from '@/lib/date-utils';
-import { getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import { containsItalianText, getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { fallbackDynamicAthleteState, logServerError, safeResolve } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
@@ -109,12 +109,64 @@ function AthleteAvatar({ status, size = 'lg' }: { status?: PublicStravaConnectio
 /**
  * Componente per il profilo atleta
  */
+function localizedFreeText(value: string | null | undefined, language: Language, fallback: string): string | null {
+  if (!value) return null;
+  if (language === 'en' && containsItalianText(value)) return fallback;
+  return value;
+}
+
+function getExperienceLabel(value: string | null | undefined, language: Language): string | null {
+  if (!value) return null;
+  if (language !== 'en') return value;
+
+  const normalized = value.toLowerCase();
+  if (normalized.includes('principiante') || normalized.includes('beginner')) return 'Beginner';
+  if (normalized.includes('intermedio') || normalized.includes('intermediate')) return 'Intermediate';
+  if (normalized.includes('avanzato') || normalized.includes('advanced')) return 'Advanced';
+  if (containsItalianText(value)) return 'Saved before current language setting';
+  return value;
+}
+
+function getReportText(value: string | null | undefined, language: Language, fallback: string): string | null {
+  if (!value) return null;
+  if (language === 'en' && containsItalianText(value)) return fallback;
+  return value;
+}
+
+function getWeeklyPlanItem(
+  item: { name?: string; description?: string; duration?: string; intensity?: string },
+  language: Language,
+) {
+  if (language !== 'en') return item;
+
+  const hasItalian = [item.name, item.description, item.duration].some((value) => value && containsItalianText(value));
+  if (!hasItalian) return item;
+
+  return {
+    ...item,
+    name: 'Historical workout',
+    description: 'This plan was generated before the current language setting. Use the live coach for current guidance.',
+    duration: '',
+  };
+}
+
 function AthleteProfileCard({ settings, language, stravaStatus }: { settings: any; language: Language; stravaStatus?: PublicStravaConnectionStatus }) {
   if (!settings) return null;
   const athlete = stravaStatus?.athlete;
   const fullName = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(' ').trim();
   const displayName = fullName || (language === 'en' ? 'Athlete' : 'Atleta');
   const calculatedAge = calculateAge(settings.birth_date);
+  const profileSummary = localizedFreeText(
+    settings.profile_summary,
+    language,
+    'Profile summary saved before the current language setting.',
+  );
+  const mainGoal = localizedFreeText(
+    settings.main_goal,
+    language,
+    'Main goal saved before the current language setting.',
+  );
+  const experienceLevel = getExperienceLabel(settings.experience_level, language);
 
   return (
     <Card>
@@ -127,10 +179,10 @@ function AthleteProfileCard({ settings, language, stravaStatus }: { settings: an
       </div>
 
       <div className="space-y-3">
-        {settings.profile_summary && (
+        {profileSummary && (
           <div className="metric-card p-3">
             <div className="eyebrow mb-1">{language === 'en' ? 'Summary' : 'Sommario'}</div>
-            <div className="text-sm text-app-text">{settings.profile_summary}</div>
+            <div className="text-sm text-app-text">{profileSummary}</div>
           </div>
         )}
 
@@ -153,17 +205,17 @@ function AthleteProfileCard({ settings, language, stravaStatus }: { settings: an
           )}
         </div>
 
-        {settings.main_goal && (
+        {mainGoal && (
           <div className="metric-card p-3">
             <div className="eyebrow mb-1">{language === 'en' ? 'Main goal' : 'Obiettivo principale'}</div>
-            <div className="text-sm font-medium text-app-text">{settings.main_goal}</div>
+            <div className="text-sm font-medium text-app-text">{mainGoal}</div>
           </div>
         )}
 
-        {settings.experience_level && (
+        {experienceLevel && (
           <div className="metric-card p-3">
             <div className="eyebrow mb-1">{language === 'en' ? 'Experience level' : 'Livello esperienza'}</div>
-            <div className="text-sm text-app-text">{settings.experience_level}</div>
+            <div className="text-sm text-app-text">{experienceLevel}</div>
           </div>
         )}
       </div>
@@ -279,6 +331,9 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
 
   const status = getReportStatus(run);
   const excerpt = getCoachReportExcerpt(report || run, 220, language);
+  const runName = getReportText(run.name, language, language === 'en' ? 'Latest run' : run.name) || run.name;
+  const reportTitle = getReportText(report?.title, language, 'Historical run analysis');
+  const next48h = getReportText(report?.next_48h, language, 'Use the live coach for current recovery guidance.');
 
   if (!report) {
     return (
@@ -294,7 +349,7 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
 
         <div className="space-y-4">
           <div>
-            <div className="mb-2 text-base font-semibold text-app-text">{run.name}</div>
+            <div className="mb-2 text-base font-semibold text-app-text">{runName}</div>
             <div className="text-sm text-neutral-300">{t(language, 'dashboard.aiAnalysisPending')}</div>
           </div>
 
@@ -342,30 +397,34 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
 
       <div className="space-y-4">
         <div>
-          <div className="mb-2 text-base font-semibold text-app-text">{run.name}</div>
-          {report.title && <div className="mb-2 text-sm font-medium text-app-text">{language === 'en' && /\b(corsa|recupero|riposo|seduta|allenamento|fatica|continuità)\b/i.test(report.title) ? 'Historical run analysis' : report.title}</div>}
+          <div className="mb-2 text-base font-semibold text-app-text">{runName}</div>
+          {reportTitle && <div className="mb-2 text-sm font-medium text-app-text">{reportTitle}</div>}
           <div className="text-sm leading-relaxed text-neutral-300">{excerpt}</div>
         </div>
 
         <div className="metric-card p-3.5">
           <div className="eyebrow mb-2">{language === 'en' ? 'Next 48 hours' : 'Prossime 48 ore'}</div>
-          <div className="text-sm text-app-text">{language === 'en' && /\b(corsa|recupero|riposo|domani|dopodomani|oggi|seduta|allenamento|fatica|continuità)\b/i.test(report.next_48h || '') ? 'Use the live coach for current recovery guidance.' : report.next_48h}</div>
+          <div className="text-sm text-app-text">{next48h}</div>
         </div>
 
         {report.weekly_plan && report.weekly_plan.length > 0 && (
           <div>
             <div className="eyebrow mb-3">{language === 'en' ? 'Weekly plan' : 'Piano settimanale'}</div>
             <div className="space-y-2">
-              {report.weekly_plan.slice(0, 3).map((item: any, index: number) => (
-                <div key={index} className="rounded-xl bg-white/[0.035] p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-app-text">{language === 'en' && /\b(corsa|recupero|riposo|camminata|mobilità)\b/i.test(item.name || '') ? 'Historical workout' : item.name}</div>
-                    <div className="text-xs capitalize text-app-muted">{item.intensity}</div>
+              {report.weekly_plan.slice(0, 3).map((rawItem: any, index: number) => {
+                const item = getWeeklyPlanItem(rawItem, language);
+
+                return (
+                  <div key={index} className="rounded-xl bg-white/[0.035] p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-app-text">{item.name}</div>
+                      <div className="text-xs capitalize text-app-muted">{item.intensity}</div>
+                    </div>
+                    <div className="mt-1 text-sm text-neutral-300">{item.description}</div>
+                    {item.duration ? <div className="mt-1 text-xs text-neutral-500">{item.duration}</div> : null}
                   </div>
-                  <div className="text-sm text-neutral-300 mt-1">{language === 'en' && /\b(corsa|recupero|riposo|camminata|mobilità|allenamento)\b/i.test(item.description || '') ? 'Generated before the current language setting.' : item.description}</div>
-                  <div className="text-xs text-neutral-500 mt-1">{item.duration}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -375,7 +434,7 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
             <div className="eyebrow mb-2">{language === 'en' ? 'Coach notes' : 'Note coach'}</div>
             <ul className="space-y-1">
               {report.coach_notes.map((note: string, index: number) => (
-                <li key={index} className="flex gap-2 text-sm text-accent-secondary"><Sparkles size={15} strokeWidth={1.8} /> {language === 'en' && /\b(corsa|recupero|riposo|seduta|allenamento|fatica|continuità)\b/i.test(note) ? 'Historical coach note generated before the current language setting.' : note}</li>
+                <li key={index} className="flex gap-2 text-sm text-accent-secondary"><Sparkles size={15} strokeWidth={1.8} /> {getReportText(note, language, 'Historical coach note generated before the current language setting.')}</li>
               ))}
             </ul>
           </div>

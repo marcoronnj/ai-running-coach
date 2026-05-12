@@ -4,8 +4,8 @@ export interface ReportDisplayData {
   full_report?: string | null;
 }
 
-function containsItalianText(value: string): boolean {
-  return /\b(corsa|corse|recupero|riposo|domani|dopodomani|oggi|seduta|allenamento|fatica|continuità|sovraccarico|consigliato|prossime|riepilogo|camminata|mobilità|atleta)\b/i.test(value);
+export function containsItalianText(value: string): boolean {
+  return /\b(corsa|corse|correre|uscita|uscite|recupero|riposo|domani|dopodomani|oggi|ieri|seduta|allenamento|allenamenti|allenarsi|fatica|continuità|sovraccarico|consigliato|consigliata|prossime|prossima|riepilogo|camminata|mobilità|atleta|gambe|minuti|facile|leggera|bassa|alta|medio|media|dimagrire|competitivo|resistenza|preparazione)\b/i.test(value);
 }
 
 function cleanMarkdown(value: string): string {
