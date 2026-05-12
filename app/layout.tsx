@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
+import AppStartupLoader from "@/app/components/AppStartupLoader";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,7 +38,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${satoshi.variable} h-full bg-app-bg antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-app-bg text-app-text">{children}</body>
+      <body className="flex min-h-full flex-col bg-app-bg text-app-text">
+        <AppStartupLoader />
+        {children}
+      </body>
     </html>
   );
 }
