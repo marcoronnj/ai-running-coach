@@ -546,7 +546,7 @@ export default async function CoachPage() {
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="eyebrow mb-1">{t(language, 'coach.eyebrow')}</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">Veyro</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">Veiro</h1>
               <p className="mt-1 text-sm text-app-muted">{t(language, 'coach.subtitle')}</p>
               {latestRun ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
@@ -597,7 +597,7 @@ export default async function CoachPage() {
           <h2 className="mb-3 text-xl font-semibold text-app-text">Dati temporaneamente non disponibili</h2>
 
           <p className="mb-6 text-sm leading-relaxed text-app-muted">
-            Veyro non è riuscita a preparare questa vista. Torna alla dashboard e riprova tra poco.
+            Veiro non è riuscita a preparare questa vista. Torna alla dashboard e riprova tra poco.
           </p>
 
           <Link

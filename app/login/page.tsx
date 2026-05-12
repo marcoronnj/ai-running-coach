@@ -22,7 +22,7 @@ export default async function LoginPage({
             <Activity size={21} strokeWidth={2} />
           </div>
           <p className="eyebrow mb-1">single user</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-app-text">Veyro</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-app-text">Veiro</h1>
           <p className="mt-1 text-sm text-app-muted">{t(language, 'login.subtitle')}</p>
         </div>
 

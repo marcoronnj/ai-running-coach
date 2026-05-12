@@ -644,8 +644,8 @@ function DataUnavailableNotice({ language }: { language: Language }) {
           </h2>
           <p className="mt-1 text-sm leading-relaxed text-app-muted">
             {language === 'en'
-              ? 'Veyro could not load every data source. The page stays available and will recover on the next refresh.'
-              : 'Veyro non è riuscita a caricare tutte le sorgenti dati. La pagina resta disponibile e si riprenderà al prossimo aggiornamento.'}
+              ? 'Veiro could not load every data source. The page stays available and will recover on the next refresh.'
+              : 'Veiro non è riuscita a caricare tutte le sorgenti dati. La pagina resta disponibile e si riprenderà al prossimo aggiornamento.'}
           </p>
         </div>
       </div>
@@ -756,7 +756,7 @@ export default async function HomePage() {
             <div className="flex items-center gap-2">
               <AthleteAvatar status={stravaStatus} />
               <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold tracking-tight text-accent-primary sm:text-3xl">Veyro</h1>
+                <h1 className="truncate text-2xl font-semibold tracking-tight text-accent-primary sm:text-3xl">Veiro</h1>
               </div>
             </div>
           </div>

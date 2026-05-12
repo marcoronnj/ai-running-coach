@@ -26,7 +26,7 @@ export default function Error({
             <ShieldAlert size={24} strokeWidth={1.8} />
           </div>
 
-          <p className="eyebrow mb-2">Veyro</p>
+          <p className="eyebrow mb-2">Veiro</p>
           <h1 className="mb-3 text-xl font-semibold tracking-tight text-app-text">
             Dati temporaneamente non disponibili
           </h1>

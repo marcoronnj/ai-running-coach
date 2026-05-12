@@ -65,7 +65,7 @@ export function fallbackDynamicAthleteState(language: Language = 'it'): DynamicA
       },
     ],
     explanation: isEnglish
-      ? 'Some data is temporarily unavailable. Veyro is keeping the page usable instead of interrupting the session.'
-      : 'Alcuni dati sono temporaneamente non disponibili. Veyro mantiene la pagina utilizzabile senza interrompere la sessione.',
+      ? 'Some data is temporarily unavailable. Veiro is keeping the page usable instead of interrupting the session.'
+      : 'Alcuni dati sono temporaneamente non disponibili. Veiro mantiene la pagina utilizzabile senza interrompere la sessione.',
   };
 }

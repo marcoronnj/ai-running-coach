@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veyro",
+  title: "Veiro",
   description: "Performance running intelligence",
   icons: {
     icon: "/icon.png",
