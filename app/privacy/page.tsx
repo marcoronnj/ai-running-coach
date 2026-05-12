@@ -50,6 +50,9 @@ const privacyContent: Record<Language, Omit<PolicyPageProps, 'dashboardLabel'>> 
           'migliorare l’esperienza del running coach',
           'monitorare stabilità e funzionalità dell’applicazione',
         ],
+        afterBullets: [
+          'I dati delle attività dell’utente vengono utilizzati esclusivamente per generare insight personalizzati per il singolo atleta e non vengono utilizzati per addestrare modelli di intelligenza artificiale general-purpose.',
+        ],
       },
       {
         title: '3. Insight generati dall’AI',
@@ -132,6 +135,9 @@ const privacyContent: Record<Language, Omit<PolicyPageProps, 'dashboardLabel'>> 
           'generate AI-based training insights and summaries',
           'improve the running coach experience',
           'monitor application stability and functionality',
+        ],
+        afterBullets: [
+          'User activity data is used exclusively to generate personalized insights for the individual athlete and is not used to train general-purpose AI models.',
         ],
       },
       {
