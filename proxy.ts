@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/session';
 
 const PUBLIC_PATH_PREFIXES = [
+  '/privacy',
+  '/disclaimer',
   '/login',
   '/api/login',
   '/api/logout',
