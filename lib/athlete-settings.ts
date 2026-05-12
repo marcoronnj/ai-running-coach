@@ -45,11 +45,20 @@ export async function getCurrentLanguage(): Promise<Language> {
   return normalizeLanguage(settings?.language);
 }
 
+async function ensureAthleteSettingsBirthDateColumn(): Promise<void> {
+  await query('ALTER TABLE athlete_settings ADD COLUMN IF NOT EXISTS birth_date DATE');
+}
+
 /**
  * Aggiorna le impostazioni dell'atleta
  */
 export async function updateAthleteSettings(data: Partial<Omit<AthleteSettings, 'id' | 'updated_at'>>): Promise<void> {
   try {
+    if ('birth_date' in data) {
+      console.log('[ATHLETE_SETTINGS] birth_date ricevuta:', data.birth_date ?? null);
+      await ensureAthleteSettingsBirthDateColumn();
+    }
+
     const fields = Object.keys(data);
     const values = Object.values(data);
 
@@ -66,7 +75,9 @@ export async function updateAthleteSettings(data: Partial<Omit<AthleteSettings, 
 
     await query(queryText, [...values, 'default']);
   } catch (error) {
-    console.error('[ATHLETE_SETTINGS] Errore aggiornamento impostazioni:', error);
+    console.error('[ATHLETE_SETTINGS] Errore aggiornamento impostazioni:', {
+      message: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }

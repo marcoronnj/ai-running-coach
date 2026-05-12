@@ -50,7 +50,13 @@ async function updateSettings(formData: FormData) {
 
   const birthDate = formData.get('birth_date');
   if (typeof birthDate === 'string') {
+    const rawBirthDate = birthDate.trim();
     const normalizedBirthDate = formatBirthDateInput(birthDate);
+    console.log('[SETTINGS] birth_date ricevuta dal form:', rawBirthDate || null);
+    if (rawBirthDate && !normalizedBirthDate) {
+      console.error('[SETTINGS] birth_date non valida:', rawBirthDate);
+      redirect('/settings?error=true');
+    }
     data.birth_date = normalizedBirthDate || null;
   }
 
