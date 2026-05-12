@@ -165,19 +165,22 @@ export default function PullToRefresh({ children, language = 'it' }: PullToRefre
     >
       <div
         aria-live="polite"
-        className="pointer-events-none fixed left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-app-card/95 px-3 py-2 text-xs font-semibold text-app-text shadow-lg shadow-black/30 backdrop-blur transition-all duration-200 sm:hidden"
+        className="pointer-events-none fixed inset-x-0 z-50 flex w-full justify-center px-4 text-center transition-all duration-200 sm:hidden"
         style={{
           opacity: visible ? 1 : 0,
-          transform: `translate(-50%, ${visible ? Math.max(0, pullDistance - 42) : -24}px) scale(${visible ? 1 : 0.96})`,
+          top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
+          transform: `translateY(${visible ? Math.max(0, pullDistance - 42) : -24}px) scale(${visible ? 1 : 0.96})`,
         }}
       >
-        <Icon
-          size={15}
-          strokeWidth={1.9}
-          className={state === 'loading' ? 'animate-spin text-accent-secondary' : 'text-accent-primary'}
-          style={state === 'pulling' || state === 'ready' ? { transform: `rotate(${progress * 160}deg)` } : undefined}
-        />
-        <span>{getPullMessage(state, currentLanguage)}</span>
+        <div className="inline-flex min-w-0 items-center justify-center gap-2 rounded-full border border-white/10 bg-app-card/90 px-3 py-2 text-center text-xs font-semibold text-app-text shadow-lg shadow-black/25 backdrop-blur-md">
+          <Icon
+            size={15}
+            strokeWidth={1.9}
+            className={state === 'loading' ? 'animate-spin text-accent-secondary' : 'text-accent-primary'}
+            style={state === 'pulling' || state === 'ready' ? { transform: `rotate(${progress * 160}deg)` } : undefined}
+          />
+          <span className="leading-none">{getPullMessage(state, currentLanguage)}</span>
+        </div>
       </div>
       {children}
     </div>
