@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 const footerLinks = [
   { href: '/privacy', label: 'Privacy' },
@@ -11,9 +12,16 @@ export default function AppFooter() {
       <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-4 px-5 py-7 text-center sm:flex-row sm:justify-between sm:px-8 sm:text-left">
         <Link
           href="/"
-          className="text-sm font-bold tracking-[0.16em] text-white transition-colors duration-200 [font-family:var(--font-satoshi),sans-serif] hover:text-[#D6FF3F]"
+          className="opacity-90 transition-opacity duration-200 hover:opacity-100"
+          aria-label="VEIRO home"
         >
-          VEIRO
+          <Image
+            src="/logo.svg"
+            alt="VEIRO"
+            width={86}
+            height={32}
+            className="h-6 w-auto"
+          />
         </Link>
         <nav aria-label="Legal links" className="flex items-center gap-5">
           {footerLinks.map((link) => (
