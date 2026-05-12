@@ -18,9 +18,9 @@ export default function AppFooter() {
           <Image
             src="/logo.svg"
             alt="VEIRO"
-            width={86}
+            width={72}
             height={32}
-            className="h-6 w-auto"
+            className="h-5 w-auto"
           />
         </Link>
         <nav aria-label="Legal links" className="flex items-center gap-5">

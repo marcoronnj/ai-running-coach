@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 type PolicySection = {
   title?: string;
@@ -12,6 +14,7 @@ export type PolicyPageProps = {
   updated?: string;
   intro?: string[];
   sections: PolicySection[];
+  dashboardLabel: string;
 };
 
 function BulletList({ bullets }: { bullets: NonNullable<PolicySection['bullets']> }) {
@@ -45,10 +48,20 @@ function PolicyBlock({ children }: { children: ReactNode }) {
   );
 }
 
-export default function PolicyPage({ title, updated, intro = [], sections }: PolicyPageProps) {
+export default function PolicyPage({ title, updated, intro = [], sections, dashboardLabel }: PolicyPageProps) {
   return (
     <main className="min-h-screen bg-[#050505] text-white">
       <section className="mx-auto w-full max-w-3xl px-5 py-14 sm:px-8 sm:py-20 lg:py-24">
+        <div className="mb-8">
+          <Link
+            href="/"
+            className="pressable inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-app-text"
+          >
+            <ArrowLeft size={16} strokeWidth={1.8} />
+            {dashboardLabel}
+          </Link>
+        </div>
+
         <div className="mb-10 sm:mb-14">
           <h1 className="max-w-2xl text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl">
             {title}
