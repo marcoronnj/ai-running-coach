@@ -732,7 +732,7 @@ export default async function HomePage() {
             >
               <Settings size={17} strokeWidth={1.8} />
             </Link>
-            <ManualSyncButton language={language} />
+            <ManualSyncButton language={language} iconOnly />
             <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-app-muted sm:flex">
               <UserCircle size={18} strokeWidth={1.8} />
             </div>

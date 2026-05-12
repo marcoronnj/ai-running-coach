@@ -48,7 +48,7 @@ function buildStatusMessage(data: ManualSyncResponse | undefined, language: Lang
     : (language === 'en' ? `${newActivities} new runs synced` : `${newActivities} nuove corse sincronizzate`);
 }
 
-export default function ManualSyncButton({ language = 'it' }: { language?: Language }) {
+export default function ManualSyncButton({ language = 'it', iconOnly = false }: { language?: Language; iconOnly?: boolean }) {
   const currentLanguage = normalizeLanguage(language);
   const router = useRouter();
   const [state, setState] = useState<SyncState>('idle');
@@ -122,6 +122,7 @@ export default function ManualSyncButton({ language = 'it' }: { language?: Langu
       : state === 'error'
         ? (currentLanguage === 'en' ? 'Error' : 'Errore')
         : (currentLanguage === 'en' ? 'Sync' : 'Sincronizza');
+  const ariaLabel = currentLanguage === 'en' ? 'Sync' : 'Sincronizza';
   const Icon = state === 'success' || state === 'warning' ? Check : state === 'error' ? XCircle : RefreshCw;
 
   return (
@@ -130,10 +131,14 @@ export default function ManualSyncButton({ language = 'it' }: { language?: Langu
         type="button"
         onClick={handleSync}
         disabled={state === 'loading'}
-        className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+        aria-label={ariaLabel}
+        title={ariaLabel}
+        className={iconOnly
+          ? 'pressable inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-app-text disabled:cursor-not-allowed disabled:opacity-60'
+          : 'pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text disabled:cursor-not-allowed disabled:opacity-60 sm:px-4'}
       >
         <Icon size={16} strokeWidth={1.8} className={state === 'loading' ? 'animate-spin' : ''} />
-        {label}
+        {iconOnly ? <span className="sr-only">{label}</span> : label}
       </button>
       {message ? (
         <div className="absolute right-0 top-full z-10 mt-2 w-64 rounded-xl border border-white/10 bg-app-card px-3 py-2 text-xs text-neutral-200 shadow-lg shadow-black/30">

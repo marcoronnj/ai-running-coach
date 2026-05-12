@@ -227,7 +227,11 @@ export default function StravaConnectionBox({
       </Card>
 
       <Card>
-        <SectionHeader eyebrow={currentLanguage === 'en' ? 'athlete' : 'atleta'} title={currentLanguage === 'en' ? 'Athlete' : 'Atleta'} icon={UserCircle} />
+        <SectionHeader
+          eyebrow={currentLanguage === 'en' ? 'STRAVA PROFILE' : 'PROFILO STRAVA'}
+          title={status.connected ? displayName : (currentLanguage === 'en' ? 'Strava athlete' : 'Atleta Strava')}
+          icon={UserCircle}
+        />
 
         {status.connected ? (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -246,7 +250,6 @@ export default function StravaConnectionBox({
                 )}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-base font-semibold text-app-text">{displayName}</div>
                 {athlete?.username ? (
                   <div className="mt-0.5 text-sm text-app-muted">@{athlete.username}</div>
                 ) : null}

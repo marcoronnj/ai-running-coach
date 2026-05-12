@@ -389,23 +389,17 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
 function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; language: Language }) {
   return (
     <Card>
-      <div className="mb-5 flex items-start gap-3">
-        <IconBox icon={state.hasRunToday ? Check : Brain} tone={state.hasRunToday ? 'success' : 'cyan'} />
-        <div className="flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold tracking-tight text-app-text">
-              {t(language, 'dashboard.coachLive')}
-            </h2>
-            <Badge tone="cyan">{state.recoveryStatus}</Badge>
-          </div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-accent-secondary">
-            {t(language, 'dashboard.currentState')}
-          </p>
-          <p className="text-sm leading-relaxed text-neutral-300">
-            {state.explanation}
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        eyebrow={t(language, 'dashboard.coachLive')}
+        title={t(language, 'dashboard.currentState')}
+        icon={state.hasRunToday ? Check : Brain}
+        action={<Badge tone="cyan">{state.recoveryStatus}</Badge>}
+        className="mb-3 items-start"
+      />
+
+      <p className="mb-4 text-[13px] leading-5 text-neutral-300">
+        {state.explanation}
+      </p>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="metric-card p-3.5">
