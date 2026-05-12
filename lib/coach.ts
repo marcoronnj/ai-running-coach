@@ -83,24 +83,29 @@ export function buildCoachPrompt(
   language: Language = normalizeLanguage(athleteSettings?.language)
 ): string {
   const outputLanguage = outputLanguageName(language);
+  const isEnglish = normalizeLanguage(language) === 'en';
   const formatActivity = (activity: DBActivity, isNewRun = false) => {
-    const prefix = isNewRun ? 'NUOVA CORSA (da analizzare):' : 'STORICO:';
+    const prefix = isNewRun
+      ? (isEnglish ? 'NEW RUN (to analyze):' : 'NUOVA CORSA (da analizzare):')
+      : (isEnglish ? 'HISTORY:' : 'STORICO:');
     const date = formatDateIT(activity.start_date);
     const distance = formatKm(activity.distance_m);
     const pace = formatPace(activity.average_speed);
     const time = formatDuration(activity.moving_time_s);
-    const hr = activity.average_heartrate ? `FC media: ${activity.average_heartrate} bpm` : 'FC non disponibile';
+    const hr = activity.average_heartrate
+      ? (isEnglish ? `Average HR: ${activity.average_heartrate} bpm` : `FC media: ${activity.average_heartrate} bpm`)
+      : (isEnglish ? 'HR unavailable' : 'FC non disponibile');
     const elevation = activity.total_elevation_gain > 0 ? `D+ ${activity.total_elevation_gain}m` : '';
 
     return `${prefix}
-- Data: ${date}
-- Nome: ${activity.name}
-- Distanza: ${distance}
-- Tempo: ${time}
-- Pace medio: ${pace}/km
+- ${isEnglish ? 'Date' : 'Data'}: ${date}
+- ${isEnglish ? 'Name' : 'Nome'}: ${activity.name}
+- ${isEnglish ? 'Distance' : 'Distanza'}: ${distance}
+- ${isEnglish ? 'Time' : 'Tempo'}: ${time}
+- ${isEnglish ? 'Average pace' : 'Pace medio'}: ${pace}/km
 - ${hr}
 - ${elevation}
-- Tipo: ${activity.type}`;
+- ${isEnglish ? 'Type' : 'Tipo'}: ${activity.type}`;
   };
 
   const newRunFormatted = formatActivity(newRun, true);
@@ -109,7 +114,7 @@ export function buildCoachPrompt(
   // Costruisci il profilo atleta dinamico
   const buildAthleteProfile = (settings?: AthleteSettings): string => {
     if (!settings) {
-      return `- Profilo non configurato - usa valori di default`;
+      return isEnglish ? '- Profile not configured - use default values' : '- Profilo non configurato - usa valori di default';
     }
 
     const profileParts = [];
@@ -120,59 +125,59 @@ export function buildCoachPrompt(
 
     const calculatedAge = calculateAge(settings.birth_date);
     if (calculatedAge !== null) {
-      profileParts.push(`- Età: ${calculatedAge} anni`);
+      profileParts.push(isEnglish ? `- Age: ${calculatedAge} years` : `- Età: ${calculatedAge} anni`);
     }
 
     if (settings.weight_kg && settings.height_cm) {
       const bmi = (settings.weight_kg / ((settings.height_cm / 100) ** 2)).toFixed(1);
-      profileParts.push(`- Peso: ${settings.weight_kg}kg, Altezza: ${settings.height_cm}cm (BMI: ${bmi})`);
+      profileParts.push(isEnglish ? `- Weight: ${settings.weight_kg}kg, Height: ${settings.height_cm}cm (BMI: ${bmi})` : `- Peso: ${settings.weight_kg}kg, Altezza: ${settings.height_cm}cm (BMI: ${bmi})`);
     } else if (settings.weight_kg) {
-      profileParts.push(`- Peso: ${settings.weight_kg}kg`);
+      profileParts.push(isEnglish ? `- Weight: ${settings.weight_kg}kg` : `- Peso: ${settings.weight_kg}kg`);
     } else if (settings.height_cm) {
-      profileParts.push(`- Altezza: ${settings.height_cm}cm`);
+      profileParts.push(isEnglish ? `- Height: ${settings.height_cm}cm` : `- Altezza: ${settings.height_cm}cm`);
     }
 
     if (settings.main_goal) {
-      profileParts.push(`- Obiettivo principale: ${settings.main_goal}`);
+      profileParts.push(isEnglish ? `- Main goal: ${settings.main_goal}` : `- Obiettivo principale: ${settings.main_goal}`);
     }
 
     if (settings.secondary_goal) {
-      profileParts.push(`- Obiettivo secondario: ${settings.secondary_goal}`);
+      profileParts.push(isEnglish ? `- Secondary goal: ${settings.secondary_goal}` : `- Obiettivo secondario: ${settings.secondary_goal}`);
     }
 
     if (settings.target_runs_per_week) {
-      profileParts.push(`- Uscite target/settimana: ${settings.target_runs_per_week}`);
+      profileParts.push(isEnglish ? `- Target runs/week: ${settings.target_runs_per_week}` : `- Uscite target/settimana: ${settings.target_runs_per_week}`);
     }
 
     if (settings.target_weekly_volume_km) {
-      profileParts.push(`- Volume target settimanale: ${settings.target_weekly_volume_km}km`);
+      profileParts.push(isEnglish ? `- Target weekly volume: ${settings.target_weekly_volume_km}km` : `- Volume target settimanale: ${settings.target_weekly_volume_km}km`);
     }
 
     if (settings.target_pace) {
-      profileParts.push(`- Pace target: ${settings.target_pace}/km`);
+      profileParts.push(isEnglish ? `- Target pace: ${settings.target_pace}/km` : `- Pace target: ${settings.target_pace}/km`);
     }
 
     if (settings.target_hr) {
-      profileParts.push(`- FC target: ${settings.target_hr} bpm`);
+      profileParts.push(isEnglish ? `- Target HR: ${settings.target_hr} bpm` : `- FC target: ${settings.target_hr} bpm`);
     }
 
     if (settings.available_days && settings.available_days.length > 0) {
-      profileParts.push(`- Giorni disponibili: ${settings.available_days.join(', ')}`);
+      profileParts.push(isEnglish ? `- Available days: ${settings.available_days.join(', ')}` : `- Giorni disponibili: ${settings.available_days.join(', ')}`);
     }
 
     if (settings.experience_level) {
-      profileParts.push(`- Livello esperienza: ${settings.experience_level}`);
+      profileParts.push(isEnglish ? `- Experience level: ${settings.experience_level}` : `- Livello esperienza: ${settings.experience_level}`);
     }
 
     if (settings.injuries) {
-      profileParts.push(`- Note fisiche/infortuni: ${settings.injuries}`);
+      profileParts.push(isEnglish ? `- Physical notes/injuries: ${settings.injuries}` : `- Note fisiche/infortuni: ${settings.injuries}`);
     }
 
     if (settings.avoid_overload !== undefined) {
-      profileParts.push(`- Evitare sovrallenamento: ${settings.avoid_overload ? 'Sì' : 'No'}`);
+      profileParts.push(isEnglish ? `- Avoid overload: ${settings.avoid_overload ? 'Yes' : 'No'}` : `- Evitare sovrallenamento: ${settings.avoid_overload ? 'Sì' : 'No'}`);
     }
 
-    return profileParts.length > 0 ? profileParts.join('\n') : '- Profilo base - adattati alla corsa';
+    return profileParts.length > 0 ? profileParts.join('\n') : (isEnglish ? '- Basic profile - adapt to the run' : '- Profilo base - adattati alla corsa');
   };
 
   const athleteProfile = buildAthleteProfile(athleteSettings || undefined);
@@ -185,59 +190,127 @@ export function buildCoachPrompt(
 - Fatigue: ${metrics.fatigueLabel} (${metrics.fatigueScore}/100) - ${metrics.fatigueExplanation}
 - Consistency: ${metrics.consistencyLabel} (${metrics.consistencyScore}/100) - ${metrics.consistencyExplanation}
 - Overload Risk: ${metrics.overloadRisk} - ${metrics.overloadExplanation}
-- Focus Consigliato: ${metrics.suggestedFocus}
-${metrics.warnings && metrics.warnings.length > 0 ? `- Avvertenze: ${metrics.warnings.join(', ')}` : ''}` : '';
+- ${isEnglish ? 'Suggested Focus' : 'Focus Consigliato'}: ${metrics.suggestedFocus}
+${metrics.warnings && metrics.warnings.length > 0 ? `- ${isEnglish ? 'Warnings' : 'Avvertenze'}: ${metrics.warnings.join(', ')}` : ''}` : '';
 
   // Sezione regole
   const rulesSection = rules ? `
 
 ## REGOLE COACHING ATTIVE
-- Intensità massima consentita: ${rules.allowedIntensity}
-- Max corse prossima settimana: ${rules.maxRunsNextWeek}
-${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- Allenamenti bloccati: ${rules.blockedWorkouts.join(', ')}` : ''}` : '';
+- ${isEnglish ? 'Maximum allowed intensity' : 'Intensità massima consentita'}: ${rules.allowedIntensity}
+- ${isEnglish ? 'Max runs next week' : 'Max corse prossima settimana'}: ${rules.maxRunsNextWeek}
+${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? 'Blocked workouts' : 'Allenamenti bloccati'}: ${rules.blockedWorkouts.join(', ')}` : ''}` : '';
 
-  const prompt = `# AI RUNNING COACH - ANALISI CORSA
+  const promptLabels = isEnglish
+    ? {
+        title: 'AI RUNNING COACH - RUN ANALYSIS',
+        profile: 'ATHLETE PROFILE',
+        rules: 'IMPORTANT RULES',
+        newRun: 'NEW RUN TO ANALYZE',
+        history: 'RECENT HISTORY (latest runs)',
+        noHistory: 'No previous runs recorded',
+        reportInstructions: 'REPORT INSTRUCTIONS',
+        generateReport: 'Generate a JSON report with this EXACT structure:',
+        shortSummary: 'short string',
+        next48h: 'string - practical recommendation for today and tomorrow, be specific about what to do',
+        fullReport: 'short markdown text',
+        importantNotes: 'IMPORTANT NOTES',
+        coachingRules: [
+          'You are a cautious, practical running coach',
+          'Use the athlete profile data to personalize advice',
+          'ALWAYS respect the coaching engine rules (do not suggest blocked workouts)',
+          'Do not suggest more sessions than the maximum allowed',
+          'Do not exceed the recommended maximum volume',
+          'If cardio data is missing, reason from volume, frequency, and pace',
+          'Explain clearly why readiness is high/low and why fatigue matters',
+          'Goal: weight loss plus gradual return to competitiveness',
+          'Priority: consistency, health, gradual progression',
+          'No two intense workouts in a row',
+          'Maximum progression of 10-20% per week',
+          'Balance cardio with active recovery',
+          'Use credible sports language, not generic phrases or slogans',
+        ],
+        notes: [
+          'Reply ONLY with valid JSON, no extra text',
+          'Adapt the weekly plan to the athlete current level',
+          'Respect the provided metrics and rules',
+          'Use professional English',
+          'For next_48h: clearly specify what to do TODAY and TOMORROW, do not be vague',
+        ],
+      }
+    : {
+        title: 'AI RUNNING COACH - ANALISI CORSA',
+        profile: 'PROFILO ATLETA',
+        rules: 'REGOLE IMPORTANTI',
+        newRun: 'NUOVA CORSA DA ANALIZZARE',
+        history: 'STORICO RECENTE (ultime corse)',
+        noHistory: 'Nessuna corsa precedente registrata',
+        reportInstructions: 'ISTRUZIONI PER IL REPORT',
+        generateReport: 'Genera un report JSON con questa struttura ESATTA:',
+        shortSummary: 'string breve',
+        next48h: 'string - raccomandazione pratica per oggi e domani, specifica cosa fare',
+        fullReport: 'testo markdown breve',
+        importantNotes: 'NOTE IMPORTANTI',
+        coachingRules: [
+          'Sei un running coach prudente e concreto',
+          'Usa i dati del profilo atleta per personalizzare consigli',
+          'RISPETTA SEMPRE le regole del coaching engine (non proporre allenamenti bloccati)',
+          'Non proporre più sedute del massimo consentito',
+          'Non superare il volume massimo consigliato',
+          'Se mancano dati cardio, ragiona su volume, frequenza e passo',
+          'Spiega con trasparenza perché la readiness è alta/bassa e perché la fatigue è rilevante',
+          'Obiettivo: dimagrimento + ritorno progressivo alla competitività',
+          'Priorità: continuità, salute, progressione graduale',
+          'Niente due allenamenti intensi consecutivi',
+          'Progressione massima del 10-20% a settimana',
+          'Bilanciare cardio con recupero attivo',
+          'Adotta linguaggio sportivo credibile, non frasi generiche o slogan',
+        ],
+        notes: [
+          'Rispondi SOLO con JSON valido, niente testo aggiuntivo',
+          "Adatta il piano settimanale al livello attuale dell'atleta",
+          'Rispetta le metriche e regole fornite',
+          'Usa italiano professionale',
+          'Per next_48h: specifica chiaramente cosa fare OGGI e DOMANI, non essere vago',
+        ],
+      };
+
+  const prompt = `# ${promptLabels.title}
 
 Output language: ${outputLanguage}
+If language is "en", write every user-facing text field in English only.
+Do not use Italian words.
+All JSON fields that contain natural language must be in English.
+Some context labels or historical user data may contain Italian; do not copy their language into the output.
+If language is "it", write every user-facing text field in Italian only.
+This applies to: title, summary, next_48h, suggested_focus, coach_notes, full_report, weekly_plan descriptions, run judgement and recovery hints.
 All user-facing JSON text fields MUST be written in ${outputLanguage}: title, summary, suggested_focus, next_48h, weekly_plan names/descriptions/reasons, coach_notes and full_report.
 Keep enum/code values unchanged: risk_level must remain "basso | medio | alto"; intensity must remain "recovery | easy | medium | quality".
 
-## PROFILO ATLETA
+## ${promptLabels.profile}
 ${athleteProfile}${metricsSection}${rulesSection}
 
-## REGOLE IMPORTANTI
-- Sei un running coach prudente e concreto
-- Usa i dati del profilo atleta per personalizzare consigli
-- RISPETTA SEMPRE le regole del coaching engine (non proporre allenamenti bloccati)
-- Non proporre più sedute del massimo consentito
-- Non superare il volume massimo consigliato
-- Se mancano dati cardio, ragiona su volume, frequenza e passo
-- Spiega con trasparenza perché la readiness è alta/bassa e perché la fatigue è rilevante
-- Obiettivo: dimagrimento + ritorno progressivo alla competitività
-- Priorità: continuità, salute, progressione graduale
-- Niente due allenamenti intensi consecutivi
-- Progressione massima del 10-20% a settimana
-- Bilanciare cardio con recupero attivo
-- Adotta linguaggio sportivo credibile, non frasi generiche o slogan
+## ${promptLabels.rules}
+${promptLabels.coachingRules.map((rule) => `- ${rule}`).join('\n')}
 
-## NUOVA CORSA DA ANALIZZARE
+## ${promptLabels.newRun}
 ${newRunFormatted}
 
-## STORICO RECENTE (ultime corse)
-${historyFormatted || 'Nessuna corsa precedente registrata'}
+## ${promptLabels.history}
+${historyFormatted || promptLabels.noHistory}
 
-## ISTRUZIONI PER IL REPORT
-Genera un report JSON con questa struttura ESATTA:
+## ${promptLabels.reportInstructions}
+${promptLabels.generateReport}
 
 {
   "title": "string",
-  "summary": "string breve",
+  "summary": "${promptLabels.shortSummary}",
   "risk_level": "basso | medio | alto",
   "readiness_score": 0,
   "fatigue_score": 0,
   "consistency_score": 0,
   "suggested_focus": "string",
-  "next_48h": "string - raccomandazione pratica per oggi e domani, specifica cosa fare",
+  "next_48h": "${promptLabels.next48h}",
   "weekly_plan": [
     {
       "name": "string",
@@ -250,15 +323,11 @@ Genera un report JSON con questa struttura ESATTA:
   "coach_notes": [
     "string"
   ],
-  "full_report": "testo markdown breve"
+  "full_report": "${promptLabels.fullReport}"
 }
 
-## NOTE IMPORTANTI
-- Rispondi SOLO con JSON valido, niente testo aggiuntivo
-- Adatta il piano settimanale al livello attuale dell'atleta
-- Rispetta le metriche e regole fornite
-- Usa ${outputLanguage === 'English' ? 'professional English' : 'italiano professionale'}
-- Per next_48h: specifica chiaramente cosa fare OGGI e DOMANI, non essere vago`;
+## ${promptLabels.importantNotes}
+${promptLabels.notes.map((note) => `- ${note}`).join('\n')}`;
 
   return prompt;
 }
@@ -268,7 +337,7 @@ Genera un report JSON con questa struttura ESATTA:
  * @param prompt - Prompt completo per OpenAI
  * @returns Promise<CoachReport> - Report parsato
  */
-export async function generateCoachReport(prompt: string): Promise<CoachReport> {
+export async function generateCoachReport(prompt: string, language: Language = 'it'): Promise<CoachReport> {
   const client = getOpenAIClient();
   const model = getDailyOpenAIModel();
   const endpoint = OPENAI_RESPONSES_ENDPOINT;
@@ -328,7 +397,7 @@ export async function generateCoachReport(prompt: string): Promise<CoachReport> 
 
     } catch (parseError) {
       console.warn('[COACH] JSON parsing failed, using fallback:', parseError);
-      return createFallbackReport(content);
+      return createFallbackReport(content, language);
     }
 
   } catch (error) {
@@ -358,42 +427,43 @@ export async function generateCoachReport(prompt: string): Promise<CoachReport> 
  * @param rawContent - Contenuto grezzo da OpenAI
  * @returns CoachReport - Report di fallback
  */
-function createFallbackReport(rawContent: string): CoachReport {
+function createFallbackReport(rawContent: string, language: Language = 'it'): CoachReport {
   console.log('[COACH] Creating fallback report');
+  const isEnglish = normalizeLanguage(language) === 'en';
 
   return {
-    title: 'Report Corsa Completata',
-    summary: 'Allenamento completato. Analisi dettagliata nel report completo.',
+    title: isEnglish ? 'Run Completed Report' : 'Report Corsa Completata',
+    summary: isEnglish ? 'Workout completed. Detailed analysis is available in the full report.' : 'Allenamento completato. Analisi dettagliata nel report completo.',
     risk_level: 'medio',
     readiness_score: 50,
     fatigue_score: 30,
     consistency_score: 60,
-    suggested_focus: 'mantenimento e recupero',
-    next_48h: 'Riposo attivo domani, facile corsa tra 2-3 giorni se ti senti bene.',
+    suggested_focus: isEnglish ? 'maintenance and recovery' : 'mantenimento e recupero',
+    next_48h: isEnglish ? 'Active recovery tomorrow, easy run in 2-3 days if you feel good.' : 'Riposo attivo domani, facile corsa tra 2-3 giorni se ti senti bene.',
     weekly_plan: [
       {
-        name: 'Riposo Attivo',
-        description: 'Camminata leggera o mobilità',
+        name: isEnglish ? 'Active Recovery' : 'Riposo Attivo',
+        description: isEnglish ? 'Light walking or mobility' : 'Camminata leggera o mobilità',
         intensity: 'recovery',
         duration: '30-45 min',
-        reason: 'Recupero dalla corsa recente',
+        reason: isEnglish ? 'Recovery from recent run' : 'Recupero dalla corsa recente',
       },
       {
         name: 'Easy Run',
-        description: 'Corsa leggera a ritmo comodo',
+        description: isEnglish ? 'Light run at a comfortable pace' : 'Corsa leggera a ritmo comodo',
         intensity: 'easy',
         duration: '45-60 min',
-        reason: 'Mantenimento continuità',
+        reason: isEnglish ? 'Maintain consistency' : 'Mantenimento continuità',
       },
       {
-        name: 'Riposo',
-        description: 'Recupero completo',
+        name: isEnglish ? 'Rest' : 'Riposo',
+        description: isEnglish ? 'Full recovery' : 'Recupero completo',
         intensity: 'recovery',
         duration: '0 min',
-        reason: 'Bilanciare carico e recupero',
+        reason: isEnglish ? 'Balance load and recovery' : 'Bilanciare carico e recupero',
       },
     ],
-    coach_notes: ['Report generato automaticamente - consulta professionista per consigli personalizzati'],
+    coach_notes: [isEnglish ? 'Automatically generated report - consult a professional for personalized advice' : 'Report generato automaticamente - consulta professionista per consigli personalizzati'],
     full_report: rawContent, // Usa il contenuto grezzo come full_report
   };
 }
@@ -417,7 +487,7 @@ export async function generateCompleteCoachReport(
   language: Language = normalizeLanguage(athleteSettings?.language)
 ): Promise<CoachReport> {
   const prompt = buildCoachPrompt(newRun, history, athleteSettings || undefined, metrics || undefined, rules || undefined, language);
-  return await generateCoachReport(prompt);
+  return await generateCoachReport(prompt, language);
 }
 
 /**

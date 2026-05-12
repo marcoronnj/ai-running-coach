@@ -93,8 +93,8 @@ export default async function AccountPage() {
             <MetricTile label="Email" value={session.email} icon={UserCircle} tone="cyan" />
             <MetricTile
               label="Strava"
-              value={stravaStatus.connected ? 'Collegato' : 'Non collegato'}
-              detail={stravaStatus.connected ? `Athlete ${stravaStatus.stravaAthleteId}` : 'OAuth non configurato'}
+              value={stravaStatus.connected ? (language === 'en' ? 'Connected' : 'Collegato') : (language === 'en' ? 'Not connected' : 'Non collegato')}
+              detail={stravaStatus.connected ? `Athlete ${stravaStatus.stravaAthleteId}` : (language === 'en' ? 'OAuth not configured' : 'OAuth non configurato')}
               icon={CheckCircle2}
               tone={stravaStatus.connected ? 'success' : 'warning'}
             />
@@ -104,7 +104,7 @@ export default async function AccountPage() {
         </Card>
 
         <Card>
-          <SectionHeader eyebrow="quick access" title="Scorciatoie" icon={Activity} />
+          <SectionHeader eyebrow="quick access" title={language === 'en' ? 'Shortcuts' : 'Scorciatoie'} icon={Activity} />
           <div className="grid gap-3 sm:grid-cols-3">
             <Link className="metric-card pressable flex items-center gap-3 p-4 text-sm font-semibold text-app-text" href="/">
               <Activity size={18} strokeWidth={1.8} className="text-accent-primary" />

@@ -348,7 +348,10 @@ export function normalizeLanguage(value: unknown): Language {
 
 export function t(language: unknown, key: TranslationKey): string {
   const normalized = normalizeLanguage(language);
-  return translations[normalized][key] ?? translations.it[key] ?? key;
+  if (normalized === 'en') {
+    return translations.en[key] ?? key;
+  }
+  return translations.it[key] ?? key;
 }
 
 export function outputLanguageName(language: unknown): 'Italian' | 'English' {

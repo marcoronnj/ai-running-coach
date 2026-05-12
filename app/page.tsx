@@ -432,7 +432,7 @@ function LastRunCard({ run, language }: { run: DashboardRun | null | undefined; 
   if (!run) return null;
 
   const reportStatus = getReportStatus(run);
-  const reportExcerpt = getCoachReportExcerpt(run);
+  const reportExcerpt = getCoachReportExcerpt(run, 220, language);
 
   return (
     <Card>

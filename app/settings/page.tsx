@@ -13,15 +13,21 @@ import StravaConnectionBox from './StravaConnectionBox';
 export const dynamic = 'force-dynamic';
 
 const DAYS_OPTIONS = [
-  'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'
+  { value: 'Lunedì', en: 'Monday' },
+  { value: 'Martedì', en: 'Tuesday' },
+  { value: 'Mercoledì', en: 'Wednesday' },
+  { value: 'Giovedì', en: 'Thursday' },
+  { value: 'Venerdì', en: 'Friday' },
+  { value: 'Sabato', en: 'Saturday' },
+  { value: 'Domenica', en: 'Sunday' },
 ];
 
 const EXPERIENCE_LEVELS = [
-  'Principiante',
-  'Intermedio',
-  'Avanzato',
-  'Ex runner forte, ora in ripresa',
-  'Competitivo'
+  { value: 'Principiante', en: 'Beginner' },
+  { value: 'Intermedio', en: 'Intermediate' },
+  { value: 'Avanzato', en: 'Advanced' },
+  { value: 'Ex runner forte, ora in ripresa', en: 'Former strong runner, now rebuilding' },
+  { value: 'Competitivo', en: 'Competitive' },
 ];
 
 async function updateSettings(formData: FormData) {
@@ -266,7 +272,7 @@ export default async function SettingsPage({
                   name="main_goal"
                   defaultValue={settings?.main_goal || ''}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Dimagrire, tornare competitivo, ecc."
+                  placeholder={language === 'en' ? 'Lose weight, return to competition, etc.' : 'Dimagrire, tornare competitivo, ecc.'}
                 />
               </div>
               <div>
@@ -278,7 +284,7 @@ export default async function SettingsPage({
                   name="secondary_goal"
                   defaultValue={settings?.secondary_goal || ''}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Migliorare la resistenza, ecc."
+                  placeholder={language === 'en' ? 'Improve endurance, etc.' : 'Migliorare la resistenza, ecc.'}
                 />
               </div>
             </div>
@@ -349,15 +355,15 @@ export default async function SettingsPage({
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {DAYS_OPTIONS.map((day) => (
-                  <label key={day} className="flex items-center space-x-2">
+                  <label key={day.value} className="flex items-center space-x-2">
                     <input
                       type="checkbox"
                       name="available_days"
-                      value={day}
-                      defaultChecked={settings?.available_days?.includes(day)}
+                      value={day.value}
+                      defaultChecked={settings?.available_days?.includes(day.value)}
                       className="w-4 h-4 text-blue-600 bg-neutral-800 border-neutral-700 rounded focus:ring-blue-500 focus:ring-2"
                     />
-                    <span className="text-white">{day}</span>
+                    <span className="text-white">{language === 'en' ? day.en : day.value}</span>
                   </label>
                 ))}
               </div>
@@ -379,7 +385,7 @@ export default async function SettingsPage({
                 >
                   <option value="">{t(language, 'settings.selectLevel')}</option>
                   {EXPERIENCE_LEVELS.map((level) => (
-                    <option key={level} value={level}>{level}</option>
+                    <option key={level.value} value={level.value}>{language === 'en' ? level.en : level.value}</option>
                   ))}
                 </select>
               </div>
@@ -393,7 +399,7 @@ export default async function SettingsPage({
                   defaultValue={settings?.injuries || ''}
                   rows={3}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Descrivi eventuali infortuni, problemi fisici o limitazioni..."
+                  placeholder={language === 'en' ? 'Describe any injuries, physical issues, or limitations...' : 'Descrivi eventuali infortuni, problemi fisici o limitazioni...'}
                 />
               </div>
 
@@ -406,7 +412,7 @@ export default async function SettingsPage({
                   defaultValue={settings?.profile_summary || ''}
                   rows={3}
                   className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Descrivi brevemente il tuo background da runner..."
+                  placeholder={language === 'en' ? 'Briefly describe your running background...' : 'Descrivi brevemente il tuo background da runner...'}
                 />
               </div>
 

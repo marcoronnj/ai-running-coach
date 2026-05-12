@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { query, queryOne } from '@/lib/db';
 import { buildRunJudgement } from '@/lib/run-analysis';
-import { formatDateIT, formatTimeIT } from '@/lib/date-utils';
+import { formatDateIT, formatDateLocalized, formatTimeIT } from '@/lib/date-utils';
 import { getCurrentLanguage } from '@/lib/athlete-settings';
 import { t, type Language } from '@/lib/i18n';
 import { Card, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
@@ -79,6 +79,17 @@ function formatPace(speedMs: number): string {
 function formatSpeed(speedMs: number): string {
   if (!speedMs || speedMs <= 0) return 'N/A';
   return `${(speedMs * 3.6).toFixed(1)} km/h`;
+}
+
+function containsItalianText(value?: string | null): boolean {
+  if (!value) return false;
+  return /\b(corsa|corse|recupero|riposo|domani|dopodomani|oggi|seduta|allenamento|fatica|continuità|sovraccarico|consigliato|prossime|riepilogo|camminata|mobilità|atleta)\b/i.test(value);
+}
+
+function localizedReportText(value: string | undefined, language: Language, fallback: string): string {
+  if (!value) return fallback;
+  if (language === 'en' && containsItalianText(value)) return fallback;
+  return value;
 }
 
 function formatPreciseDuration(seconds: number): string {
@@ -206,10 +217,10 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
       console.log('[RUN_DETAIL] ❌ Nessuna attività trovata per ID:', id);
     }
 
-    if (!run) {
-      return <ErrorState requestedId={id} />;
-    }
     const language = await getCurrentLanguage();
+    if (!run) {
+      return <ErrorState requestedId={id} language={language} />;
+    }
 
     const rawJson = run.raw_json && typeof run.raw_json === 'string'
       ? JSON.parse(run.raw_json)
@@ -234,16 +245,16 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     const hasSplits = splits.length > 0;
 
     const judgement = buildRunJudgement(run, {
-      title: run.title,
-      summary: run.summary,
-      full_report: run.full_report,
-      next_48h: run.next_48h,
-      suggested_focus: run.suggested_focus,
+      title: localizedReportText(run.title, language, language === 'en' ? 'Historical run analysis' : 'Analisi storica corsa'),
+      summary: localizedReportText(run.summary, language, language === 'en' ? 'Historical report available for this run.' : 'Report storico disponibile per questa corsa.'),
+      full_report: localizedReportText(run.full_report, language, language === 'en' ? 'This historical report was generated before the current language setting.' : 'Questo report storico è stato generato prima dell’impostazione lingua corrente.'),
+      next_48h: localizedReportText(run.next_48h, language, language === 'en' ? 'Use the live coach for current recovery guidance.' : 'Usa il coach live per le indicazioni di recupero correnti.'),
+      suggested_focus: localizedReportText(run.suggested_focus, language, language === 'en' ? 'Use live coach guidance' : 'Usa indicazioni coach live'),
       readiness_score: run.readiness_score,
       fatigue_score: run.fatigue_score,
       consistency_score: run.consistency_score,
       risk_level: run.risk_level,
-    });
+    }, language);
 
     const weeklyPlan = parseWeeklyPlan(run.weekly_plan);
     const coachNotes = parseCoachNotes(run.coach_notes);
@@ -259,7 +270,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               <p className="eyebrow mb-1">{t(language, 'run.analysisEyebrow')}</p>
               <h1 className="text-2xl font-semibold tracking-tight text-app-text sm:text-3xl">{run.name}</h1>
               <p className="mt-1 text-sm text-app-muted">
-                {formatDateIT(run.start_date)} • {formatTimeIT(run.start_date)}
+                {formatDateLocalized(run.start_date, language)} • {formatTimeIT(run.start_date)}
               </p>
             </div>
 
@@ -278,7 +289,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="pressable inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-app-text"
-                  title="Apri questa corsa su Strava in una nuova scheda"
+                  title={language === 'en' ? 'Open this run on Strava in a new tab' : 'Apri questa corsa su Strava in una nuova scheda'}
                 >
                   <ExternalLink size={16} strokeWidth={1.8} />
                   <span className="hidden sm:inline">Strava</span>
@@ -300,27 +311,37 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                 averageWatts={averageWatts}
               />
               <SessionJudgementSection judgement={judgement} language={language} />
-              {hasReport && <CoachAnalysisSection run={run} />}
+              {hasReport && <CoachAnalysisSection run={run} language={language} />}
               {hasReport && next48h && (
-                <Next48hSection next48h={next48h} suggestedFocus={run.suggested_focus} language={language} />
+                <Next48hSection
+                  next48h={localizedReportText(next48h, language, language === 'en' ? 'Use the live coach for current recovery guidance.' : 'Usa il coach live per le indicazioni di recupero correnti.')}
+                  suggestedFocus={localizedReportText(run.suggested_focus, language, language === 'en' ? 'Use live coach guidance' : 'Usa indicazioni coach live')}
+                  language={language}
+                />
               )}
               {hasReport && (
                 <ScoresSection
                   readiness={run.readiness_score}
                   fatigue={run.fatigue_score}
                   consistency={run.consistency_score}
+                  language={language}
                 />
               )}
-              {weeklyPlan.length > 0 && <WeeklyPlanSection weeklyPlan={weeklyPlan} />}
-              {hasReport && run.full_report && <FullReportSection fullReport={run.full_report} language={language} />}
-              {coachNotes.length > 0 && <CoachNotesSection notes={coachNotes} />}
-              {!hasReport && <NoReportMessage />}
-              {hasSplits && <RunSplitsSection splits={splits} />}
+              {weeklyPlan.length > 0 && <WeeklyPlanSection weeklyPlan={weeklyPlan} language={language} />}
+              {hasReport && run.full_report && (
+                <FullReportSection
+                  fullReport={localizedReportText(run.full_report, language, language === 'en' ? 'This historical report was generated before the current language setting.' : run.full_report)}
+                  language={language}
+                />
+              )}
+              {coachNotes.length > 0 && <CoachNotesSection notes={coachNotes} language={language} />}
+              {!hasReport && <NoReportMessage language={language} />}
+              {hasSplits && <RunSplitsSection splits={splits} language={language} />}
             </div>
 
             <div className="space-y-5">
               <HistoricalReportNotice runDate={run.start_date} language={language} />
-              <StravaLinkCard stravaId={run.strava_id} />
+              <StravaLinkCard stravaId={run.strava_id} language={language} />
             </div>
           </div>
         </div>
@@ -328,11 +349,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     );
   } catch (error) {
     console.error('[RUN_DETAIL] Errore:', error);
-    return <ErrorState requestedId={id} />;
+    const language = await getCurrentLanguage().catch(() => 'it' as Language);
+    return <ErrorState requestedId={id} language={language} />;
   }
 }
 
-function ErrorState({ requestedId }: { requestedId: string }) {
+function ErrorState({ requestedId, language }: { requestedId: string; language: Language }) {
   const isNumeric = /^[0-9]+$/.test(requestedId);
   const stravaUrl = isNumeric
     ? `https://www.strava.com/activities/${requestedId}`
@@ -344,10 +366,10 @@ function ErrorState({ requestedId }: { requestedId: string }) {
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[rgba(255,98,98,0.2)] bg-[rgba(255,98,98,0.1)] text-[var(--danger)]">
           <AlertTriangle size={24} strokeWidth={1.8} />
         </div>
-        <h2 className="mb-3 text-xl font-semibold text-app-text">Corsa non trovata</h2>
-        <p className="mb-4 text-sm text-app-muted">ID cercato: <span className="font-semibold text-app-text">{requestedId}</span></p>
+        <h2 className="mb-3 text-xl font-semibold text-app-text">{language === 'en' ? 'Run not found' : 'Corsa non trovata'}</h2>
+        <p className="mb-4 text-sm text-app-muted">{language === 'en' ? 'Requested ID' : 'ID cercato'}: <span className="font-semibold text-app-text">{requestedId}</span></p>
         <p className="mb-6 text-sm text-app-muted">
-          Questa corsa non esiste o non è stata ancora sincronizzata.
+          {language === 'en' ? 'This run does not exist or has not been synced yet.' : 'Questa corsa non esiste o non è stata ancora sincronizzata.'}
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
@@ -364,7 +386,7 @@ function ErrorState({ requestedId }: { requestedId: string }) {
             className="pressable inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-5 py-2.5 text-sm font-semibold text-app-text"
           >
             <ExternalLink size={16} strokeWidth={1.8} />
-            Apri Strava
+            {language === 'en' ? 'Open Strava' : 'Apri Strava'}
           </a>
         </div>
       </Card>
@@ -372,15 +394,15 @@ function ErrorState({ requestedId }: { requestedId: string }) {
   );
 }
 
-function NoReportMessage() {
+function NoReportMessage({ language }: { language: Language }) {
   return (
     <Card className="text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-[rgba(54,252,225,0.2)] bg-[rgba(54,252,225,0.1)] text-accent-secondary">
         <Info size={22} strokeWidth={1.8} />
       </div>
-      <h3 className="mb-2 text-base font-semibold text-app-text">Analisi AI non ancora disponibile</h3>
+      <h3 className="mb-2 text-base font-semibold text-app-text">{language === 'en' ? 'AI analysis not available yet' : 'Analisi AI non ancora disponibile'}</h3>
       <p className="text-sm text-app-muted">
-        Analisi AI non ancora disponibile. Verrà generata al prossimo sync.
+        {language === 'en' ? 'AI analysis is not available yet. It will be generated on the next sync.' : 'Analisi AI non ancora disponibile. Verrà generata al prossimo sync.'}
       </p>
     </Card>
   );
@@ -409,13 +431,13 @@ function MetricsGrid({
     <Card>
       <SectionHeader eyebrow="run data" title={t(language, 'run.metrics')} icon={Gauge} className="mb-3" />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <MetricCard label="Distanza" value={formatKm(run.distance_m)} icon={MapPin} tone="lime" />
+        <MetricCard label={language === 'en' ? 'Distance' : 'Distanza'} value={formatKm(run.distance_m)} icon={MapPin} tone="lime" />
         <MetricCard label={t(language, 'run.duration')} value={formatPreciseDuration(run.moving_time_s)} icon={Timer} tone="cyan" />
-        <MetricCard label="Passo medio" value={formatPace(run.average_speed)} icon={Footprints} tone="lime" />
-        <MetricCard label="Velocità media" value={formatSpeed(run.average_speed)} icon={Zap} tone="cyan" />
+        <MetricCard label={language === 'en' ? 'Average pace' : 'Passo medio'} value={formatPace(run.average_speed)} icon={Footprints} tone="lime" />
+        <MetricCard label={language === 'en' ? 'Average speed' : 'Velocità media'} value={formatSpeed(run.average_speed)} icon={Zap} tone="cyan" />
         {run.average_heartrate && (
           <MetricCard
-            label="FC media"
+            label={language === 'en' ? 'Avg HR' : 'FC media'}
             value={`${Math.round(run.average_heartrate)} bpm`}
             icon={HeartPulse}
             tone="danger"
@@ -423,7 +445,7 @@ function MetricsGrid({
         )}
         {run.max_heartrate && (
           <MetricCard
-            label="FC max"
+            label={language === 'en' ? 'Max HR' : 'FC max'}
             value={`${Math.round(run.max_heartrate)} bpm`}
             icon={HeartPulse}
             tone="danger"
@@ -431,13 +453,13 @@ function MetricsGrid({
         )}
         {typeof run.total_elevation_gain === 'number' && (
           <MetricCard
-            label="Dislivello"
+            label={language === 'en' ? 'Elevation' : 'Dislivello'}
             value={`${Math.round(run.total_elevation_gain)} m`}
             icon={Mountain}
           />
         )}
         {run.type && (
-          <MetricCard label="Tipo" value={run.type} icon={Activity} />
+          <MetricCard label={language === 'en' ? 'Type' : 'Tipo'} value={run.type} icon={Activity} />
         )}
         {maxSpeed && (
           <MetricCard label={t(language, 'run.maxSpeed')} value={formatSpeed(maxSpeed)} icon={Gauge} />
@@ -513,7 +535,7 @@ function HistoricalReportNotice({ runDate, language }: { runDate: string; langua
       <SectionHeader eyebrow="historical" title={t(language, 'run.historicalReport')} icon={Info} />
       <div className="space-y-3">
         <p className="text-sm leading-relaxed text-neutral-200">
-          {t(language, 'run.historicalNotice')} {formatDateIT(runDate)}.
+          {t(language, 'run.historicalNotice')} {formatDateLocalized(runDate, language)}.
         </p>
         <Link
           href="/"
@@ -527,22 +549,22 @@ function HistoricalReportNotice({ runDate, language }: { runDate: string; langua
   );
 }
 
-function RunSplitsSection({ splits }: { splits: any[] }) {
+function RunSplitsSection({ splits, language }: { splits: any[]; language: Language }) {
   if (!splits || splits.length === 0) {
     return null;
   }
 
   return (
     <Card>
-      <SectionHeader eyebrow="splits" title="Intertempi" icon={LineChart} />
+      <SectionHeader eyebrow="splits" title={language === 'en' ? 'Splits' : 'Intertempi'} icon={LineChart} />
       <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/10">
         <table className="min-w-full text-left text-sm text-neutral-300">
           <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.14em] text-app-muted">
             <tr>
               <th className="px-4 py-3">Km</th>
-              <th className="px-4 py-3">Passo</th>
-              <th className="px-4 py-3">FC media</th>
-              <th className="px-4 py-3">Dislivello</th>
+              <th className="px-4 py-3">{language === 'en' ? 'Pace' : 'Passo'}</th>
+              <th className="px-4 py-3">{language === 'en' ? 'Avg HR' : 'FC media'}</th>
+              <th className="px-4 py-3">{language === 'en' ? 'Elevation' : 'Dislivello'}</th>
             </tr>
           </thead>
           <tbody>
@@ -570,11 +592,13 @@ function RunSplitsSection({ splits }: { splits: any[] }) {
   );
 }
 
-function StravaLinkCard({ stravaId }: { stravaId: string }) {
+function StravaLinkCard({ stravaId, language }: { stravaId: string; language: Language }) {
   return (
     <Card>
       <SectionHeader eyebrow="external" title="Strava" icon={ExternalLink} />
-      <p className="mb-5 text-sm leading-relaxed text-app-muted">Vai alla pagina Strava della corsa per vedere mappe, segmenti e intertempi.</p>
+      <p className="mb-5 text-sm leading-relaxed text-app-muted">
+        {language === 'en' ? 'Open the Strava activity page to view maps, segments, and splits.' : 'Vai alla pagina Strava della corsa per vedere mappe, segmenti e intertempi.'}
+      </p>
       <a
         href={`https://www.strava.com/activities/${stravaId}`}
         target="_blank"
@@ -582,47 +606,50 @@ function StravaLinkCard({ stravaId }: { stravaId: string }) {
         className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-app-text"
       >
         <ExternalLink size={16} strokeWidth={1.8} />
-        Apri attività su Strava
+        {language === 'en' ? 'Open activity on Strava' : 'Apri attività su Strava'}
       </a>
     </Card>
   );
 }
 
-function CoachAnalysisSection({ run }: { run: RunDetailData }) {
+function CoachAnalysisSection({ run, language }: { run: RunDetailData; language: Language }) {
+  const title = localizedReportText(run.title, language, language === 'en' ? 'Historical run analysis' : 'Analisi storica corsa');
+  const summary = localizedReportText(run.summary, language, language === 'en' ? 'Historical report available for this run.' : 'Report storico disponibile per questa corsa.');
+  const suggestedFocus = localizedReportText(run.suggested_focus, language, language === 'en' ? 'Use live coach guidance' : 'Usa indicazioni coach live');
   return (
     <Card>
-      <SectionHeader eyebrow="storico" title="Analisi generata dopo la seduta" icon={Brain} />
+      <SectionHeader eyebrow="historical" title={language === 'en' ? 'Analysis generated after the session' : 'Analisi generata dopo la seduta'} icon={Brain} />
 
       <div className="space-y-3">
-        {run.title && (
+        {title && (
           <div className="metric-card p-3.5">
-            <p className="eyebrow mb-2">Titolo</p>
-            <p className="font-semibold text-app-text">{run.title}</p>
+            <p className="eyebrow mb-2">{language === 'en' ? 'Title' : 'Titolo'}</p>
+            <p className="font-semibold text-app-text">{title}</p>
           </div>
         )}
 
-        {run.summary && (
+        {summary && (
           <div className="metric-card p-3.5">
-            <p className="eyebrow mb-2">Sommario</p>
-            <p className="text-sm leading-relaxed text-neutral-200">{run.summary}</p>
+            <p className="eyebrow mb-2">{language === 'en' ? 'Summary' : 'Sommario'}</p>
+            <p className="text-sm leading-relaxed text-neutral-200">{summary}</p>
           </div>
         )}
 
         <div className="grid gap-3 sm:grid-cols-2">
           {run.risk_level && (
             <div className="metric-card p-3.5">
-              <p className="eyebrow mb-2">Livello rischio</p>
+              <p className="eyebrow mb-2">{language === 'en' ? 'Risk level' : 'Livello rischio'}</p>
               <div className="flex items-center gap-2">
                 <AlertTriangle size={17} strokeWidth={1.8} className={run.risk_level === 'alto' ? 'text-[var(--danger)]' : run.risk_level === 'medio' ? 'text-[var(--warning)]' : 'text-[var(--success)]'} />
-                <p className="font-semibold capitalize text-app-text">{run.risk_level}</p>
+                <p className="font-semibold capitalize text-app-text">{language === 'en' ? ({ basso: 'low', medio: 'medium', alto: 'high' } as Record<string, string>)[run.risk_level] ?? run.risk_level : run.risk_level}</p>
               </div>
             </div>
           )}
 
-          {run.suggested_focus && (
+          {suggestedFocus && (
             <div className="metric-card p-3.5">
-              <p className="eyebrow mb-2">Focus post-seduta</p>
-              <p className="font-semibold text-app-text">{run.suggested_focus}</p>
+              <p className="eyebrow mb-2">{language === 'en' ? 'Post-session focus' : 'Focus post-seduta'}</p>
+              <p className="font-semibold text-app-text">{suggestedFocus}</p>
             </div>
           )}
         </div>
@@ -660,26 +687,28 @@ function ScoresSection({
   readiness,
   fatigue,
   consistency,
+  language,
 }: {
   readiness?: number;
   fatigue?: number;
   consistency?: number;
+  language: Language;
 }) {
   if (!readiness && !fatigue && !consistency) return null;
 
   return (
     <Card>
-      <SectionHeader eyebrow="scores" title="Metriche della seduta" icon={LineChart} />
+      <SectionHeader eyebrow="scores" title={language === 'en' ? 'Session metrics' : 'Metriche della seduta'} icon={LineChart} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {readiness !== undefined && (
-          <ScoreCard label="Intensità seduta" value={readiness} icon={Zap} />
+          <ScoreCard label={language === 'en' ? 'Session intensity' : 'Intensità seduta'} value={readiness} icon={Zap} />
         )}
         {fatigue !== undefined && (
-          <ScoreCard label="Fatica stimata" value={fatigue} icon={Activity} />
+          <ScoreCard label={language === 'en' ? 'Estimated fatigue' : 'Fatica stimata'} value={fatigue} icon={Activity} />
         )}
         {consistency !== undefined && (
-          <ScoreCard label="Impatto sul recupero" value={consistency} icon={TrendingUp} />
+          <ScoreCard label={language === 'en' ? 'Recovery impact' : 'Impatto sul recupero'} value={consistency} icon={TrendingUp} />
         )}
       </div>
     </Card>
@@ -709,12 +738,14 @@ function ScoreCard({ label, value, icon }: { label: string; value?: number; icon
 
 function WeeklyPlanSection({
   weeklyPlan,
+  language,
 }: {
   weeklyPlan: Array<{ name: string; description: string; intensity: string; duration: string }>;
+  language: Language;
 }) {
   return (
     <Card>
-      <SectionHeader eyebrow="plan" title="Piano settimanale" icon={CalendarDays} />
+      <SectionHeader eyebrow="plan" title={language === 'en' ? 'Weekly plan' : 'Piano settimanale'} icon={CalendarDays} />
 
       <div className="grid gap-3">
         {weeklyPlan.map((item, index) => (
@@ -798,13 +829,16 @@ function FullReportSection({ fullReport, language }: { fullReport: string; langu
   );
 }
 
-function CoachNotesSection({ notes }: { notes: string[] }) {
+function CoachNotesSection({ notes, language }: { notes: string[]; language: Language }) {
+  const visibleNotes = language === 'en'
+    ? notes.map((note) => localizedReportText(note, language, 'Historical coach note generated before the current language setting.'))
+    : notes;
   return (
     <Card>
-      <SectionHeader eyebrow="notes" title="Note del coach" icon={Sparkles} />
+      <SectionHeader eyebrow="notes" title={language === 'en' ? 'Coach notes' : 'Note del coach'} icon={Sparkles} />
 
       <div className="space-y-3">
-        {notes.map((note, index) => (
+        {visibleNotes.map((note, index) => (
           <div key={index} className="flex gap-3 rounded-xl bg-white/[0.035] p-3">
             <Sparkles size={16} strokeWidth={1.8} className="mt-0.5 shrink-0 text-accent-secondary" />
             <p className="text-sm text-neutral-200">{note}</p>

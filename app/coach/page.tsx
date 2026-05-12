@@ -278,7 +278,7 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
   if (!run) return null;
 
   const status = getReportStatus(run);
-  const excerpt = getCoachReportExcerpt(report || run);
+  const excerpt = getCoachReportExcerpt(report || run, 220, language);
 
   if (!report) {
     return (
@@ -343,13 +343,13 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
       <div className="space-y-4">
         <div>
           <div className="mb-2 text-base font-semibold text-app-text">{run.name}</div>
-          {report.title && <div className="mb-2 text-sm font-medium text-app-text">{report.title}</div>}
+          {report.title && <div className="mb-2 text-sm font-medium text-app-text">{language === 'en' && /\b(corsa|recupero|riposo|seduta|allenamento|fatica|continuità)\b/i.test(report.title) ? 'Historical run analysis' : report.title}</div>}
           <div className="text-sm leading-relaxed text-neutral-300">{excerpt}</div>
         </div>
 
         <div className="metric-card p-3.5">
           <div className="eyebrow mb-2">{language === 'en' ? 'Next 48 hours' : 'Prossime 48 ore'}</div>
-          <div className="text-sm text-app-text">{report.next_48h}</div>
+          <div className="text-sm text-app-text">{language === 'en' && /\b(corsa|recupero|riposo|domani|dopodomani|oggi|seduta|allenamento|fatica|continuità)\b/i.test(report.next_48h || '') ? 'Use the live coach for current recovery guidance.' : report.next_48h}</div>
         </div>
 
         {report.weekly_plan && report.weekly_plan.length > 0 && (
@@ -359,10 +359,10 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
               {report.weekly_plan.slice(0, 3).map((item: any, index: number) => (
                 <div key={index} className="rounded-xl bg-white/[0.035] p-3">
                   <div className="flex items-center justify-between">
-                    <div className="font-medium text-app-text">{item.name}</div>
+                    <div className="font-medium text-app-text">{language === 'en' && /\b(corsa|recupero|riposo|camminata|mobilità)\b/i.test(item.name || '') ? 'Historical workout' : item.name}</div>
                     <div className="text-xs capitalize text-app-muted">{item.intensity}</div>
                   </div>
-                  <div className="text-sm text-neutral-300 mt-1">{item.description}</div>
+                  <div className="text-sm text-neutral-300 mt-1">{language === 'en' && /\b(corsa|recupero|riposo|camminata|mobilità|allenamento)\b/i.test(item.description || '') ? 'Generated before the current language setting.' : item.description}</div>
                   <div className="text-xs text-neutral-500 mt-1">{item.duration}</div>
                 </div>
               ))}
@@ -375,7 +375,7 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
             <div className="eyebrow mb-2">{language === 'en' ? 'Coach notes' : 'Note coach'}</div>
             <ul className="space-y-1">
               {report.coach_notes.map((note: string, index: number) => (
-                <li key={index} className="flex gap-2 text-sm text-accent-secondary"><Sparkles size={15} strokeWidth={1.8} /> {note}</li>
+                <li key={index} className="flex gap-2 text-sm text-accent-secondary"><Sparkles size={15} strokeWidth={1.8} /> {language === 'en' && /\b(corsa|recupero|riposo|seduta|allenamento|fatica|continuità)\b/i.test(note) ? 'Historical coach note generated before the current language setting.' : note}</li>
               ))}
             </ul>
           </div>

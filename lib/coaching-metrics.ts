@@ -1,6 +1,7 @@
 import { DBActivity } from './coach';
 import { AthleteSettings } from './athlete-settings';
 import { daysSinceInRome } from './date-utils';
+import { normalizeLanguage, type Language } from './i18n';
 
 /**
  * Metriche di coaching calcolate dalle attività recenti
@@ -50,6 +51,7 @@ export function calculateCoachingMetrics(
   activities: DBActivity[],
   athleteSettings: AthleteSettings | null
 ): CoachingMetrics {
+  const language = normalizeLanguage(athleteSettings?.language);
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -91,33 +93,33 @@ export function calculateCoachingMetrics(
     : 999;
 
   // === CALCOLO READINESS SCORE ===
-  const readinessData = calculateReadinessScore(daysSinceLastRun, acuteLoad7d, chronicLoad42d, runsLast14Days, averageWeeklyKm28Days);
+  const readinessData = calculateReadinessScore(daysSinceLastRun, acuteLoad7d, chronicLoad42d, runsLast14Days, averageWeeklyKm28Days, language);
   const readinessScore = readinessData.score;
   const readinessLabel = readinessData.label;
   const readinessExplanation = readinessData.explanation;
 
   // === CALCOLO FATIGUE SCORE ===
-  const fatigueData = calculateFatigueScore(acuteLoad7d, chronicLoad42d, runsLast7Days, daysSinceLastRun);
+  const fatigueData = calculateFatigueScore(acuteLoad7d, chronicLoad42d, runsLast7Days, daysSinceLastRun, language);
   const fatigueScore = fatigueData.score;
   const fatigueLabel = fatigueData.label;
   const fatigueExplanation = fatigueData.explanation;
 
   // === CALCOLO CONSISTENCY SCORE ===
-  const consistencyData = calculateConsistencyScore(activities, athleteSettings);
+  const consistencyData = calculateConsistencyScore(activities, athleteSettings, language);
   const consistencyScore = consistencyData.score;
   const consistencyLabel = consistencyData.label;
   const consistencyExplanation = consistencyData.explanation;
 
   // === CALCOLO OVERLOAD RISK ===
-  const overloadData = calculateOverloadRisk(acuteChronicRatio, acuteLoad7d, chronicLoad42d, runsLast7Days, averageWeeklyKm28Days);
+  const overloadData = calculateOverloadRisk(acuteChronicRatio, acuteLoad7d, chronicLoad42d, runsLast7Days, averageWeeklyKm28Days, language);
   const overloadRisk = overloadData.risk;
   const overloadExplanation = overloadData.explanation;
 
   // === SUGGESTED FOCUS ===
-  const suggestedFocus = getSuggestedFocus(consistencyScore, consistencyLabel, fatigueScore, overloadRisk, averageWeeklyKm28Days, daysSinceLastRun);
+  const suggestedFocus = getSuggestedFocus(consistencyScore, consistencyLabel, fatigueScore, overloadRisk, averageWeeklyKm28Days, daysSinceLastRun, language);
 
   // === WARNINGS ===
-  const warnings = generateWarnings(overloadRisk, fatigueScore, consistencyScore, daysSinceLastRun, athleteSettings);
+  const warnings = generateWarnings(overloadRisk, fatigueScore, consistencyScore, daysSinceLastRun, athleteSettings, language);
 
   return {
     // Dati grezzi
@@ -159,39 +161,43 @@ function calculateReadinessScore(
   acuteLoad7d: number,
   chronicLoad42d: number,
   runsLast14Days: number,
-  averageWeeklyKm: number
+  averageWeeklyKm: number,
+  language: Language
 ): { score: number; label: 'bassa' | 'moderata' | 'buona' | 'alta'; explanation: string } {
+  const isEnglish = language === 'en';
 
   // Caso limite: nessuna attività recente
   if (daysSinceLastRun > 30) {
     return {
       score: 25,
       label: 'bassa',
-      explanation: 'Nessuna attività recente registrata - readiness bassa per mancanza di continuità'
+      explanation: isEnglish
+        ? 'No recent activity recorded - low readiness due to lack of consistency'
+        : 'Nessuna attività recente registrata - readiness bassa per mancanza di continuità'
     };
   }
 
   let score = 60; // Base moderata
-  let explanationParts: string[] = [];
+  const explanationParts: string[] = [];
 
   // 1. Giorni dall'ultima corsa
   if (daysSinceLastRun === 0) {
     score -= 15; // Corso oggi - possibile affaticamento
-    explanationParts.push('corsa effettuata oggi');
+    explanationParts.push(isEnglish ? 'run completed today' : 'corsa effettuata oggi');
   } else if (daysSinceLastRun === 1) {
     score -= 10; // Corso ieri
-    explanationParts.push('corsa effettuata ieri');
+    explanationParts.push(isEnglish ? 'run completed yesterday' : 'corsa effettuata ieri');
   } else if (daysSinceLastRun === 2) {
     score += 5; // Corso 2 giorni fa - buono
-    explanationParts.push('ultima corsa 2 giorni fa');
+    explanationParts.push(isEnglish ? 'last run 2 days ago' : 'ultima corsa 2 giorni fa');
   } else if (daysSinceLastRun === 3) {
     score += 10; // Corso 3 giorni fa - ottimo
-    explanationParts.push('ultima corsa 3 giorni fa');
+    explanationParts.push(isEnglish ? 'last run 3 days ago' : 'ultima corsa 3 giorni fa');
   } else if (daysSinceLastRun > 5) {
     score -= 20; // Pausa lunga - rischio scarico
-    explanationParts.push(`${daysSinceLastRun} giorni dall'ultima corsa`);
+    explanationParts.push(isEnglish ? `${daysSinceLastRun} days since last run` : `${daysSinceLastRun} giorni dall'ultima corsa`);
   } else {
-    explanationParts.push(`${daysSinceLastRun} giorni dall'ultima corsa`);
+    explanationParts.push(isEnglish ? `${daysSinceLastRun} days since last run` : `${daysSinceLastRun} giorni dall'ultima corsa`);
   }
 
   // 2. Carico recente vs media
@@ -199,20 +205,20 @@ function calculateReadinessScore(
     const loadRatio = acuteLoad7d / chronicLoad42d;
     if (loadRatio > 1.3) {
       score -= 15; // Carico alto recente
-      explanationParts.push('carico settimanale elevato');
+      explanationParts.push(isEnglish ? 'elevated weekly load' : 'carico settimanale elevato');
     } else if (loadRatio < 0.7) {
       score += 5; // Carico basso - recupero
-      explanationParts.push('settimana leggera');
+      explanationParts.push(isEnglish ? 'light week' : 'settimana leggera');
     }
   }
 
   // 3. Continuità recente
   if (runsLast14Days < 2) {
     score -= 10; // Poca continuità
-    explanationParts.push('continuità bassa nelle ultime 2 settimane');
+    explanationParts.push(isEnglish ? 'low consistency over the last 2 weeks' : 'continuità bassa nelle ultime 2 settimane');
   } else if (runsLast14Days >= 4) {
     score += 5; // Buona continuità
-    explanationParts.push('buona continuità recente');
+    explanationParts.push(isEnglish ? 'good recent consistency' : 'buona continuità recente');
   }
 
   // Clamp tra 25-95
@@ -225,7 +231,10 @@ function calculateReadinessScore(
   else if (score >= 40) label = 'moderata';
   else label = 'bassa';
 
-  const explanation = `Readiness ${label.toLowerCase()} (${score}/100): ${explanationParts.join(', ')}`;
+  const labelText = isEnglish
+    ? ({ bassa: 'low', moderata: 'moderate', buona: 'good', alta: 'high' } as const)[label]
+    : label.toLowerCase();
+  const explanation = `Readiness ${labelText} (${score}/100): ${explanationParts.join(', ')}`;
 
   return { score, label, explanation };
 }
@@ -237,66 +246,68 @@ function calculateFatigueScore(
   acuteLoad7d: number,
   chronicLoad42d: number,
   runsLast7Days: number,
-  daysSinceLastRun: number
+  daysSinceLastRun: number,
+  language: Language
 ): { score: number; label: 'bassa' | 'media' | 'alta'; explanation: string } {
+  const isEnglish = language === 'en';
 
   // Caso limite: nessuna attività recente
   if (acuteLoad7d === 0 && chronicLoad42d === 0) {
     return {
       score: 5,
       label: 'bassa',
-      explanation: 'Nessuna attività recente - fatica minima'
+      explanation: isEnglish ? 'No recent activity - minimal fatigue' : 'Nessuna attività recente - fatica minima'
     };
   }
 
   let score = 20; // Base bassa
-  let explanationParts: string[] = [];
+  const explanationParts: string[] = [];
 
   // 1. Acute/Chronic ratio (principale indicatore)
   if (chronicLoad42d > 0) {
     const ratio = acuteLoad7d / chronicLoad42d;
     if (ratio > 1.4) {
       score += 40; // Carico molto sopra media
-      explanationParts.push(`carico settimanale ${ratio.toFixed(1)}x la media`);
+      explanationParts.push(isEnglish ? `weekly load ${ratio.toFixed(1)}x average` : `carico settimanale ${ratio.toFixed(1)}x la media`);
     } else if (ratio > 1.2) {
       score += 25; // Carico sopra media
-      explanationParts.push(`carico settimanale ${ratio.toFixed(1)}x la media`);
+      explanationParts.push(isEnglish ? `weekly load ${ratio.toFixed(1)}x average` : `carico settimanale ${ratio.toFixed(1)}x la media`);
     } else if (ratio > 0.9) {
       score += 10; // Carico normale
-      explanationParts.push('carico settimanale nella norma');
+      explanationParts.push(isEnglish ? 'weekly load within normal range' : 'carico settimanale nella norma');
     } else {
       score -= 5; // Carico sotto media
-      explanationParts.push('settimana leggera rispetto alla media');
+      explanationParts.push(isEnglish ? 'lighter week than average' : 'settimana leggera rispetto alla media');
     }
   } else {
     // Senza storico, basa su volume assoluto
     if (acuteLoad7d > 30) {
       score += 30;
-      explanationParts.push(`${acuteLoad7d.toFixed(1)}km questa settimana`);
+      explanationParts.push(isEnglish ? `${acuteLoad7d.toFixed(1)}km this week` : `${acuteLoad7d.toFixed(1)}km questa settimana`);
     } else if (acuteLoad7d > 15) {
       score += 15;
-      explanationParts.push(`${acuteLoad7d.toFixed(1)}km questa settimana`);
+      explanationParts.push(isEnglish ? `${acuteLoad7d.toFixed(1)}km this week` : `${acuteLoad7d.toFixed(1)}km questa settimana`);
     } else {
-      explanationParts.push(`${acuteLoad7d.toFixed(1)}km questa settimana`);
+      explanationParts.push(isEnglish ? `${acuteLoad7d.toFixed(1)}km this week` : `${acuteLoad7d.toFixed(1)}km questa settimana`);
     }
   }
 
   // 2. Numero corse ravvicinate
   if (runsLast7Days >= 5) {
     score += 20; // Molte corse
-    explanationParts.push(`${runsLast7Days} corse questa settimana`);
+    explanationParts.push(isEnglish ? `${runsLast7Days} runs this week` : `${runsLast7Days} corse questa settimana`);
   } else if (runsLast7Days >= 3) {
     score += 10; // Buone corse
-    explanationParts.push(`${runsLast7Days} corse questa settimana`);
+    explanationParts.push(isEnglish ? `${runsLast7Days} runs this week` : `${runsLast7Days} corse questa settimana`);
   } else if (runsLast7Days === 0) {
     score -= 10; // Riposo
-    explanationParts.push('settimana di riposo');
+    explanationParts.push(isEnglish ? 'rest week' : 'settimana di riposo');
   }
 
   // 3. Corso nelle ultime 24h
   if (daysSinceLastRun === 0) {
     score += 15; // Affaticamento post-corsa
-    explanationParts.push('corsa nelle ultime 24h');
+    explanationParts.push(isEnglish ? 'run in the last 24h' : 'corsa nelle ultime 24h');
   }
 
   // Clamp tra 5-90
@@ -308,7 +319,10 @@ function calculateFatigueScore(
   else if (score >= 35) label = 'media';
   else label = 'bassa';
 
-  const explanation = `Fatica ${label.toLowerCase()} (${score}/100): ${explanationParts.join(', ')}`;
+  const labelText = isEnglish
+    ? ({ bassa: 'low', media: 'medium', alta: 'high' } as const)[label]
+    : label.toLowerCase();
+  const explanation = `${isEnglish ? 'Fatigue' : 'Fatica'} ${labelText} (${score}/100): ${explanationParts.join(', ')}`;
 
   return { score, label, explanation };
 }
@@ -318,15 +332,17 @@ function calculateFatigueScore(
  */
 function calculateConsistencyScore(
   activities: DBActivity[],
-  athleteSettings: AthleteSettings | null
+  athleteSettings: AthleteSettings | null,
+  language: Language
 ): { score: number; label: 'in costruzione' | 'buona' | 'solida'; explanation: string } {
+  const isEnglish = language === 'en';
 
   // Caso limite: nessuna attività
   if (activities.length === 0) {
     return {
       score: 10,
       label: 'in costruzione',
-      explanation: 'Consistency in costruzione: nessuna corsa registrata'
+      explanation: isEnglish ? 'Consistency building: no runs recorded' : 'Consistency in costruzione: nessuna corsa registrata'
     };
   }
 
@@ -355,21 +371,21 @@ function calculateConsistencyScore(
 
   // Calcola score basato su settimane attive e regolarità
   let score = 0;
-  let explanationParts: string[] = [];
+  const explanationParts: string[] = [];
 
   // Base score da settimane attive
   if (activeWeeks >= 3) {
     score += 60; // Almeno 3 settimane su 4
-    explanationParts.push(`${activeWeeks}/4 settimane attive`);
+    explanationParts.push(isEnglish ? `${activeWeeks}/4 active weeks` : `${activeWeeks}/4 settimane attive`);
   } else if (activeWeeks >= 2) {
     score += 40; // 2 settimane su 4
-    explanationParts.push(`${activeWeeks}/4 settimane attive`);
+    explanationParts.push(isEnglish ? `${activeWeeks}/4 active weeks` : `${activeWeeks}/4 settimane attive`);
   } else if (activeWeeks >= 1) {
     score += 20; // 1 settimana su 4
-    explanationParts.push(`${activeWeeks}/4 settimane attiva`);
+    explanationParts.push(isEnglish ? `${activeWeeks}/4 active week` : `${activeWeeks}/4 settimane attiva`);
   } else {
     score += 10; // Nessuna settimana attiva nelle ultime 4
-    explanationParts.push('nessuna settimana attiva nelle ultime 4');
+    explanationParts.push(isEnglish ? 'no active weeks in the last 4' : 'nessuna settimana attiva nelle ultime 4');
   }
 
   // Bonus per regolarità (tutte le settimane attive hanno corse simili)
@@ -380,13 +396,15 @@ function calculateConsistencyScore(
 
   if (hasRegularActiveWeeks) {
     score += 20;
-    explanationParts.push('regolare nelle settimane attive');
+    explanationParts.push(isEnglish ? 'regular across active weeks' : 'regolare nelle settimane attive');
   }
 
   // Penalità se molto sotto target
   if (targetRunsPerWeek > 0 && avgRunsPerActiveWeek < targetRunsPerWeek * 0.5) {
     score -= 15;
-    explanationParts.push(`sotto target (${avgRunsPerActiveWeek.toFixed(1)} vs ${targetRunsPerWeek} corse/settimana)`);
+    explanationParts.push(isEnglish
+      ? `below target (${avgRunsPerActiveWeek.toFixed(1)} vs ${targetRunsPerWeek} runs/week)`
+      : `sotto target (${avgRunsPerActiveWeek.toFixed(1)} vs ${targetRunsPerWeek} corse/settimana)`);
   }
 
   // Clamp tra 10-95
@@ -398,7 +416,10 @@ function calculateConsistencyScore(
   else if (score >= 40) label = 'buona';
   else label = 'in costruzione';
 
-  const explanation = `Consistency ${label.toLowerCase()} (${score}/100): ${explanationParts.join(', ')}`;
+  const labelText = isEnglish
+    ? ({ 'in costruzione': 'building', buona: 'good', solida: 'solid' } as const)[label]
+    : label.toLowerCase();
+  const explanation = `Consistency ${labelText} (${score}/100): ${explanationParts.join(', ')}`;
 
   return { score, label, explanation };
 }
@@ -411,30 +432,34 @@ function calculateOverloadRisk(
   acuteLoad7d: number,
   chronicLoad42d: number,
   runsLast7Days: number,
-  averageWeeklyKm: number
+  averageWeeklyKm: number,
+  language: Language
 ): { risk: 'basso' | 'medio' | 'alto'; explanation: string } {
+  const isEnglish = language === 'en';
 
   let risk: 'basso' | 'medio' | 'alto' = 'basso';
-  let explanationParts: string[] = [];
+  const explanationParts: string[] = [];
 
   // 1. Acute/Chronic ratio (principale)
   if (acuteChronicRatio !== null) {
     if (acuteChronicRatio > 1.4) {
       risk = 'alto';
-      explanationParts.push(`acute/chronic ratio ${acuteChronicRatio.toFixed(1)} (molto alto)`);
+      explanationParts.push(`acute/chronic ratio ${acuteChronicRatio.toFixed(1)} (${isEnglish ? 'very high' : 'molto alto'})`);
     } else if (acuteChronicRatio > 1.2) {
       risk = 'medio';
-      explanationParts.push(`acute/chronic ratio ${acuteChronicRatio.toFixed(1)} (elevato)`);
+      explanationParts.push(`acute/chronic ratio ${acuteChronicRatio.toFixed(1)} (${isEnglish ? 'elevated' : 'elevato'})`);
     } else {
-      explanationParts.push(`acute/chronic ratio ${acuteChronicRatio.toFixed(1)} (nella norma)`);
+      explanationParts.push(`acute/chronic ratio ${acuteChronicRatio.toFixed(1)} (${isEnglish ? 'within range' : 'nella norma'})`);
     }
   } else {
     // Senza storico sufficiente, usa cautela
     if (acuteLoad7d > 40) {
       risk = 'medio';
-      explanationParts.push(`${acuteLoad7d.toFixed(1)}km questa settimana senza storico sufficiente`);
+      explanationParts.push(isEnglish
+        ? `${acuteLoad7d.toFixed(1)}km this week without enough history`
+        : `${acuteLoad7d.toFixed(1)}km questa settimana senza storico sufficiente`);
     } else {
-      explanationParts.push('storico limitato per valutazione precisa');
+      explanationParts.push(isEnglish ? 'limited history for precise evaluation' : 'storico limitato per valutazione precisa');
     }
   }
 
@@ -443,23 +468,26 @@ function calculateOverloadRisk(
     const weeklyIncrease = (acuteLoad7d - averageWeeklyKm) / averageWeeklyKm;
     if (weeklyIncrease > 0.3) {
       if (risk === 'basso') risk = 'medio';
-      explanationParts.push(`+${(weeklyIncrease * 100).toFixed(0)}% vs media 4 settimane`);
+      explanationParts.push(isEnglish
+        ? `+${(weeklyIncrease * 100).toFixed(0)}% vs 4-week average`
+        : `+${(weeklyIncrease * 100).toFixed(0)}% vs media 4 settimane`);
     }
   }
 
   // 3. Frequenza recente
   if (runsLast7Days >= 6) {
     if (risk === 'basso') risk = 'medio';
-    explanationParts.push(`${runsLast7Days} corse questa settimana`);
+    explanationParts.push(isEnglish ? `${runsLast7Days} runs this week` : `${runsLast7Days} corse questa settimana`);
   }
 
   // 4. Prudenza per dati limitati
   if (chronicLoad42d === 0 && acuteLoad7d > 20) {
     if (risk === 'basso') risk = 'medio';
-    explanationParts.push('dati storici limitati - valutazione prudente');
+    explanationParts.push(isEnglish ? 'limited historical data - conservative evaluation' : 'dati storici limitati - valutazione prudente');
   }
 
-  const explanation = `Rischio overload ${risk}: ${explanationParts.join(', ')}`;
+  const riskText = isEnglish ? ({ basso: 'low', medio: 'medium', alto: 'high' } as const)[risk] : risk;
+  const explanation = `${isEnglish ? 'Overload risk' : 'Rischio overload'} ${riskText}: ${explanationParts.join(', ')}`;
 
   return { risk, explanation };
 }
@@ -473,41 +501,43 @@ function getSuggestedFocus(
   fatigueScore: number,
   overloadRisk: string,
   averageWeeklyKm: number,
-  daysSinceLastRun: number
+  daysSinceLastRun: number,
+  language: Language
 ): string {
+  const isEnglish = language === 'en';
 
   // Priorità: overload alto
   if (overloadRisk === 'alto') {
-    return 'ridurre rischio sovraccarico';
+    return isEnglish ? 'reduce overload risk' : 'ridurre rischio sovraccarico';
   }
 
   // Priorità: fatigue alta
   if (fatigueScore >= 60) {
-    return 'recupero e consolidamento';
+    return isEnglish ? 'recovery and consolidation' : 'recupero e consolidamento';
   }
 
   // Priorità: consistency bassa
   if (consistencyLabel === 'in costruzione' || consistencyScore < 40) {
-    return 'costruire continuità';
+    return isEnglish ? 'build consistency' : 'costruire continuità';
   }
 
   // Volume basso
   if (averageWeeklyKm < 15) {
-    return 'base aerobica facile';
+    return isEnglish ? 'easy aerobic base' : 'base aerobica facile';
   }
 
   // Pausa lunga
   if (daysSinceLastRun > 5) {
-    return 'ripristinare continuità';
+    return isEnglish ? 'restore consistency' : 'ripristinare continuità';
   }
 
   // Tutto buono
   if (consistencyLabel === 'solida' && overloadRisk === 'basso' && fatigueScore < 35) {
-    return 'progressione controllata';
+    return isEnglish ? 'controlled progression' : 'progressione controllata';
   }
 
   // Default
-  return 'mantenimento e recupero';
+  return isEnglish ? 'maintenance and recovery' : 'mantenimento e recupero';
 }
 
 /**
@@ -518,30 +548,32 @@ function generateWarnings(
   fatigueScore: number,
   consistencyScore: number,
   daysSinceLastRun: number,
-  athleteSettings: AthleteSettings | null
+  athleteSettings: AthleteSettings | null,
+  language: Language
 ): string[] {
+  const isEnglish = language === 'en';
   const warnings: string[] = [];
 
   if (overloadRisk === 'alto') {
-    warnings.push('Rischio sovrallenamento elevato - privilegia recupero e monitora segnali di fatica');
+    warnings.push(isEnglish ? 'High overload risk - prioritize recovery and monitor fatigue signals' : 'Rischio sovrallenamento elevato - privilegia recupero e monitora segnali di fatica');
   } else if (overloadRisk === 'medio') {
-    warnings.push('Carico elevato - monitora segnali di fatica e considera recupero aggiuntivo');
+    warnings.push(isEnglish ? 'Elevated load - monitor fatigue signals and consider extra recovery' : 'Carico elevato - monitora segnali di fatica e considera recupero aggiuntivo');
   }
 
   if (fatigueScore >= 60) {
-    warnings.push('Livello di fatica alto - considera allenamenti leggeri o pausa');
+    warnings.push(isEnglish ? 'High fatigue level - consider light training or rest' : 'Livello di fatica alto - considera allenamenti leggeri o pausa');
   }
 
   if (consistencyScore < 40) {
-    warnings.push('Continuità irregolare - stabilisci routine settimanale per risultati migliori');
+    warnings.push(isEnglish ? 'Irregular consistency - establish a weekly routine for better results' : 'Continuità irregolare - stabilisci routine settimanale per risultati migliori');
   }
 
   if (daysSinceLastRun > 7) {
-    warnings.push('Pausa prolungata - riprendi gradualmente per evitare infortuni');
+    warnings.push(isEnglish ? 'Long break - return gradually to avoid injury' : 'Pausa prolungata - riprendi gradualmente per evitare infortuni');
   }
 
   if (athleteSettings?.injuries) {
-    warnings.push('Note mediche presenti - consulta professionista per allenamenti intensi');
+    warnings.push(isEnglish ? 'Medical notes present - consult a professional before intense training' : 'Note mediche presenti - consulta professionista per allenamenti intensi');
   }
 
   return warnings;
