@@ -5,7 +5,7 @@ export interface ReportDisplayData {
 }
 
 export function containsItalianText(value: string): boolean {
-  return /\b(corsa|corse|correre|uscita|uscite|recupero|riposo|domani|dopodomani|oggi|ieri|seduta|sedute|allenamento|allenamenti|allenarsi|fatica|continuità|sovraccarico|consigliato|consigliata|consigliati|prossime|prossima|prossimo|riepilogo|camminata|mobilità|atleta|gambe|minuti|facile|leggera|bassa|alta|medio|media|dimagrire|competitivo|resistenza|preparazione|ottima|ottimo|buona|buono|mantieni|evita|riprendi|settimana|settimane|passo|frequenza|cardiaca|dislivello|salita|discesa|qualità|soglia|lento|lenta|veloce|progressivo|progressione|consiglio|indicazione|respirazione|sonno|segnali|rientro|sforzo)\b/i.test(value);
+  return /\b(corsa|corse|correre|corri|correrai|uscita|uscite|recupero|riposo|domani|dopodomani|oggi|ieri|seduta|sedute|allenamento|allenamenti|allenarsi|allenati|fatica|continuità|sovraccarico|consigliato|consigliata|consigliati|prossime|prossima|prossimo|riepilogo|camminata|mobilità|atleta|gambe|minuti|facile|leggera|leggero|bassa|basso|alta|alto|medio|media|dimagrire|dimagrimento|competitivo|competitività|resistenza|preparazione|preparare|ottima|ottimo|buona|buono|mantieni|mantenere|evita|evitare|riprendi|riprendere|settimana|settimane|passo|frequenza|cardiaca|cardio|dislivello|salita|discesa|qualità|soglia|lento|lenta|veloce|progressivo|progressione|consiglio|consigli|indicazione|indicazioni|respirazione|sonno|segnali|rientro|sforzo|sforzi|andatura|ritmo|chilometri|mattutino|mattutina|pomeridiano|pomeridiana|serale|pranzo|gara|gare|obiettivo|obiettivi|forma|carico|scarico|sovrallenamento|dolore|infortunio|infortuni)\b/i.test(value);
 }
 
 function cleanMarkdown(value: string): string {

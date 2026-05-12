@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
@@ -785,12 +786,21 @@ function WeeklyPlanSection({
 }
 
 type ReportBlock =
-  | { type: 'heading'; text: string }
-  | { type: 'paragraph'; text: string };
+  | { type: 'heading'; text: string; level: 2 | 3 }
+  | { type: 'paragraph'; text: string }
+  | { type: 'list'; ordered: boolean; items: string[] };
 
 function parseFullReport(fullReport: string): ReportBlock[] {
   const blocks: ReportBlock[] = [];
   let paragraph: string[] = [];
+  let list: { ordered: boolean; items: string[] } | null = null;
+
+  const flushList = () => {
+    if (list && list.items.length > 0) {
+      blocks.push({ type: 'list', ordered: list.ordered, items: list.items });
+    }
+    list = null;
+  };
 
   const flushParagraph = () => {
     const text = paragraph.join('\n').trim();
@@ -801,23 +811,67 @@ function parseFullReport(fullReport: string): ReportBlock[] {
   };
 
   for (const line of fullReport.split(/\r?\n/)) {
-    const heading = line.match(/^##\s+(.+)$/);
+    const heading = line.match(/^(#{2,3})\s+(.+)$/);
     if (heading) {
       flushParagraph();
-      blocks.push({ type: 'heading', text: heading[1].trim() });
+      flushList();
+      blocks.push({ type: 'heading', level: heading[1].length === 2 ? 2 : 3, text: heading[2].trim() });
+      continue;
+    }
+
+    const unorderedItem = line.match(/^\s*[-*]\s+(.+)$/);
+    const orderedItem = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    const listItem = unorderedItem?.[1] ?? orderedItem?.[1];
+    if (listItem) {
+      flushParagraph();
+      const ordered = Boolean(orderedItem);
+      if (!list || list.ordered !== ordered) {
+        flushList();
+        list = { ordered, items: [] };
+      }
+      list.items.push(listItem.trim());
       continue;
     }
 
     if (!line.trim()) {
       flushParagraph();
+      flushList();
       continue;
     }
 
+    flushList();
     paragraph.push(line);
   }
 
   flushParagraph();
+  flushList();
   return blocks;
+}
+
+function renderMarkdownInline(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const pattern = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const before = text.slice(lastIndex, match.index).replace(/\*\*/g, '');
+    if (before) nodes.push(before);
+
+    nodes.push(
+      <strong key={`strong-${key}`} className="font-semibold text-neutral-100">
+        {match[1]}
+      </strong>
+    );
+    key += 1;
+    lastIndex = match.index + match[0].length;
+  }
+
+  const after = text.slice(lastIndex).replace(/\*\*/g, '');
+  if (after) nodes.push(after);
+
+  return nodes;
 }
 
 function FullReportSection({ fullReport, language }: { fullReport: string; language: Language }) {
@@ -827,18 +881,45 @@ function FullReportSection({ fullReport, language }: { fullReport: string; langu
     <Card>
       <SectionHeader eyebrow="full text" title={t(language, 'run.fullReport')} icon={Info} />
 
-      <div className="space-y-3">
-        {blocks.map((block, index) => (
-          block.type === 'heading' ? (
-            <h3 key={`${block.type}-${index}`} className="pt-1 text-sm font-semibold tracking-tight text-app-text">
-              {block.text}
-            </h3>
-          ) : (
+      <div className="space-y-4">
+        {blocks.map((block, index) => {
+          if (block.type === 'heading') {
+            return (
+              <h3
+                key={`${block.type}-${index}`}
+                className={block.level === 2
+                  ? 'pt-2 text-base font-semibold tracking-tight text-app-text'
+                  : 'pt-1 text-sm font-semibold tracking-tight text-neutral-100'}
+              >
+                {renderMarkdownInline(block.text)}
+              </h3>
+            );
+          }
+
+          if (block.type === 'list') {
+            const ListTag = block.ordered ? 'ol' : 'ul';
+            return (
+              <ListTag
+                key={`${block.type}-${index}`}
+                className={block.ordered
+                  ? 'space-y-2 pl-5 text-sm leading-6 text-neutral-300 marker:text-accent-secondary'
+                  : 'space-y-2 pl-5 text-sm leading-6 text-neutral-300 marker:text-accent-secondary'}
+              >
+                {block.items.map((item, itemIndex) => (
+                  <li key={`${index}-${itemIndex}`} className={block.ordered ? 'list-decimal pl-1' : 'list-disc pl-1'}>
+                    {renderMarkdownInline(item)}
+                  </li>
+                ))}
+              </ListTag>
+            );
+          }
+
+          return (
             <p key={`${block.type}-${index}`} className="whitespace-pre-wrap text-sm leading-6 text-neutral-300">
-              {block.text}
+              {renderMarkdownInline(block.text)}
             </p>
-          )
-        ))}
+          );
+        })}
       </div>
     </Card>
   );

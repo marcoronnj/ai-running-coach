@@ -86,7 +86,7 @@ export async function runStravaSync(
       return {
         payload: {
           ok: true,
-          message: 'Nessuna nuova corsa da sincronizzare',
+          message: 'No new runs to sync',
           mode,
           activitiesChecked: activities.length,
           runningActivities: 0,
@@ -122,7 +122,7 @@ export async function runStravaSync(
       return {
         payload: {
           ok: true,
-          message: 'Nessuna nuova corsa da sincronizzare e nessun report mancante da rigenerare',
+          message: 'No new runs to sync and no missing reports to regenerate',
           mode,
           activitiesChecked: activities.length,
           runningActivities: runningActivities.length,
@@ -178,7 +178,7 @@ export async function runStravaSync(
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[SYNC] Errore report nuova activity id=${activity.id}:`, errorMessage);
-        warnings.push(`Report non generato per ${activity.name}: ${errorMessage}`);
+        warnings.push(`Report not generated for ${activity.name}: ${errorMessage}`);
 
         processedActivities.push({
           id: activity.id,
@@ -214,7 +214,7 @@ export async function runStravaSync(
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[SYNC] Errore retry report activity id=${activity.id}:`, errorMessage);
-        warnings.push(`Retry report non riuscito per ${activity.name}: ${errorMessage}`);
+        warnings.push(`Report retry failed for ${activity.name}: ${errorMessage}`);
 
         processedActivities.push({
           id: activity.id,
@@ -242,7 +242,7 @@ export async function runStravaSync(
     return {
       payload: {
         ok: true,
-        message: newActivities.length > 0 ? 'Sync completato' : 'Nessuna nuova corsa',
+        message: newActivities.length > 0 ? 'Sync completed' : 'No new runs',
         mode,
         warning,
         activitiesChecked: activities.length,
@@ -273,7 +273,7 @@ export async function runStravaSync(
     return {
       payload: {
         ok: false,
-        error: 'Errore durante la sincronizzazione',
+        error: 'Sync failed',
         message: errorMessage,
         mode,
         newActivities: 0,

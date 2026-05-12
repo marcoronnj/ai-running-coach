@@ -227,7 +227,7 @@ export async function refreshStravaToken(refreshToken: string): Promise<StravaTo
       }
 
       throw new Error(
-        `Errore dal server Strava (${response.status}): ${errorData}`
+        `Strava server error (${response.status}): ${errorData}`
       );
     }
 
@@ -314,7 +314,7 @@ export async function getRecentActivities(accessToken: string): Promise<StravaAc
     const activities: StravaActivity[] = await response.json();
 
     if (!Array.isArray(activities)) {
-      throw new Error('Risposta Strava non è un array di attività');
+      throw new Error('Strava response is not an activity array');
     }
 
     console.log(`[STRAVA] ✓ Retrieved ${activities.length} activities`);
@@ -327,13 +327,13 @@ export async function getRecentActivities(accessToken: string): Promise<StravaAc
     }
 
     console.error('[STRAVA] Unexpected activities fetch error:', error);
-    throw new Error('Errore imprevisto durante il recupero delle attività Strava');
+    throw new Error('Unexpected error while fetching Strava activities');
   }
 }
 
 export async function getAuthenticatedStravaAthlete(accessToken: string): Promise<StravaAthleteProfile> {
   if (!accessToken) {
-    throw new Error('Access token è obbligatorio');
+    throw new Error('Access token is required');
   }
 
   const response = await fetch('https://www.strava.com/api/v3/athlete', {
@@ -349,13 +349,13 @@ export async function getAuthenticatedStravaAthlete(accessToken: string): Promis
       status: response.status,
       body: errorData,
     });
-    throw new Error(`Errore recupero atleta Strava (${response.status})`);
+    throw new Error(`Strava athlete fetch failed (${response.status})`);
   }
 
   const athlete = (await response.json()) as StravaAthleteProfile;
 
   if (!athlete.id) {
-    throw new Error('Risposta atleta Strava incompleta');
+    throw new Error('Incomplete Strava athlete response');
   }
 
   return athlete;

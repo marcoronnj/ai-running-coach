@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Check, RefreshCw, XCircle } from 'lucide-react';
 import { normalizeLanguage, type Language } from '@/lib/i18n';
+import { containsItalianText } from '@/lib/report-display';
 
 type SyncState = 'idle' | 'loading' | 'success' | 'warning' | 'error';
 
@@ -48,6 +49,13 @@ function buildStatusMessage(data: ManualSyncResponse | undefined, language: Lang
     : (language === 'en' ? `${newActivities} new runs synced` : `${newActivities} nuove corse sincronizzate`);
 }
 
+function safeErrorMessage(value: string | undefined, language: Language): string {
+  if (language === 'en') {
+    if (!value || containsItalianText(value)) return 'Sync failed';
+  }
+  return value || (language === 'en' ? 'Sync failed' : 'Sync non riuscito');
+}
+
 export default function ManualSyncButton({ language = 'it', iconOnly = false }: { language?: Language; iconOnly?: boolean }) {
   const currentLanguage = normalizeLanguage(language);
   const router = useRouter();
@@ -86,7 +94,7 @@ export default function ManualSyncButton({ language = 'it', iconOnly = false }: 
       const data = (await response.json().catch(() => null)) as ManualSyncResponse | null;
 
       if (!response.ok || !data?.ok) {
-        throw new Error(data?.message || 'Sync non riuscito');
+        throw new Error(safeErrorMessage(data?.message, currentLanguage));
       }
 
       setState(data.warning ? 'warning' : 'success');
@@ -101,7 +109,7 @@ export default function ManualSyncButton({ language = 'it', iconOnly = false }: 
       }, 4500);
     } catch (error) {
       setState('error');
-      setMessage(error instanceof Error ? error.message : 'Errore durante la sincronizzazione');
+      setMessage(safeErrorMessage(error instanceof Error ? error.message : undefined, currentLanguage));
 
       resetTimerRef.current = setTimeout(() => {
         setState('idle');

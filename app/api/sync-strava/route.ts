@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Configurazione mancante',
-          message: 'CRON_SECRET non è configurato in .env.local',
+          error: 'Missing configuration',
+          message: 'CRON_SECRET is not configured in .env.local',
           newActivities: 0,
         },
         { status: 500 }
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Accesso negato',
-          message: 'Secret non valido o mancante',
+          error: 'Access denied',
+          message: 'Invalid or missing secret',
           newActivities: 0,
         },
         { status: 403 }
@@ -47,8 +47,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Configurazione mancante',
-          message: 'ADMIN_EMAIL o APP_LOGIN_EMAIL non configurato',
+          error: 'Missing configuration',
+          message: 'ADMIN_EMAIL or APP_LOGIN_EMAIL is not configured',
           newActivities: 0,
         },
         { status: 500 }
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        error: 'Errore durante la sincronizzazione',
+        error: 'Sync failed',
         message: errorMessage,
         newActivities: 0,
       },
@@ -78,21 +78,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST() {
   return NextResponse.json(
-    { error: 'Metodo POST non consentito. Usa GET.' },
+    { error: 'POST method not allowed. Use GET.' },
     { status: 405 }
   );
 }
 
 export async function PUT() {
   return NextResponse.json(
-    { error: 'Metodo PUT non consentito. Usa GET.' },
+    { error: 'PUT method not allowed. Use GET.' },
     { status: 405 }
   );
 }
 
 export async function DELETE() {
   return NextResponse.json(
-    { error: 'Metodo DELETE non consentito. Usa GET.' },
+    { error: 'DELETE method not allowed. Use GET.' },
     { status: 405 }
   );
 }

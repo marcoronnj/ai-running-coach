@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         {
           ok: false,
           error: 'Invio messaggio fallito',
-          message: 'Controlla i log del server per i dettagli dell\'errore',
+          message: 'Check the server logs for error details',
           telegramEnabled: true,
           notificationsSent: false,
         },
@@ -78,12 +78,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    console.error('[TEST-TELEGRAM] Errore durante il test:', errorMessage);
+    console.error('[TEST-TELEGRAM] Error during test:', errorMessage);
 
     return NextResponse.json(
       {
         ok: false,
-        error: 'Errore interno',
+        error: 'Internal error',
         message: errorMessage,
       },
       { status: 500 }
@@ -96,21 +96,21 @@ export async function GET(request: NextRequest) {
  */
 export async function POST() {
   return NextResponse.json(
-    { error: 'Metodo POST non consentito. Usa GET.' },
+    { error: 'POST method not allowed. Use GET.' },
     { status: 405 }
   );
 }
 
 export async function PUT() {
   return NextResponse.json(
-    { error: 'Metodo PUT non consentito. Usa GET.' },
+    { error: 'PUT method not allowed. Use GET.' },
     { status: 405 }
   );
 }
 
 export async function DELETE() {
   return NextResponse.json(
-    { error: 'Metodo DELETE non consentito. Usa GET.' },
+    { error: 'DELETE method not allowed. Use GET.' },
     { status: 405 }
   );
 }

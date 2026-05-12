@@ -6,9 +6,17 @@ import { CheckCircle2, ExternalLink, LoaderCircle, RefreshCw, Unlink, AlertCircl
 import { Card, SectionHeader } from '@/app/components/ui';
 import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { normalizeLanguage, type Language } from '@/lib/i18n';
+import { containsItalianText } from '@/lib/report-display';
 
 type ActionState = 'idle' | 'syncing' | 'disconnecting' | 'refreshing-athlete';
 type Message = { type: 'success' | 'error'; text: string } | null;
+
+function safeActionError(value: string | undefined, language: Language, fallback: string): string {
+  if (language === 'en') {
+    if (!value || containsItalianText(value)) return fallback;
+  }
+  return value || fallback;
+}
 
 export default function StravaConnectionBox({
   status,
@@ -38,7 +46,7 @@ export default function StravaConnectionBox({
       const data = (await response.json()) as { ok?: boolean; message?: string; newActivities?: number };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || (currentLanguage === 'en' ? 'Strava sync failed' : 'Sync Strava non riuscita'));
+        throw new Error(safeActionError(data.message, currentLanguage, currentLanguage === 'en' ? 'Strava sync failed' : 'Sync Strava non riuscita'));
       }
 
       const newActivities = data.newActivities ?? 0;
@@ -55,7 +63,7 @@ export default function StravaConnectionBox({
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error during Strava sync' : 'Errore durante la sync Strava'),
+        text: safeActionError(error instanceof Error ? error.message : undefined, currentLanguage, currentLanguage === 'en' ? 'Error during Strava sync' : 'Errore durante la sync Strava'),
       });
     } finally {
       setActionState('idle');
@@ -76,7 +84,7 @@ export default function StravaConnectionBox({
       const data = (await response.json()) as { ok?: boolean; message?: string };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || (currentLanguage === 'en' ? 'Disconnect failed' : 'Disconnessione non riuscita'));
+        throw new Error(safeActionError(data.message, currentLanguage, currentLanguage === 'en' ? 'Disconnect failed' : 'Disconnessione non riuscita'));
       }
 
       setMessage({ type: 'success', text: currentLanguage === 'en' ? 'Strava disconnected' : 'Strava disconnesso' });
@@ -84,7 +92,7 @@ export default function StravaConnectionBox({
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error while disconnecting' : 'Errore durante la disconnessione'),
+        text: safeActionError(error instanceof Error ? error.message : undefined, currentLanguage, currentLanguage === 'en' ? 'Error while disconnecting' : 'Errore durante la disconnessione'),
       });
     } finally {
       setActionState('idle');
@@ -105,7 +113,7 @@ export default function StravaConnectionBox({
       const data = (await response.json()) as { ok?: boolean; message?: string; firstname?: string | null; lastname?: string | null };
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || (currentLanguage === 'en' ? 'Athlete refresh failed' : 'Aggiornamento dati atleta non riuscito'));
+        throw new Error(safeActionError(data.message, currentLanguage, currentLanguage === 'en' ? 'Athlete refresh failed' : 'Aggiornamento dati atleta non riuscito'));
       }
 
       const updatedName = [data.firstname, data.lastname].filter(Boolean).join(' ').trim();
@@ -119,7 +127,7 @@ export default function StravaConnectionBox({
     } catch (error) {
       setMessage({
         type: 'error',
-        text: error instanceof Error ? error.message : (currentLanguage === 'en' ? 'Error while updating athlete data' : 'Errore durante l’aggiornamento dati atleta'),
+        text: safeActionError(error instanceof Error ? error.message : undefined, currentLanguage, currentLanguage === 'en' ? 'Error while updating athlete data' : 'Errore durante l’aggiornamento dati atleta'),
       });
     } finally {
       setActionState('idle');

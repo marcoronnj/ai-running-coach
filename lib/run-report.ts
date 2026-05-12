@@ -4,6 +4,8 @@ import { isTelegramNotificationsEnabled, sendTelegramMessage } from '@/lib/teleg
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
+import { normalizeLanguage, type Language } from '@/lib/i18n';
+import { containsItalianText } from '@/lib/report-display';
 import {
   DBActivity,
   CoachReport,
@@ -54,6 +56,7 @@ export async function processReportForActivity(
   const history90d = await getActivityHistory90d(activity.start_date);
   const history = history90d.slice(0, 15);
   const athleteSettings = await getAthleteSettings();
+  const language = normalizeLanguage(athleteSettings?.language);
   const metrics = calculateCoachingMetrics(history90d, athleteSettings);
   const rules = getCoachingRules(metrics, athleteSettings);
   let report: CoachReport;
@@ -75,7 +78,7 @@ export async function processReportForActivity(
   await saveCoachReport(activity.id, report);
 
   const telegramSent = sendTelegram
-    ? await sendTelegramNotification(activity, report)
+    ? await sendTelegramNotification(activity, report, language)
     : false;
 
   if (!sendTelegram) {
@@ -134,16 +137,20 @@ async function getActivityHistory90d(beforeDate: string): Promise<DBActivity[]> 
   return result.rows;
 }
 
-async function sendTelegramNotification(activity: DBActivity, report: CoachReport): Promise<boolean> {
+async function sendTelegramNotification(activity: DBActivity, report: CoachReport, language: Language): Promise<boolean> {
   try {
+    const isEnglish = language === 'en';
     const appUrl = getAppUrl();
     const dashboardLink = `${appUrl}/runs/${activity.id}`;
 
     const distance = formatKm(activity.distance_m);
     const pace = formatPace(activity.average_speed);
     const heartrate = activity.average_heartrate
-      ? ` • FC ${activity.average_heartrate} bpm`
+      ? ` • ${isEnglish ? 'HR' : 'FC'} ${activity.average_heartrate} bpm`
       : '';
+    const activityName = isEnglish && containsItalianText(activity.name)
+      ? 'Run activity'
+      : activity.name;
 
     const riskLevel = String(report.risk_level).toLowerCase();
     const riskEmoji = {
@@ -151,29 +158,32 @@ async function sendTelegramNotification(activity: DBActivity, report: CoachRepor
       medio: '🟡',
       alto: '🔴',
     }[riskLevel as 'basso' | 'medio' | 'alto'] || '🟡';
+    const riskLabel = isEnglish
+      ? ({ basso: 'LOW', medio: 'MEDIUM', alto: 'HIGH' } as Record<string, string>)[riskLevel] ?? String(report.risk_level).toUpperCase()
+      : String(report.risk_level).toUpperCase();
 
     const message = `
 🏃‍♂️ <b>${report.title}</b>
 
-📊 <b>${activity.name}</b>
+📊 <b>${activityName}</b>
 📏 ${distance} • ⏱️ ${pace}${heartrate}
 
-� <b>Stato Atleta:</b>
+� <b>${isEnglish ? 'Athlete Status' : 'Stato Atleta'}:</b>
 🎯 Readiness: ${report.readiness_score}/100
 😴 Fatigue: ${report.fatigue_score}/100
 📊 Consistency: ${report.consistency_score}/100
 
 🎯 <b>Focus:</b> ${report.suggested_focus}
 
-⚠️ <b>Rischio:</b> ${riskEmoji} ${String(report.risk_level).toUpperCase()}
+⚠️ <b>${isEnglish ? 'Risk' : 'Rischio'}:</b> ${riskEmoji} ${riskLabel}
 
-📝 <b>Riepilogo:</b>
+📝 <b>${isEnglish ? 'Summary' : 'Riepilogo'}:</b>
 ${report.summary}
 
-⏰ <b>Prossime 48h:</b>
+⏰ <b>${isEnglish ? 'Next 48h' : 'Prossime 48h'}:</b>
 ${report.next_48h}
 
-🔗 <a href="${dashboardLink}">Vedi Report Completo</a>
+🔗 <a href="${dashboardLink}">${isEnglish ? 'View Full Report' : 'Vedi Report Completo'}</a>
     `.trim();
 
     const success = await sendTelegramMessage(message);

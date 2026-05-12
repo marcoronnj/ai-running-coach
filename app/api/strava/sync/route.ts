@@ -10,7 +10,7 @@ export async function POST() {
 
   if (!session || !isAdminUser(session)) {
     return NextResponse.json(
-      { ok: false, message: 'Accesso admin richiesto' },
+      { ok: false, message: 'Admin access required' },
       { status: 403 }
     );
   }
@@ -45,7 +45,7 @@ export async function POST() {
 
 export async function GET() {
   return NextResponse.json(
-    { ok: false, message: 'Metodo GET non consentito. Usa POST.' },
+    { ok: false, message: 'GET method not allowed. Use POST.' },
     { status: 405 }
   );
 }

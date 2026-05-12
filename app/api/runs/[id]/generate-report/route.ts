@@ -16,7 +16,7 @@ export async function POST(
 
     if (!activity) {
       return NextResponse.json(
-        { ok: false, error: 'Corsa non trovata', message: `Nessuna attività trovata per id ${id}` },
+        { ok: false, error: 'Run not found', message: `No activity found for id ${id}` },
         { status: 404 }
       );
     }
@@ -30,7 +30,7 @@ export async function POST(
     return NextResponse.json(
       {
         ok: true,
-        message: 'Report generato con successo',
+        message: 'Report generated successfully',
         activityId: activity.id,
         stravaId: activity.strava_id,
         reportGenerated: true,
@@ -48,7 +48,7 @@ export async function POST(
     return NextResponse.json(
       {
         ok: false,
-        error: 'Errore durante la generazione del report',
+        error: 'Report generation failed',
         message: errorMessage,
       },
       { status: 500 }
@@ -58,7 +58,7 @@ export async function POST(
 
 export async function GET() {
   return NextResponse.json(
-    { error: 'Metodo GET non consentito. Usa POST.' },
+    { error: 'GET method not allowed. Use POST.' },
     { status: 405 }
   );
 }

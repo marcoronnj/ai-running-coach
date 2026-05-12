@@ -12,7 +12,7 @@ export async function POST() {
     return NextResponse.json(
       {
         ok: false,
-        message: 'Accesso admin richiesto',
+        message: 'Admin access required',
         newActivities: 0,
         latestActivityId: null,
         latestReportGenerated: false,
@@ -33,7 +33,7 @@ export async function POST() {
     return NextResponse.json(
       {
         ok: payload.ok,
-        message: payload.message ?? (payload.ok ? 'Sync completato' : 'Sync non riuscito'),
+        message: payload.message ?? (payload.ok ? 'Sync completed' : 'Sync failed'),
         warning: payload.warning ?? null,
         mode: payload.mode,
         newActivities: payload.newActivities ?? 0,
@@ -73,7 +73,7 @@ export async function GET() {
   return NextResponse.json(
     {
       ok: false,
-      message: 'Metodo GET non consentito. Usa POST.',
+      message: 'GET method not allowed. Use POST.',
       newActivities: 0,
       latestActivityId: null,
       latestReportGenerated: false,

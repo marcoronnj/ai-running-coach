@@ -261,7 +261,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         ok: true,
-        message: 'Database setup completato con successo',
+        message: 'Database setup completed successfully',
         tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'strava_connections', 'athlete_settings'],
         indicesCreated: 7,
       },
@@ -270,12 +270,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    console.error('[SETUP] Errore durante setup:', errorMessage);
+    console.error('[SETUP] Setup error:', errorMessage);
 
     return NextResponse.json(
       {
         ok: false,
-        error: 'Errore durante il setup del database',
+        error: 'Database setup failed',
         message: errorMessage,
         details: process.env.NODE_ENV === 'development' ? error : undefined,
       },
@@ -289,21 +289,21 @@ export async function GET(request: NextRequest) {
  */
 export async function POST() {
   return NextResponse.json(
-    { error: 'Metodo POST non consentito. Usa GET.' },
+    { error: 'POST method not allowed. Use GET.' },
     { status: 405 }
   );
 }
 
 export async function PUT() {
   return NextResponse.json(
-    { error: 'Metodo PUT non consentito. Usa GET.' },
+    { error: 'PUT method not allowed. Use GET.' },
     { status: 405 }
   );
 }
 
 export async function DELETE() {
   return NextResponse.json(
-    { error: 'Metodo DELETE non consentito. Usa GET.' },
+    { error: 'DELETE method not allowed. Use GET.' },
     { status: 405 }
   );
 }
