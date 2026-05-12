@@ -1,4 +1,5 @@
 import { AthleteSettings } from './athlete-settings';
+import { calculateAge } from './age';
 import { CoachingMetrics } from './coaching-metrics';
 import { CoachingRules } from './coaching-rules';
 import { formatDateIT } from './date-utils';
@@ -117,8 +118,9 @@ export function buildCoachPrompt(
       profileParts.push(`- ${settings.profile_summary}`);
     }
 
-    if (settings.age) {
-      profileParts.push(`- Età: ${settings.age} anni`);
+    const calculatedAge = calculateAge(settings.birth_date);
+    if (calculatedAge !== null) {
+      profileParts.push(`- Età: ${calculatedAge} anni`);
     }
 
     if (settings.weight_kg && settings.height_cm) {

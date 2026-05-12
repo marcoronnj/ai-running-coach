@@ -7,6 +7,7 @@ export interface AthleteSettings {
   weight_kg?: number;
   height_cm?: number;
   age?: number;
+  birth_date?: string | Date | null;
   main_goal?: string;
   secondary_goal?: string;
   available_days?: string[];

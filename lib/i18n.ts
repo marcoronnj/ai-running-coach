@@ -57,6 +57,10 @@ type TranslationKey =
   | 'settings.weight'
   | 'settings.height'
   | 'settings.age'
+  | 'settings.birthDate'
+  | 'settings.calculatedAge'
+  | 'settings.years'
+  | 'settings.birthDateNotSet'
   | 'settings.goals'
   | 'settings.mainGoal'
   | 'settings.secondaryGoal'
@@ -159,6 +163,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'settings.weight': 'Peso (kg)',
     'settings.height': 'Altezza (cm)',
     'settings.age': 'Età',
+    'settings.birthDate': 'Data di nascita',
+    'settings.calculatedAge': 'Età calcolata',
+    'settings.years': 'anni',
+    'settings.birthDateNotSet': 'Data di nascita non impostata',
     'settings.goals': 'Obiettivi',
     'settings.mainGoal': 'Obiettivo Principale',
     'settings.secondaryGoal': 'Obiettivo Secondario',
@@ -260,6 +268,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'settings.weight': 'Weight (kg)',
     'settings.height': 'Height (cm)',
     'settings.age': 'Age',
+    'settings.birthDate': 'Date of birth',
+    'settings.calculatedAge': 'Calculated age',
+    'settings.years': 'years old',
+    'settings.birthDateNotSet': 'Date of birth not set',
     'settings.goals': 'Goals',
     'settings.mainGoal': 'Main goal',
     'settings.secondaryGoal': 'Secondary goal',

@@ -16,6 +16,7 @@ import { query } from '@/lib/db';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { getAthleteSettings } from '@/lib/athlete-settings';
+import { calculateAge } from '@/lib/age';
 import { verifySession } from '@/lib/auth';
 import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { getLatestRunWithReport } from '@/lib/runs';
@@ -111,6 +112,7 @@ function AthleteProfileCard({ settings, language, stravaStatus }: { settings: an
   const athlete = stravaStatus?.athlete;
   const fullName = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(' ').trim();
   const displayName = fullName || (language === 'en' ? 'Athlete' : 'Atleta');
+  const calculatedAge = calculateAge(settings.birth_date);
 
   return (
     <Card>
@@ -131,11 +133,11 @@ function AthleteProfileCard({ settings, language, stravaStatus }: { settings: an
         )}
 
         <div className="grid grid-cols-2 gap-3">
-          {settings.age && (
+          {calculatedAge !== null && (
             <div className="metric-card p-3">
               <div className="eyebrow">{language === 'en' ? 'Age' : 'Età'}</div>
-              <div className="text-lg font-semibold text-app-text">{settings.age}</div>
-              <div className="text-xs text-app-muted">{language === 'en' ? 'years' : 'anni'}</div>
+              <div className="text-lg font-semibold text-app-text">{calculatedAge}</div>
+              <div className="text-xs text-app-muted">{language === 'en' ? 'years old' : 'anni'}</div>
             </div>
           )}
 

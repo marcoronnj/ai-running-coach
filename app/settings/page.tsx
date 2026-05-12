@@ -4,7 +4,9 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import { getAthleteSettings, updateAthleteSettings, type AthleteSettings } from '@/lib/athlete-settings';
 import { isAdminUser, verifySession } from '@/lib/auth';
 import { getPublicStravaConnectionStatus } from '@/lib/strava-connection';
+import { formatBirthDateInput } from '@/lib/age';
 import { normalizeLanguage, t } from '@/lib/i18n';
+import DateOfBirthField from './DateOfBirthField';
 import SettingsSubmit from './SettingsSubmit';
 import StravaConnectionBox from './StravaConnectionBox';
 
@@ -46,12 +48,10 @@ async function updateSettings(formData: FormData) {
     }
   }
 
-  const age = formData.get('age');
-  if (age && typeof age === 'string') {
-    const ageNum = parseInt(age);
-    if (!isNaN(ageNum) && ageNum > 0) {
-      data.age = ageNum;
-    }
+  const birthDate = formData.get('birth_date');
+  if (typeof birthDate === 'string') {
+    const normalizedBirthDate = formatBirthDateInput(birthDate);
+    data.birth_date = normalizedBirthDate || null;
   }
 
   const targetRuns = formData.get('target_runs_per_week');
@@ -243,20 +243,7 @@ export default async function SettingsPage({
                   placeholder="175"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-2">
-                  {t(language, 'settings.age')}
-                </label>
-                <input
-                  type="number"
-                  name="age"
-                  defaultValue={settings?.age || ''}
-                  min="16"
-                  max="100"
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="35"
-                />
-              </div>
+              <DateOfBirthField initialBirthDate={formatBirthDateInput(settings?.birth_date)} language={language} />
             </div>
           </div>
 

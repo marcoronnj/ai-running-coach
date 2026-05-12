@@ -154,6 +154,7 @@ const SQL_STATEMENTS = [
       weight_kg REAL,
       height_cm REAL,
       age INTEGER,
+      birth_date DATE,
       main_goal TEXT,
       secondary_goal TEXT,
       available_days TEXT[],
@@ -172,6 +173,11 @@ const SQL_STATEMENTS = [
   `
     ALTER TABLE athlete_settings
     ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'it';
+  `,
+
+  `
+    ALTER TABLE athlete_settings
+    ADD COLUMN IF NOT EXISTS birth_date DATE;
   `,
 ];
 
