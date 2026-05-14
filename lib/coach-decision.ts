@@ -2,6 +2,7 @@ import { CoachReport, DBActivity } from './coach';
 import { CoachingMetrics } from './coaching-metrics';
 import { getDaysSince } from './date-utils';
 import { normalizeLanguage, type Language } from './i18n';
+import { getRecoveryTimelineState } from './recovery-timeline';
 
 /**
  * Coach Decision - practical recommendation for the next 48 hours.
@@ -30,9 +31,15 @@ export function buildCoachDecision(
   const isEnglish = currentLanguage === 'en';
   const daysSinceLatestRun = latestActivity?.start_date ? getDaysSince(latestActivity.start_date) : metrics?.daysSinceLastRun ?? 999;
   const hasRunToday = daysSinceLatestRun === 0;
-  const latestDistanceKm = latestActivity?.distance_m
-    ? `${(latestActivity.distance_m / 1000).toFixed(1)} km`
-    : (isEnglish ? 'activity' : 'attività');
+  const recoveryTimeline = getRecoveryTimelineState({
+    runDate: latestActivity?.start_date,
+    distanceMeters: latestActivity?.distance_m,
+    fatigueScore: metrics?.fatigueScore,
+    readinessScore: metrics?.readinessScore,
+    overloadRisk: metrics?.overloadRisk,
+    focus: report?.suggested_focus || metrics?.suggestedFocus,
+    language: currentLanguage,
+  });
 
   if (!report && !metrics) {
     return {
@@ -58,20 +65,10 @@ export function buildCoachDecision(
       message: isEnglish
         ? 'Metrics are up to date, but the AI report for the latest run is still missing.'
         : 'Le metriche sono aggiornate, ma manca ancora il report AI collegato all’ultima corsa.',
-      actionToday: hasRunToday
-        ? (isEnglish
-          ? `Run completed: ${latestDistanceKm}. Now only light recovery, easy walking, or mobility.`
-          : `Corsa completata: ${latestDistanceKm}. Ora solo recupero leggero, camminata facile o mobilità.`)
-        : (isEnglish ? 'Rest or light activity' : 'Riposo o attività leggera'),
-      actionTomorrow: hasRunToday
-        ? (isEnglish ? 'Recovery or full rest if your legs feel heavy.' : 'Recupero o riposo completo se senti gambe pesanti.')
-        : (isEnglish ? 'Easy run only if you feel fresh' : 'Easy run solo se ti senti fresco'),
-      nextWorkout: hasRunToday
-        ? (isEnglish ? 'Day after tomorrow, if legs are fresh, 30-40 minutes very easy recovery.' : 'Dopodomani, se le gambe sono fresche, 30-40 minuti recovery molto facile.')
-        : (isEnglish ? 'Next easy run when recovery is good' : 'Prossima corsa facile quando il recupero è buono'),
-      nextWorkoutLabel: hasRunToday
-        ? (isEnglish ? 'Day after tomorrow / Next run' : 'Dopodomani / Prossima corsa')
-        : (isEnglish ? 'Next run' : 'Prossima corsa'),
+      actionToday: recoveryTimeline.todayAction,
+      actionTomorrow: recoveryTimeline.tomorrowAction,
+      nextWorkout: recoveryTimeline.nextSuggestedSession,
+      nextWorkoutLabel: recoveryTimeline.nextSuggestedSessionLabel,
       hasRunToday,
       daysSinceLatestRun,
       reason: isEnglish ? 'Report unavailable, metrics calculated from history' : 'Report non disponibile, metriche calcolate da storico',
@@ -107,20 +104,12 @@ export function buildCoachDecision(
   let actionToday = '';
   let actionTomorrow = '';
   let nextWorkout = '';
-  const nextWorkoutLabel = hasRunToday
-    ? (isEnglish ? 'Day after tomorrow / Next run' : 'Dopodomani / Prossima corsa')
-    : (isEnglish ? 'Next run' : 'Prossima corsa');
+  const nextWorkoutLabel = recoveryTimeline.nextSuggestedSessionLabel;
 
   if (hasRunToday) {
-    actionToday = isEnglish
-      ? `Run completed: ${latestDistanceKm}. Now only light recovery, easy walking, or mobility.`
-      : `Corsa completata: ${latestDistanceKm}. Ora solo recupero leggero, camminata facile o mobilità.`;
-    actionTomorrow = isEnglish
-      ? 'No running if your legs feel heavy. Recovery or full rest.'
-      : 'Niente corsa se senti gambe pesanti. Recupero o riposo completo.';
-    nextWorkout = metrics?.readinessScore && metrics.readinessScore >= 60
-      ? (isEnglish ? 'Day after tomorrow, if legs are fresh, 30-40 minutes very easy recovery, low HR.' : 'Dopodomani, se le gambe sono fresche, 30-40 minuti recovery molto facile, FC bassa.')
-      : (isEnglish ? 'Day after tomorrow, reassess your legs: if fatigue remains high, stay with rest or mobility.' : 'Dopodomani valuta le gambe: se la fatica resta alta, resta su riposo o mobilità.');
+    actionToday = recoveryTimeline.todayAction;
+    actionTomorrow = recoveryTimeline.tomorrowAction;
+    nextWorkout = recoveryTimeline.nextSuggestedSession;
   } else {
     const actions = {
       recovery: isEnglish
@@ -156,7 +145,7 @@ export function buildCoachDecision(
       };
 
   const config = statusConfig[status] || statusConfig.insufficient_data;
-  const message = report?.next_48h || (isEnglish
+  const message = recoveryTimeline.next48h || report?.next_48h || (isEnglish
     ? `The coach recommends ${config.label.toLowerCase()} based on your current metrics.`
     : `Il coach raccomanda ${config.label.toLowerCase()} basato sulle tue metriche attuali.`);
 

@@ -23,6 +23,7 @@ import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynami
 import { getLatestRunWithReport } from '@/lib/runs';
 import { formatDateLocalized } from '@/lib/date-utils';
 import { containsItalianText, getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
+import { getRecoveryTimelineState } from '@/lib/recovery-timeline';
 import { getPublicStravaConnectionStatus, type PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import { fallbackDynamicAthleteState, logServerError, safeResolve } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
@@ -330,10 +331,19 @@ function LatestReportCard({ report, run, language }: { report: any; run: any; la
   if (!run) return null;
 
   const status = getReportStatus(run);
-  const excerpt = getCoachReportExcerpt(report || run, 220, language);
+  const excerpt = getCoachReportExcerpt({ ...(report || {}), ...run }, 220, language);
   const runName = getReportText(run.name, language, language === 'en' ? 'Latest run' : run.name) || run.name;
   const reportTitle = getReportText(report?.title, language, 'Historical run analysis');
-  const next48h = getReportText(report?.next_48h, language, 'Use the live coach for current recovery guidance.');
+  const recoveryTimeline = getRecoveryTimelineState({
+    runDate: run.start_date,
+    distanceMeters: run.distance_m,
+    readinessScore: report?.readiness_score,
+    fatigueScore: report?.fatigue_score,
+    overloadRisk: report?.risk_level,
+    focus: report?.suggested_focus,
+    language,
+  });
+  const next48h = recoveryTimeline.next48h || getReportText(report?.next_48h, language, 'Use the live coach for current recovery guidance.');
 
   if (!report) {
     return (

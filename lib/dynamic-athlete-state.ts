@@ -1,14 +1,10 @@
 import { daysSinceInRome, isSameDayInRome } from './date-utils';
 import { normalizeLanguage, type Language } from './i18n';
+import { getRecoveryTimelineState, type RecoveryTimelineItem } from './recovery-timeline';
 
 type OverloadRisk = 'basso' | 'medio' | 'alto' | 'dati insufficienti';
 
-export interface DynamicAthleteTimelineItem {
-  label: string;
-  title: string;
-  description: string;
-  completed?: boolean;
-}
+export type DynamicAthleteTimelineItem = RecoveryTimelineItem;
 
 export interface DynamicAthleteState {
   hasRunToday: boolean;
@@ -502,15 +498,14 @@ export function buildDynamicAthleteState({
   const overloadRisk = calculateOverloadRisk({ metrics, fatigueScore, daysSinceLatestRun, hasRunToday });
   const readinessScore = calculateReadiness({ fatigueScore, metrics, daysSinceLatestRun, overloadRisk });
   const consistencyScore = calculateConsistency(metrics, recentRuns, daysSinceLatestRun);
-  const actions = buildActions({
-    daysSinceLatestRun,
-    hasRunToday,
-    latestRun,
-    focus: suggestedFocus,
-    readinessScore,
+  const recoveryTimeline = getRecoveryTimelineState({
+    runDate: latestRun?.start_date,
+    distanceMeters: asNumber(latestRun?.distance_m),
     fatigueScore,
+    readinessScore,
     overloadRisk,
-    rules,
+    focus: suggestedFocus,
+    today,
     language: currentLanguage,
   });
 
@@ -566,10 +561,10 @@ export function buildDynamicAthleteState({
     overloadRisk,
     recoveryStatus,
     suggestedFocus,
-    todayAction: actions.todayAction,
-    tomorrowAction: actions.tomorrowAction,
-    nextAction: actions.nextAction,
-    timeline: actions.timeline,
+    todayAction: recoveryTimeline.todayAction,
+    tomorrowAction: recoveryTimeline.tomorrowAction,
+    nextAction: recoveryTimeline.nextAction,
+    timeline: recoveryTimeline.timeline,
     explanation: explanationParts.join(' '),
   };
 }

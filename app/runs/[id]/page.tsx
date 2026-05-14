@@ -31,6 +31,7 @@ import { getCurrentLanguage } from '@/lib/athlete-settings';
 import { t, type Language } from '@/lib/i18n';
 import { Card, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
 import { containsItalianText } from '@/lib/report-display';
+import { getRecoveryTimelineState, type RecoveryTimelineItem } from '@/lib/recovery-timeline';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,28 @@ function localizedReportText(value: string | undefined, language: Language, fall
   if (!value) return fallback;
   if (language === 'en' && containsItalianText(value)) return fallback;
   return value;
+}
+
+function contextualReportText(value: string | undefined, language: Language, fallback: string, timeline: RecoveryTimelineItem[]): string {
+  const text = localizedReportText(value, language, fallback);
+  const today = timeline[0];
+  const tomorrow = timeline[1];
+  const dayAfterTomorrow = timeline[2];
+
+  if (!today?.completed) return text;
+
+  const todayReplacement = `${today.label}: ${today.title}. ${today.description}`;
+  const tomorrowReplacement = tomorrow ? `${tomorrow.label}: ${tomorrow.title}. ${tomorrow.description}` : '';
+  const dayAfterReplacement = dayAfterTomorrow ? `${dayAfterTomorrow.label}: ${dayAfterTomorrow.title}. ${dayAfterTomorrow.description}` : '';
+
+  return text
+    .replace(/\bOggi\s*:\s*niente corsa\.?/gi, todayReplacement)
+    .replace(/\bOggi\s*:\s*riposo\.?/gi, todayReplacement)
+    .replace(/\bToday\s*:\s*(no run|no running|rest)\.?/gi, todayReplacement)
+    .replace(/\bDomani\s*:\s*(easy run|corsa facile|recovery run)[^.]*\.?/gi, tomorrowReplacement)
+    .replace(/\bTomorrow\s*:\s*(easy run|recovery run)[^.]*\.?/gi, tomorrowReplacement)
+    .replace(/\bDopodomani\s*:\s*riposo[^.]*\.?/gi, dayAfterReplacement)
+    .replace(/\bDay after tomorrow\s*:\s*rest[^.]*\.?/gi, dayAfterReplacement);
 }
 
 function localizedRunName(value: string, language: Language): string {
@@ -259,11 +282,21 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     const splits = Array.isArray(rawJson?.splits_metric) ? rawJson.splits_metric : [];
     const hasSplits = splits.length > 0;
 
+    const recoveryTimeline = getRecoveryTimelineState({
+      runDate: run.start_date,
+      distanceMeters: run.distance_m,
+      readinessScore: run.readiness_score,
+      fatigueScore: run.fatigue_score,
+      overloadRisk: run.risk_level,
+      focus: run.suggested_focus,
+      language,
+    });
+
     const judgement = buildRunJudgement(run, {
       title: localizedReportText(run.title, language, language === 'en' ? 'Historical run analysis' : 'Analisi storica corsa'),
       summary: localizedReportText(run.summary, language, language === 'en' ? 'Historical report available for this run.' : 'Report storico disponibile per questa corsa.'),
       full_report: localizedReportText(run.full_report, language, language === 'en' ? 'This historical report was generated before the current language setting.' : 'Questo report storico è stato generato prima dell’impostazione lingua corrente.'),
-      next_48h: localizedReportText(run.next_48h, language, language === 'en' ? 'Use the live coach for current recovery guidance.' : 'Usa il coach live per le indicazioni di recupero correnti.'),
+      next_48h: recoveryTimeline.next48h,
       suggested_focus: localizedReportText(run.suggested_focus, language, language === 'en' ? 'Use live coach guidance' : 'Usa indicazioni coach live'),
       readiness_score: run.readiness_score,
       fatigue_score: run.fatigue_score,
@@ -274,7 +307,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     const weeklyPlan = parseWeeklyPlan(run.weekly_plan, language);
     const coachNotes = parseCoachNotes(run.coach_notes);
     const hasReport = !!run.title || !!run.full_report || !!run.summary;
-    const next48h = run.next_48h || null;
+    const next48h = recoveryTimeline.next48h || run.next_48h || null;
     const runName = localizedRunName(run.name, language);
 
     return (
@@ -332,6 +365,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                 <Next48hSection
                   next48h={localizedReportText(next48h, language, language === 'en' ? 'Use the live coach for current recovery guidance.' : 'Usa il coach live per le indicazioni di recupero correnti.')}
                   suggestedFocus={localizedReportText(run.suggested_focus, language, language === 'en' ? 'Use live coach guidance' : 'Usa indicazioni coach live')}
+                  timeline={recoveryTimeline.timeline}
                   language={language}
                 />
               )}
@@ -346,7 +380,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               {weeklyPlan.length > 0 && <WeeklyPlanSection weeklyPlan={weeklyPlan} language={language} />}
               {hasReport && run.full_report && (
                 <FullReportSection
-                  fullReport={localizedReportText(run.full_report, language, language === 'en' ? 'This historical report was generated before the current language setting.' : run.full_report)}
+                  fullReport={contextualReportText(run.full_report, language, language === 'en' ? 'This historical report was generated before the current language setting.' : run.full_report, recoveryTimeline.timeline)}
                   language={language}
                 />
               )}
@@ -674,7 +708,17 @@ function CoachAnalysisSection({ run, language }: { run: RunDetailData; language:
   );
 }
 
-function Next48hSection({ next48h, suggestedFocus, language }: { next48h: string; suggestedFocus?: string; language: Language }) {
+function Next48hSection({
+  next48h,
+  suggestedFocus,
+  timeline,
+  language,
+}: {
+  next48h: string;
+  suggestedFocus?: string;
+  timeline?: RecoveryTimelineItem[];
+  language: Language;
+}) {
   return (
     <Card className="border-[rgba(54,252,225,0.22)] bg-[linear-gradient(135deg,rgba(54,252,225,0.09),rgba(17,17,17,0.94))] shadow-[0_0_28px_rgba(54,252,225,0.07)]">
       <SectionHeader
@@ -688,6 +732,17 @@ function Next48hSection({ next48h, suggestedFocus, language }: { next48h: string
           {t(language, 'run.postRunGuidanceHelp')}
         </p>
         <p className="text-sm leading-6 text-neutral-200">{next48h}</p>
+        {timeline && timeline.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {timeline.map((item, index) => (
+              <div key={`${item.label}-${index}`} className="rounded-xl border border-[rgba(54,252,225,0.16)] bg-black/15 p-3">
+                <p className="eyebrow mb-1 text-accent-secondary">{item.label}</p>
+                <p className="text-sm font-semibold text-app-text">{item.title}</p>
+                <p className="mt-1 text-xs leading-5 text-neutral-300">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        )}
         {suggestedFocus && (
           <div className="border-t border-[rgba(54,252,225,0.18)] pt-3">
             <p className="eyebrow mb-1 text-accent-secondary">{t(language, 'run.generatedThen')}</p>

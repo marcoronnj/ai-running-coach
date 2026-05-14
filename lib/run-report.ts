@@ -6,6 +6,7 @@ import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
 import { normalizeLanguage, type Language } from '@/lib/i18n';
 import { containsItalianText } from '@/lib/report-display';
+import { getRecoveryTimelineState } from '@/lib/recovery-timeline';
 import {
   DBActivity,
   CoachReport,
@@ -162,6 +163,16 @@ async function sendTelegramNotification(activity: DBActivity, report: CoachRepor
       ? ({ basso: 'LOW', medio: 'MEDIUM', alto: 'HIGH' } as Record<string, string>)[riskLevel] ?? String(report.risk_level).toUpperCase()
       : String(report.risk_level).toUpperCase();
 
+    const recoveryTimeline = getRecoveryTimelineState({
+      runDate: activity.start_date,
+      distanceMeters: activity.distance_m,
+      readinessScore: report.readiness_score,
+      fatigueScore: report.fatigue_score,
+      overloadRisk: report.risk_level,
+      focus: report.suggested_focus,
+      language,
+    });
+
     const message = `
 🏃‍♂️ <b>${report.title}</b>
 
@@ -181,7 +192,7 @@ async function sendTelegramNotification(activity: DBActivity, report: CoachRepor
 ${report.summary}
 
 ⏰ <b>${isEnglish ? 'Next 48h' : 'Prossime 48h'}:</b>
-${report.next_48h}
+${recoveryTimeline.next48h}
 
 🔗 <a href="${dashboardLink}">${isEnglish ? 'View Full Report' : 'Vedi Report Completo'}</a>
     `.trim();

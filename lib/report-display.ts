@@ -1,7 +1,16 @@
+import { getRecoveryTimelineState } from './recovery-timeline';
+
 export interface ReportDisplayData {
   title?: string | null;
   summary?: string | null;
   full_report?: string | null;
+  next_48h?: string | null;
+  start_date?: string | null;
+  distance_m?: number | null;
+  readiness_score?: number | null;
+  fatigue_score?: number | null;
+  risk_level?: string | null;
+  suggested_focus?: string | null;
 }
 
 export function containsItalianText(value: string): boolean {
@@ -21,6 +30,26 @@ export function hasCoachReport(report?: ReportDisplayData | null): boolean {
 
 export function getCoachReportExcerpt(report?: ReportDisplayData | null, maxLength = 220, language: 'it' | 'en' = 'it'): string | null {
   if (!report) return null;
+
+  if (report.start_date) {
+    const temporalSource = [report.summary, report.full_report, report.next_48h].filter(Boolean).join(' ');
+    const hasTemporalGuidance = /\b(oggi|domani|dopodomani|today|tomorrow|day after tomorrow|next 48h|prossime 48)\b/i.test(temporalSource);
+    const timeline = getRecoveryTimelineState({
+      runDate: report.start_date,
+      distanceMeters: report.distance_m,
+      readinessScore: report.readiness_score,
+      fatigueScore: report.fatigue_score,
+      overloadRisk: report.risk_level,
+      focus: report.suggested_focus,
+      language,
+    });
+
+    if (hasTemporalGuidance || timeline.hasRunToday || (timeline.daysSinceRun !== null && timeline.daysSinceRun >= 3)) {
+      return timeline.excerpt.length <= maxLength
+        ? timeline.excerpt
+        : `${timeline.excerpt.slice(0, maxLength).replace(/\s+\S*$/, '').trim()}...`;
+    }
+  }
 
   const source = report.summary || report.full_report || [report.title, report.summary].filter(Boolean).join('. ');
   if (!source) return null;

@@ -212,7 +212,7 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? '
         reportInstructions: 'REPORT INSTRUCTIONS',
         generateReport: 'Generate a JSON report with this EXACT structure:',
         shortSummary: 'short string',
-        next48h: 'string - practical recommendation for today and tomorrow, be specific about what to do',
+        next48h: 'string - practical post-run recommendation for the next two calendar days after this run',
         fullReport: 'short markdown text',
         importantNotes: 'IMPORTANT NOTES',
         coachingRules: [
@@ -235,7 +235,7 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? '
           'Adapt the weekly plan to the athlete current level',
           'Respect the provided metrics and rules',
           'Use professional English',
-          'For next_48h: clearly specify what to do TODAY and TOMORROW, do not be vague',
+          'For next_48h: if the run happened today, say TODAY = run completed/light recovery only, TOMORROW = recovery/rest, DAY AFTER TOMORROW = optional easy/recovery run. Never say "Today: no running" after a completed run.',
         ],
       }
     : {
@@ -248,7 +248,7 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? '
         reportInstructions: 'ISTRUZIONI PER IL REPORT',
         generateReport: 'Genera un report JSON con questa struttura ESATTA:',
         shortSummary: 'string breve',
-        next48h: 'string - raccomandazione pratica per oggi e domani, specifica cosa fare',
+        next48h: 'string - raccomandazione pratica post-corsa per i prossimi due giorni di calendario dopo questa corsa',
         fullReport: 'testo markdown breve',
         importantNotes: 'NOTE IMPORTANTI',
         coachingRules: [
@@ -271,7 +271,7 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? '
           "Adatta il piano settimanale al livello attuale dell'atleta",
           'Rispetta le metriche e regole fornite',
           'Usa italiano professionale',
-          'Per next_48h: specifica chiaramente cosa fare OGGI e DOMANI, non essere vago',
+          'Per next_48h: se la corsa è avvenuta oggi, scrivi OGGI = corsa completata/solo recupero leggero, DOMANI = recupero/riposo, DOPODOMANI = easy/recovery opzionale. Non scrivere mai "Oggi: niente corsa" dopo una corsa completata.',
         ],
       };
 
