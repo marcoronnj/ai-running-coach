@@ -472,31 +472,6 @@ function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; la
         {state.explanation}
       </p>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="metric-card p-3.5">
-          <div className="eyebrow mb-1">{t(language, 'dashboard.today')}</div>
-          <p className="text-sm text-app-text">
-            {state.todayAction}
-          </p>
-        </div>
-
-        <div className="metric-card p-3.5">
-          <div className="eyebrow mb-1">{t(language, 'dashboard.tomorrow')}</div>
-          <p className="text-sm text-app-text">
-            {state.tomorrowAction}
-          </p>
-        </div>
-      </div>
-
-      <div className="metric-card mb-4 p-3.5">
-        <div className="eyebrow mb-1">
-          {t(language, 'dashboard.nextRun')}
-        </div>
-        <p className="text-sm text-app-text">
-          {state.nextAction}
-        </p>
-      </div>
-
       <div className="space-y-2.5">
         {state.timeline.map((item, index) => (
           <div key={`${item.label}-${index}`} className="flex gap-3 rounded-2xl border border-white/5 bg-white/[0.035] p-3">
