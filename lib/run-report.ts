@@ -16,7 +16,13 @@ import {
   formatPace,
 } from '@/lib/coach';
 
-export async function getActivitiesWithoutReport(): Promise<DBActivity[]> {
+export async function getActivitiesWithoutReport(limit = 10): Promise<DBActivity[]> {
+  const safeLimit = Math.max(0, Math.floor(limit));
+
+  if (safeLimit === 0) {
+    return [];
+  }
+
   const result = await query<DBActivity>(
     `SELECT a.*
      FROM activities a
@@ -24,7 +30,9 @@ export async function getActivitiesWithoutReport(): Promise<DBActivity[]> {
        AND NOT EXISTS (
          SELECT 1 FROM coach_reports cr WHERE cr.activity_id = a.id
        )
-     ORDER BY a.start_date DESC`
+     ORDER BY a.start_date DESC
+     LIMIT $1`,
+    [safeLimit]
   );
 
   return result.rows;

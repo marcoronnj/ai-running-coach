@@ -262,16 +262,20 @@ export async function refreshStravaToken(refreshToken: string): Promise<StravaTo
  * @returns Promise<StravaActivity[]>
  * @throws Error se il recupero fallisce
  */
-export async function getRecentActivities(accessToken: string): Promise<StravaActivity[]> {
+export async function getRecentActivities(
+  accessToken: string,
+  options: { perPage?: number } = {}
+): Promise<StravaActivity[]> {
   if (!accessToken) {
     throw new Error('Access token è obbligatorio');
   }
 
   try {
-    console.log('[STRAVA] Fetching recent activities...');
+    const perPage = Math.min(Math.max(options.perPage ?? 30, 1), 200);
+    console.log(`[STRAVA] Fetching recent activities per_page=${perPage}`);
 
     const response = await fetch(
-      'https://www.strava.com/api/v3/athlete/activities?per_page=30',
+      `https://www.strava.com/api/v3/athlete/activities?per_page=${perPage}`,
       {
         method: 'GET',
         headers: {

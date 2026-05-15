@@ -201,15 +201,26 @@ export async function disconnectStravaConnection(userId: string): Promise<void> 
   );
 }
 
-export async function getValidStravaAccessToken(userId: string): Promise<{ accessToken: string; connection: StravaConnection }> {
-  const connection = await getStravaConnection(userId);
+export async function getValidStravaAccessToken(userId: string): Promise<{
+  accessToken: string;
+  connection: StravaConnection;
+  tokenRefreshed: boolean;
+  athleteRefreshed: boolean;
+}> {
+  const startTime = Date.now();
+  let connection = await getStravaConnection(userId);
 
   if (!connection) {
     throw new Error('Connessione Strava non trovata');
   }
 
   if (!isTokenExpired(connection.expires_at)) {
-    return { accessToken: connection.access_token, connection };
+    const athleteRefreshed = await refreshMissingAthleteProfile(userId, connection.access_token, connection);
+    if (athleteRefreshed) {
+      connection = await getStravaConnection(userId) ?? connection;
+    }
+    console.log(`[STRAVA CONNECTION][PERF] token refresh skipped duration=${Date.now() - startTime}ms`);
+    return { accessToken: connection.access_token, connection, tokenRefreshed: false, athleteRefreshed };
   }
 
   console.log('[STRAVA CONNECTION] Access token scaduto, refresh in corso');
@@ -231,7 +242,21 @@ export async function getValidStravaAccessToken(userId: string): Promise<{ acces
     },
   });
 
-  const updatedConnection = await getStravaConnection(userId);
+  let updatedConnection = await getStravaConnection(userId);
+  const athleteRefreshed = await refreshMissingAthleteProfile(
+    userId,
+    refreshed.access_token,
+    updatedConnection ?? {
+      ...connection,
+      access_token: refreshed.access_token,
+      refresh_token: refreshed.refresh_token,
+      expires_at: refreshed.expires_at,
+    }
+  );
+  if (athleteRefreshed) {
+    updatedConnection = await getStravaConnection(userId);
+  }
+  console.log(`[STRAVA CONNECTION][PERF] token refresh completed duration=${Date.now() - startTime}ms`);
 
   return {
     accessToken: refreshed.access_token,
@@ -241,5 +266,41 @@ export async function getValidStravaAccessToken(userId: string): Promise<{ acces
       refresh_token: refreshed.refresh_token,
       expires_at: refreshed.expires_at,
     },
+    tokenRefreshed: true,
+    athleteRefreshed,
   };
+}
+
+async function refreshMissingAthleteProfile(
+  userId: string,
+  accessToken: string,
+  connection: StravaConnection
+): Promise<boolean> {
+  const hasAthleteProfile = Boolean(
+    connection.athlete_firstname ||
+    connection.athlete_lastname ||
+    connection.athlete_username ||
+    connection.athlete_profile ||
+    connection.athlete_profile_medium
+  );
+
+  if (hasAthleteProfile) {
+    return false;
+  }
+
+  const startTime = Date.now();
+  console.log('[STRAVA CONNECTION] Athlete profile missing in DB, fetching once');
+  try {
+    const athlete = await getAuthenticatedStravaAthlete(accessToken);
+    await updateStravaAthleteProfile(userId, athlete);
+    console.log(`[STRAVA CONNECTION][PERF] athlete fallback refresh duration=${Date.now() - startTime}ms`);
+    return true;
+  } catch (error) {
+    console.warn(
+      '[STRAVA CONNECTION] Athlete fallback refresh skipped:',
+      error instanceof Error ? error.message : String(error)
+    );
+    console.log(`[STRAVA CONNECTION][PERF] athlete fallback refresh duration=${Date.now() - startTime}ms failed=yes`);
+    return false;
+  }
 }
