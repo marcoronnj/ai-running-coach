@@ -34,6 +34,10 @@ type TranslationKey =
   | 'training.intenseWorkout'
   | 'training.muscularStress'
   | 'training.nonRunningActivity'
+  | 'training.activityCompleted'
+  | 'training.workoutCompleted'
+  | 'training.loadIncludedInRecovery'
+  | 'training.nonRunningActivityToday'
   | 'dashboard.latestRun'
   | 'dashboard.aiAnalysisPending'
   | 'dashboard.distance'
@@ -155,6 +159,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'training.intenseWorkout': 'Workout intenso',
     'training.muscularStress': 'Stress muscolare',
     'training.nonRunningActivity': 'Attività non-running',
+    'training.activityCompleted': 'Attività completata',
+    'training.workoutCompleted': 'Workout completato',
+    'training.loadIncludedInRecovery': 'Carico considerato nel recupero',
+    'training.nonRunningActivityToday': 'Oggi hai già svolto un’attività non-running',
     'dashboard.latestRun': 'Ultima corsa',
     'dashboard.aiAnalysisPending': 'Analisi AI in attesa di generazione.',
     'dashboard.distance': 'Distanza',
@@ -275,6 +283,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'training.intenseWorkout': 'Intense workout',
     'training.muscularStress': 'Muscular stress',
     'training.nonRunningActivity': 'Non-running activity',
+    'training.activityCompleted': 'Activity completed',
+    'training.workoutCompleted': 'Workout completed',
+    'training.loadIncludedInRecovery': 'Load included in recovery',
+    'training.nonRunningActivityToday': 'You already completed a non-running activity today',
     'dashboard.latestRun': 'Last run',
     'dashboard.aiAnalysisPending': 'AI analysis pending.',
     'dashboard.distance': 'Distance',

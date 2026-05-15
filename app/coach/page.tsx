@@ -463,7 +463,7 @@ function CoachDecisionCard({ state, language }: { state: DynamicAthleteState; la
       <SectionHeader
         eyebrow={t(language, 'dashboard.coachLive')}
         title={t(language, 'dashboard.currentState')}
-        icon={state.hasRunToday ? Check : Brain}
+        icon={state.hasAnyActivityToday ? Check : Brain}
         action={<Badge tone="cyan">{state.recoveryStatus}</Badge>}
         className="mb-3 items-start"
       />

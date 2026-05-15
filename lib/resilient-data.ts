@@ -45,6 +45,10 @@ export function fallbackDynamicAthleteState(language: Language = 'it'): DynamicA
 
   return {
     hasRunToday: false,
+    hasAnyActivityToday: false,
+    latestTodayActivity: null,
+    todayNonRunActivities: [],
+    todayLoadSummary: null,
     daysSinceLatestRun: null,
     readinessScore: null,
     readinessLabel: isEnglish ? 'insufficient data' : 'dati insufficienti',

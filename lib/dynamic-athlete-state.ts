@@ -1,7 +1,7 @@
 import { daysSinceInRome, isSameDayInRome } from './date-utils';
 import { normalizeLanguage, type Language } from './i18n';
 import { type RecoveryTimelineItem } from './recovery-timeline';
-import { getSportLoadProfile, isRunningActivity } from './sport-classification';
+import { estimateActivityLoad, getSportLoadProfile, isRunningActivity } from './sport-classification';
 
 type OverloadRisk = 'basso' | 'medio' | 'alto' | 'dati insufficienti';
 
@@ -9,6 +9,10 @@ export type DynamicAthleteTimelineItem = RecoveryTimelineItem;
 
 export interface DynamicAthleteState {
   hasRunToday: boolean;
+  hasAnyActivityToday: boolean;
+  latestTodayActivity: any | null;
+  todayNonRunActivities: any[];
+  todayLoadSummary: string | null;
   daysSinceLatestRun: number | null;
   readinessScore: number | null;
   readinessLabel: string;
@@ -242,104 +246,173 @@ function calculateOverloadRisk({
   return risk;
 }
 
+function getActivityName(activity: any): string {
+  const profile = getSportLoadProfile(activity);
+  return activity?.name || activity?.title || activity?.sport_type || activity?.type || profile.sportType;
+}
+
+function sortActivitiesByLoadDesc(activities: any[]): any[] {
+  return [...activities].sort((a, b) => estimateActivityLoad(b) - estimateActivityLoad(a));
+}
+
+function buildTodayLoadSummary(todayActivities: any[], language: Language): string | null {
+  if (todayActivities.length === 0) return null;
+
+  const sorted = sortActivitiesByLoadDesc(todayActivities);
+  const main = sorted[0];
+  const mainName = getActivityName(main);
+  const otherCount = sorted.length - 1;
+
+  if (otherCount <= 0) {
+    return language === 'en'
+      ? `Today's main activity: ${mainName}.`
+      : `Attività principale di oggi: ${mainName}.`;
+  }
+
+  return language === 'en'
+    ? `Activities completed today: ${mainName} + ${otherCount} more.`
+    : `Attività completate oggi: ${mainName} + altre ${otherCount}.`;
+}
+
+function buildCompletedTodayActions({
+  latestTodayActivity,
+  todayActivities,
+  fatigueScore,
+  language,
+}: {
+  latestTodayActivity: any;
+  todayActivities: any[];
+  fatigueScore: number | null;
+  language: Language;
+}) {
+  const main = latestTodayActivity;
+  const profile = getSportLoadProfile(main);
+  const isRun = isRunningActivity(main);
+  const name = getActivityName(main);
+  const otherCount = Math.max(0, todayActivities.length - 1);
+  const highLoad = profile.fatigueImpact >= 0.75 || profile.muscularStress >= 0.75 || (fatigueScore ?? 0) >= 60;
+  const isWorkout = profile.sportCategory === 'strength';
+  const title = language === 'en'
+    ? otherCount > 0
+      ? `Activities completed today: ${name} + ${otherCount} more`
+      : isRun
+        ? `Run completed: ${formatKm(main.distance_m) || name}`
+        : isWorkout
+          ? `Workout completed: ${name}`
+          : `Activity completed: ${name}`
+    : otherCount > 0
+      ? `Attività completate oggi: ${name} + altre ${otherCount}`
+      : isRun
+        ? `Corsa completata: ${formatKm(main.distance_m) || name}`
+        : isWorkout
+          ? `Workout completato: ${name}`
+          : `Attività completata: ${name}`;
+
+  if (language === 'en') {
+    const todayAction = isRun
+      ? `${title}. Now only light recovery, mobility or an easy walk.`
+      : `${title}. Load included in recovery; keep the rest of the day light.`;
+
+    return {
+      todayAction,
+      tomorrowAction: highLoad
+        ? 'Recovery or full rest. If fatigue drops, only very easy Z1/Z2.'
+        : 'Recovery or an easy run only if legs feel fresh.',
+      nextAction: 'Day after tomorrow: cautious easy run if legs and sleep are good.',
+      timeline: [
+        {
+          label: 'Today',
+          title,
+          description: isRun
+            ? 'Only light recovery, mobility or an easy walk now.'
+            : 'Load included in recovery. Avoid adding running quality today.',
+          completed: true,
+        },
+        {
+          label: 'Tomorrow',
+          title: highLoad ? 'Recovery or full rest' : 'Recovery bias',
+          description: highLoad
+            ? 'Rest, mobility, walking or very easy Z1/Z2 if fatigue drops.'
+            : 'Easy/recovery only if legs are fresh.',
+        },
+        {
+          label: 'Day after tomorrow',
+          title: 'Cautious easy run',
+          description: '30-40 minutes in low Z2 only if recovered.',
+        },
+      ],
+    };
+  }
+
+  const todayAction = isRun
+    ? `${title}. Ora solo recupero leggero, mobilità o camminata facile.`
+    : `${title}. Carico considerato nel recupero; mantieni leggero il resto della giornata.`;
+
+  return {
+    todayAction,
+    tomorrowAction: highLoad
+      ? 'Recupero o riposo completo. Se la fatica scende, solo Z1/Z2 molto facile.'
+      : 'Recupero o easy run solo se le gambe sono fresche.',
+    nextAction: 'Dopodomani: easy run prudente se gambe e sonno sono buoni.',
+    timeline: [
+      {
+        label: 'Oggi',
+        title,
+        description: isRun
+          ? 'Ora solo recupero leggero, mobilità o camminata facile.'
+          : 'Carico considerato nel recupero. Evita qualità nella corsa oggi.',
+        completed: true,
+      },
+      {
+        label: 'Domani',
+        title: highLoad ? 'Recupero o riposo completo' : 'Priorità recupero',
+        description: highLoad
+          ? 'Riposo, mobilità, camminata o Z1/Z2 molto facile se la fatica scende.'
+          : 'Solo facile/recovery se le gambe sono fresche.',
+      },
+      {
+        label: 'Dopodomani',
+        title: 'Easy run prudente',
+        description: '30-40 minuti in Z2 bassa solo se recuperato.',
+      },
+    ],
+  };
+}
+
 function buildActions({
   daysSinceLatestRun,
   hasRunToday,
+  hasAnyActivityToday,
+  latestTodayActivity,
+  todayActivities,
   latestRun,
   focus,
   readinessScore,
   fatigueScore,
   overloadRisk,
   rules,
-  todayNonRunActivity,
   language,
 }: {
   daysSinceLatestRun: number | null;
   hasRunToday: boolean;
+  hasAnyActivityToday: boolean;
+  latestTodayActivity?: any | null;
+  todayActivities: any[];
   latestRun: any;
   focus: string;
   readinessScore: number | null;
   fatigueScore: number | null;
   overloadRisk: OverloadRisk;
   rules: any;
-  todayNonRunActivity?: any | null;
   language: Language;
 }) {
-  if (todayNonRunActivity) {
-    const profile = getSportLoadProfile(todayNonRunActivity);
-    const name = todayNonRunActivity.name || todayNonRunActivity.title || profile.sportType;
-
-    if (profile.recoveryBonus > 0.08 && profile.fatigueImpact <= 0.25) {
-      return language === 'en'
-        ? {
-            todayAction: `Active recovery logged today: ${name}. Good unload signal; keep the rest light.`,
-            tomorrowAction: 'You can consider an easy run tomorrow if legs feel fresh.',
-            nextAction: 'Keep intensity easy until running readiness feels clearly good.',
-            timeline: [
-              { label: 'Today', title: 'Active recovery', description: `${name} supports unloading.`, completed: true },
-              { label: 'Tomorrow', title: 'Easy run possible', description: 'Only easy/Z2 if legs are fresh.' },
-              { label: 'Day after tomorrow', title: 'Reassess', description: 'Build from easy running, no forced quality.' },
-            ],
-          }
-        : {
-            todayAction: `Oggi hai fatto recupero attivo: ${name}. Bene per scaricare; mantieni leggero il resto.`,
-            tomorrowAction: 'Domani puoi valutare una easy run se le gambe sono fresche.',
-            nextAction: 'Resta su intensità facile finché la readiness corsa è chiaramente buona.',
-            timeline: [
-              { label: 'Oggi', title: 'Recupero attivo', description: `${name} aiuta lo scarico.`, completed: true },
-              { label: 'Domani', title: 'Easy run possibile', description: 'Solo facile/Z2 se le gambe sono fresche.' },
-              { label: 'Dopodomani', title: 'Rivaluta', description: 'Riparti da corsa facile, niente qualità forzata.' },
-            ],
-          };
-    }
-
-    if (profile.fatigueImpact >= 0.75 || profile.muscularStress >= 0.75) {
-      return language === 'en'
-        ? {
-            todayAction: `You already did a high-load workout today: ${name}. Avoid running quality and keep recovery.`,
-            tomorrowAction: 'Recovery or very easy running only. Skip intervals, threshold and hills.',
-            nextAction: 'Return to quality only after legs and sleep are clearly recovered.',
-            timeline: [
-              { label: 'Today', title: 'High load already done', description: `${name} adds muscular stress.`, completed: true },
-              { label: 'Tomorrow', title: 'Recovery bias', description: 'Rest, mobility, walking or very easy run.' },
-              { label: 'Day after tomorrow', title: 'Check legs', description: 'Quality only if fatigue is low.' },
-            ],
-          }
-        : {
-            todayAction: `Oggi hai già fatto un workout ad alto carico: ${name}. Evita qualità nella corsa e mantieni recupero.`,
-            tomorrowAction: 'Recupero o corsa molto facile. Salta ripetute, soglia e salite.',
-            nextAction: 'Torna alla qualità solo quando gambe e sonno sono chiaramente recuperati.',
-            timeline: [
-              { label: 'Oggi', title: 'Carico alto già fatto', description: `${name} aggiunge stress muscolare.`, completed: true },
-              { label: 'Domani', title: 'Priorità recupero', description: 'Riposo, mobilità, camminata o corsa molto facile.' },
-              { label: 'Dopodomani', title: 'Controlla le gambe', description: 'Qualità solo se la fatica è bassa.' },
-            ],
-          };
-    }
-
-    if (profile.sportCategory === 'racket') {
-      return language === 'en'
-        ? {
-            todayAction: `${name} adds lateral movement and medium muscular stress. Avoid extra intensity today.`,
-            tomorrowAction: 'Avoid intense running tomorrow; choose rest, mobility or easy Z2.',
-            nextAction: 'Reintroduce quality only if calves, adductors and feet feel normal.',
-            timeline: [
-              { label: 'Today', title: 'Racket sport load', description: 'Lateral stress counts for running readiness.', completed: true },
-              { label: 'Tomorrow', title: 'No quality', description: 'Easy or recovery only.' },
-              { label: 'Day after tomorrow', title: 'Reassess', description: 'Progress only if legs are quiet.' },
-            ],
-          }
-        : {
-            todayAction: `${name} aggiunge attività laterale con stress muscolare medio. Evita altra intensità oggi.`,
-            tomorrowAction: 'Domani evita lavori intensi: meglio riposo, mobilità o easy Z2.',
-            nextAction: 'Reintroduci qualità solo se polpacci, adduttori e piedi sono normali.',
-            timeline: [
-              { label: 'Oggi', title: 'Carico sport di racchetta', description: 'Lo stress laterale conta per la readiness corsa.', completed: true },
-              { label: 'Domani', title: 'Niente qualità', description: 'Solo facile o recupero.' },
-              { label: 'Dopodomani', title: 'Rivaluta', description: 'Progredisci solo se le gambe sono tranquille.' },
-            ],
-          };
-    }
+  if (hasAnyActivityToday && latestTodayActivity) {
+    return buildCompletedTodayActions({
+      latestTodayActivity,
+      todayActivities,
+      fatigueScore,
+      language,
+    });
   }
 
   const distance = formatKm(latestRun?.distance_m) || (language === 'en' ? 'run' : 'corsa');
@@ -574,14 +647,14 @@ export function buildDynamicAthleteState({
 }): DynamicAthleteState {
   const currentLanguage = normalizeLanguage(language);
   const daysSinceLatestRun = latestRun?.start_date ? daysSinceInRome(latestRun.start_date, today) : null;
-  const hasRunToday = latestRun?.start_date ? isSameDayInRome(latestRun.start_date, today) : false;
-  const todayNonRunActivity = (recentRuns || [])
-    .filter((activity) => activity?.start_date && !isRunningActivity(activity) && isSameDayInRome(activity.start_date, today))
-    .sort((a, b) => {
-      const aProfile = getSportLoadProfile(a);
-      const bProfile = getSportLoadProfile(b);
-      return (bProfile.fatigueImpact + bProfile.muscularStress + bProfile.recoveryBonus) - (aProfile.fatigueImpact + aProfile.muscularStress + aProfile.recoveryBonus);
-    })[0] || null;
+  const todayActivities = sortActivitiesByLoadDesc(
+    (recentRuns || []).filter((activity) => activity?.start_date && isSameDayInRome(activity.start_date, today))
+  );
+  const latestTodayActivity = todayActivities[0] || null;
+  const todayNonRunActivities = todayActivities.filter((activity) => !isRunningActivity(activity));
+  const hasRunToday = Boolean(todayActivities.some(isRunningActivity) || (latestRun?.start_date && isSameDayInRome(latestRun.start_date, today)));
+  const hasAnyActivityToday = todayActivities.length > 0 || hasRunToday;
+  const todayLoadSummary = buildTodayLoadSummary(todayActivities, currentLanguage);
   const suggestedFocus = extractTechnicalFocus(latestReport, metrics, currentLanguage);
   const fatigueScore = calculateFatigue({ latestReport, metrics, recentRuns, daysSinceLatestRun });
   const overloadRisk = calculateOverloadRisk({ metrics, fatigueScore, daysSinceLatestRun, hasRunToday });
@@ -590,18 +663,22 @@ export function buildDynamicAthleteState({
   const recoveryTimeline = buildActions({
     daysSinceLatestRun,
     hasRunToday,
+    hasAnyActivityToday,
+    latestTodayActivity,
+    todayActivities,
     latestRun,
     focus: suggestedFocus,
     readinessScore,
     fatigueScore,
     overloadRisk,
     rules,
-    todayNonRunActivity,
     language: currentLanguage,
   });
 
   const recoveryStatus = hasRunToday
     ? (currentLanguage === 'en' ? 'post-run' : 'post-corsa')
+    : hasAnyActivityToday
+      ? (currentLanguage === 'en' ? 'post-activity' : 'post-attività')
     : daysSinceLatestRun === null
       ? (currentLanguage === 'en' ? 'insufficient data' : 'dati insufficienti')
       : daysSinceLatestRun <= 1
@@ -613,29 +690,33 @@ export function buildDynamicAthleteState({
   const explanationParts = currentLanguage === 'en'
     ? [
         daysSinceLatestRun === null
-          ? 'No recent synced runs.'
+          ? (hasAnyActivityToday ? 'No recent synced runs, but today has a non-running activity.' : 'No recent synced runs.')
           : hasRunToday
             ? 'You already ran today, so timing shifts to recovery.'
+            : hasAnyActivityToday
+              ? 'You already completed a non-running activity today, so timing shifts to recovery.'
             : `Last run ${daysSinceLatestRun} days ago: coach timing evolves without waiting for a new sync.`,
         fatigueScore !== null
           ? `Dynamic fatigue is ${fatigueScore}/100 after decay from report value or metrics.`
           : 'Fatigue unavailable: using conservative action fallback.',
-        todayNonRunActivity
-          ? `Today's non-running activity (${todayNonRunActivity.name || todayNonRunActivity.type}) is included as training-load context.`
+        todayLoadSummary
+          ? `${todayLoadSummary} Load included in recovery.`
           : '',
         `Current practical guidance: ${suggestedFocus}`,
       ]
     : [
         daysSinceLatestRun === null
-          ? 'Non ci sono corse recenti sincronizzate.'
+          ? (hasAnyActivityToday ? 'Non ci sono corse recenti sincronizzate, ma oggi hai svolto un’attività non-running.' : 'Non ci sono corse recenti sincronizzate.')
           : hasRunToday
             ? 'Hai già corso oggi, quindi il timing passa al recupero.'
+            : hasAnyActivityToday
+              ? 'Oggi hai già svolto un’attività non-running, quindi il timing passa al recupero.'
             : `Ultima corsa ${daysSinceLatestRun} giorni fa: il timing del coach evolve senza aspettare una nuova sync.`,
         fatigueScore !== null
           ? `La fatica dinamica è ${fatigueScore}/100 dopo decadimento dal valore del report o dalle metriche.`
           : 'Fatica non disponibile: uso fallback prudente nelle azioni.',
-        todayNonRunActivity
-          ? `L'attività non-running di oggi (${todayNonRunActivity.name || todayNonRunActivity.type}) è inclusa come contesto di carico.`
+        todayLoadSummary
+          ? `${todayLoadSummary} Carico considerato nel recupero.`
           : '',
         `Indicazione pratica corrente: ${suggestedFocus}`,
       ];
@@ -648,6 +729,10 @@ export function buildDynamicAthleteState({
 
   return {
     hasRunToday,
+    hasAnyActivityToday,
+    latestTodayActivity,
+    todayNonRunActivities,
+    todayLoadSummary,
     daysSinceLatestRun,
     readinessScore,
     readinessLabel: readinessLabel(readinessScore, currentLanguage),
