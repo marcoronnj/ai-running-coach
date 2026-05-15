@@ -2,6 +2,7 @@ import { DBActivity } from './coach';
 import { AthleteSettings } from './athlete-settings';
 import { daysSinceInRome } from './date-utils';
 import { normalizeLanguage, type Language } from './i18n';
+import { estimateActivityLoad, getSportLoadProfile, isRunningActivity } from './sport-classification';
 
 /**
  * Metriche di coaching calcolate dalle attività recenti
@@ -20,6 +21,11 @@ export interface CoachingMetrics {
   chronicLoad42d: number;
   acuteChronicRatio: number | null;
   daysSinceLastRun: number;
+  totalTrainingLoad7d: number;
+  runningLoad7d: number;
+  crossTrainingLoad7d: number;
+  muscularStress7d: number;
+  recoveryActivities7d: number;
 
   // Metriche principali con label e spiegazioni
   readinessScore: number; // 0-100
@@ -58,60 +64,84 @@ export function calculateCoachingMetrics(
   const twentyEightDaysAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
   const fortyTwoDaysAgo = new Date(now.getTime() - 42 * 24 * 60 * 60 * 1000);
 
-  // Filtra attività per periodi
-  const last7Days = activities.filter(a => new Date(a.start_date) >= sevenDaysAgo);
-  const last14Days = activities.filter(a => new Date(a.start_date) >= fourteenDaysAgo);
-  const last28Days = activities.filter(a => new Date(a.start_date) >= twentyEightDaysAgo);
-  const last42Days = activities.filter(a => new Date(a.start_date) >= fortyTwoDaysAgo);
+  const sortedActivities = [...activities].sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+  const runningActivities = sortedActivities.filter(isRunningActivity);
+
+  // Filtra attività per periodi. Le metriche run-specific usano solo running;
+  // fatigue/readiness usano tutto il carico Strava importato.
+  const last7Days = sortedActivities.filter(a => new Date(a.start_date) >= sevenDaysAgo);
+  const last14Days = sortedActivities.filter(a => new Date(a.start_date) >= fourteenDaysAgo);
+  const last28Days = sortedActivities.filter(a => new Date(a.start_date) >= twentyEightDaysAgo);
+  const last42Days = sortedActivities.filter(a => new Date(a.start_date) >= fortyTwoDaysAgo);
+  const runningLast7Days = runningActivities.filter(a => new Date(a.start_date) >= sevenDaysAgo);
+  const runningLast14Days = runningActivities.filter(a => new Date(a.start_date) >= fourteenDaysAgo);
+  const runningLast28Days = runningActivities.filter(a => new Date(a.start_date) >= twentyEightDaysAgo);
+  const runningLast42Days = runningActivities.filter(a => new Date(a.start_date) >= fortyTwoDaysAgo);
 
   // Calcola chilometri totali per periodo
-  const last7DaysKm = last7Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
-  const last14DaysKm = last14Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
-  const last28DaysKm = last28Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
-  const last42DaysKm = last42Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
+  const last7DaysKm = runningLast7Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
+  const last14DaysKm = runningLast14Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
+  const last28DaysKm = runningLast28Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
+  const last42DaysKm = runningLast42Days.reduce((sum, a) => sum + (a.distance_m / 1000), 0);
 
   // Conta corse per periodo
-  const runsLast7Days = last7Days.length;
-  const runsLast14Days = last14Days.length;
-  const runsLast28Days = last28Days.length;
+  const runsLast7Days = runningLast7Days.length;
+  const runsLast14Days = runningLast14Days.length;
+  const runsLast28Days = runningLast28Days.length;
 
   // Media settimanale negli ultimi 28 giorni
   const averageWeeklyKm28Days = last28DaysKm / 4; // 28 giorni = 4 settimane
 
-  // Acute load = km ultimi 7 giorni
-  const acuteLoad7d = last7DaysKm;
+  const runningLoad7d = last7Days.reduce((sum, activity) => isRunningActivity(activity) ? sum + estimateActivityLoad(activity) : sum, 0);
+  const totalTrainingLoad7d = last7Days.reduce((sum, activity) => sum + estimateActivityLoad(activity), 0);
+  const totalTrainingLoad42d = last42Days.reduce((sum, activity) => sum + estimateActivityLoad(activity), 0);
+  const crossTrainingLoad7d = Math.max(0, totalTrainingLoad7d - runningLoad7d);
+  const muscularStress7d = last7Days.reduce((sum, activity) => {
+    const profile = getSportLoadProfile(activity);
+    return sum + estimateActivityLoad(activity) * profile.muscularStress;
+  }, 0);
+  const recoveryActivities7d = last7Days.filter((activity) => getSportLoadProfile(activity).recoveryBonus > 0.08).length;
+  const recentNonRunStress = last14Days
+    .filter((activity) => !isRunningActivity(activity))
+    .reduce((sum, activity) => {
+      const daysAgo = Math.max(0, daysSinceInRome(activity.start_date, now));
+      const recency = daysAgo <= 1 ? 1 : daysAgo <= 3 ? 0.55 : 0.25;
+      const profile = getSportLoadProfile(activity);
+      return sum + estimateActivityLoad(activity) * recency * (profile.muscularStress + profile.runningSpecificImpact) / 2;
+    }, 0);
 
-  // Chronic load = media settimanale km ultimi 42 giorni
-  const chronicLoad42d = last42DaysKm / 6; // 42 giorni = 6 settimane
+  // Acute/chronic load include multisport; running volume resta separato.
+  const acuteLoad7d = totalTrainingLoad7d;
+  const chronicLoad42d = totalTrainingLoad42d / 6;
 
   // Acute/Chronic ratio
   const acuteChronicRatio = chronicLoad42d > 0 ? acuteLoad7d / chronicLoad42d : null;
 
   // Giorni dall'ultima corsa
-  const daysSinceLastRun = activities.length > 0
-    ? daysSinceInRome(activities[0].start_date, now)
+  const daysSinceLastRun = runningActivities.length > 0
+    ? daysSinceInRome(runningActivities[0].start_date, now)
     : 999;
 
   // === CALCOLO READINESS SCORE ===
-  const readinessData = calculateReadinessScore(daysSinceLastRun, acuteLoad7d, chronicLoad42d, runsLast14Days, averageWeeklyKm28Days, language);
+  const readinessData = calculateReadinessScore(daysSinceLastRun, acuteLoad7d, chronicLoad42d, runsLast14Days, averageWeeklyKm28Days, language, recentNonRunStress, recoveryActivities7d);
   const readinessScore = readinessData.score;
   const readinessLabel = readinessData.label;
   const readinessExplanation = readinessData.explanation;
 
   // === CALCOLO FATIGUE SCORE ===
-  const fatigueData = calculateFatigueScore(acuteLoad7d, chronicLoad42d, runsLast7Days, daysSinceLastRun, language);
+  const fatigueData = calculateFatigueScore(acuteLoad7d, chronicLoad42d, runsLast7Days, daysSinceLastRun, language, crossTrainingLoad7d, muscularStress7d, recoveryActivities7d);
   const fatigueScore = fatigueData.score;
   const fatigueLabel = fatigueData.label;
   const fatigueExplanation = fatigueData.explanation;
 
   // === CALCOLO CONSISTENCY SCORE ===
-  const consistencyData = calculateConsistencyScore(activities, athleteSettings, language);
+  const consistencyData = calculateConsistencyScore(runningActivities, athleteSettings, language);
   const consistencyScore = consistencyData.score;
   const consistencyLabel = consistencyData.label;
   const consistencyExplanation = consistencyData.explanation;
 
   // === CALCOLO OVERLOAD RISK ===
-  const overloadData = calculateOverloadRisk(acuteChronicRatio, acuteLoad7d, chronicLoad42d, runsLast7Days, averageWeeklyKm28Days, language);
+  const overloadData = calculateOverloadRisk(acuteChronicRatio, acuteLoad7d, chronicLoad42d, runsLast7Days, averageWeeklyKm28Days, language, crossTrainingLoad7d, muscularStress7d, recoveryActivities7d);
   const overloadRisk = overloadData.risk;
   const overloadExplanation = overloadData.explanation;
 
@@ -135,6 +165,11 @@ export function calculateCoachingMetrics(
     chronicLoad42d: Math.round(chronicLoad42d * 10) / 10,
     acuteChronicRatio: acuteChronicRatio ? Math.round(acuteChronicRatio * 100) / 100 : null,
     daysSinceLastRun,
+    totalTrainingLoad7d: Math.round(totalTrainingLoad7d * 10) / 10,
+    runningLoad7d: Math.round(runningLoad7d * 10) / 10,
+    crossTrainingLoad7d: Math.round(crossTrainingLoad7d * 10) / 10,
+    muscularStress7d: Math.round(muscularStress7d * 10) / 10,
+    recoveryActivities7d,
 
     // Metriche con spiegazioni
     readinessScore: Math.round(readinessScore),
@@ -162,7 +197,9 @@ function calculateReadinessScore(
   chronicLoad42d: number,
   runsLast14Days: number,
   averageWeeklyKm: number,
-  language: Language
+  language: Language,
+  recentNonRunStress = 0,
+  recoveryActivities7d = 0
 ): { score: number; label: 'bassa' | 'moderata' | 'buona' | 'alta'; explanation: string } {
   const isEnglish = language === 'en';
 
@@ -212,6 +249,19 @@ function calculateReadinessScore(
     }
   }
 
+  if (recentNonRunStress >= 10) {
+    score -= 15;
+    explanationParts.push(isEnglish ? 'recent intense cross-training load' : 'carico cross-training intenso recente');
+  } else if (recentNonRunStress >= 5) {
+    score -= 8;
+    explanationParts.push(isEnglish ? 'recent non-running muscular stress' : 'stress muscolare non-running recente');
+  }
+
+  if (recoveryActivities7d > 0 && recentNonRunStress < 5) {
+    score += Math.min(6, recoveryActivities7d * 3);
+    explanationParts.push(isEnglish ? 'active recovery logged' : 'recupero attivo registrato');
+  }
+
   // 3. Continuità recente
   if (runsLast14Days < 2) {
     score -= 10; // Poca continuità
@@ -247,7 +297,10 @@ function calculateFatigueScore(
   chronicLoad42d: number,
   runsLast7Days: number,
   daysSinceLastRun: number,
-  language: Language
+  language: Language,
+  crossTrainingLoad7d = 0,
+  muscularStress7d = 0,
+  recoveryActivities7d = 0
 ): { score: number; label: 'bassa' | 'media' | 'alta'; explanation: string } {
   const isEnglish = language === 'en';
 
@@ -308,6 +361,27 @@ function calculateFatigueScore(
   if (daysSinceLastRun === 0) {
     score += 15; // Affaticamento post-corsa
     explanationParts.push(isEnglish ? 'run in the last 24h' : 'corsa nelle ultime 24h');
+  }
+
+  if (crossTrainingLoad7d >= 15) {
+    score += 18;
+    explanationParts.push(isEnglish ? 'high cross-training load' : 'carico cross-training alto');
+  } else if (crossTrainingLoad7d >= 7) {
+    score += 10;
+    explanationParts.push(isEnglish ? 'cross-training contributes to fatigue' : 'il cross-training contribuisce alla fatica');
+  }
+
+  if (muscularStress7d >= 14) {
+    score += 12;
+    explanationParts.push(isEnglish ? 'elevated muscular stress' : 'stress muscolare elevato');
+  } else if (muscularStress7d >= 7) {
+    score += 6;
+    explanationParts.push(isEnglish ? 'moderate muscular stress' : 'stress muscolare moderato');
+  }
+
+  if (recoveryActivities7d > 0 && crossTrainingLoad7d < 7) {
+    score -= Math.min(8, recoveryActivities7d * 4);
+    explanationParts.push(isEnglish ? 'active recovery activity' : 'attività di recupero attivo');
   }
 
   // Clamp tra 5-90
@@ -433,7 +507,10 @@ function calculateOverloadRisk(
   chronicLoad42d: number,
   runsLast7Days: number,
   averageWeeklyKm: number,
-  language: Language
+  language: Language,
+  crossTrainingLoad7d = 0,
+  muscularStress7d = 0,
+  recoveryActivities7d = 0
 ): { risk: 'basso' | 'medio' | 'alto'; explanation: string } {
   const isEnglish = language === 'en';
 
@@ -478,6 +555,15 @@ function calculateOverloadRisk(
   if (runsLast7Days >= 6) {
     if (risk === 'basso') risk = 'medio';
     explanationParts.push(isEnglish ? `${runsLast7Days} runs this week` : `${runsLast7Days} corse questa settimana`);
+  }
+
+  if (crossTrainingLoad7d >= 14 || muscularStress7d >= 14) {
+    if (risk === 'basso') risk = 'medio';
+    explanationParts.push(isEnglish ? 'multisport load adds overload risk' : 'il carico multisport aumenta il rischio overload');
+  }
+
+  if (risk === 'medio' && recoveryActivities7d > 0 && crossTrainingLoad7d < 6 && muscularStress7d < 6) {
+    explanationParts.push(isEnglish ? 'active recovery offsets part of the load' : 'recupero attivo compensa parte del carico');
   }
 
   // 4. Prudenza per dati limitati

@@ -35,7 +35,7 @@ function buildStatusMessage(data: ManualSyncResponse | undefined, language: Lang
   }
 
   if (newActivities === 0 && reportsGenerated === 0) {
-    return language === 'en' ? 'No new runs' : 'Nessuna nuova corsa';
+    return language === 'en' ? 'No new activities' : 'Nessuna nuova attività';
   }
 
   if (reportsGenerated > 0) {
@@ -45,8 +45,8 @@ function buildStatusMessage(data: ManualSyncResponse | undefined, language: Lang
   }
 
   return newActivities === 1
-    ? (language === 'en' ? 'New run synced' : '1 nuova corsa sincronizzata')
-    : (language === 'en' ? `${newActivities} new runs synced` : `${newActivities} nuove corse sincronizzate`);
+    ? (language === 'en' ? 'New activity synced, no run report' : '1 nuova attività sincronizzata, nessun report corsa')
+    : (language === 'en' ? `${newActivities} new activities synced, no run reports` : `${newActivities} nuove attività sincronizzate, nessun report corsa`);
 }
 
 function safeErrorMessage(value: string | undefined, language: Language): string {

@@ -12,6 +12,7 @@ export interface LatestRunWithReport {
   average_speed: number;
   average_heartrate?: number;
   type: string;
+  sport_type?: string;
   created_at?: string;
   report_created_at?: string;
   title?: string;
@@ -39,6 +40,7 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
              a.average_speed,
              a.average_heartrate,
              a.type,
+             a.sport_type,
              a.created_at,
              cr.created_at AS report_created_at,
              cr.title,
@@ -60,7 +62,7 @@ export async function getLatestRunWithReport(): Promise<LatestRunWithReport | nu
         ORDER BY created_at DESC
         LIMIT 1
       ) cr ON true
-      WHERE a.type IN ('Run', 'TrailRun')
+      WHERE COALESCE(a.sport_type, a.type) IN ('Run', 'TrailRun', 'VirtualRun')
       ORDER BY a.start_date DESC
       LIMIT 1
     `

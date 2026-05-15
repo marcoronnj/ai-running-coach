@@ -533,8 +533,7 @@ export default async function CoachPage() {
     const activities = await safeResolve('coach.activities', async () => {
       const result = await query(
       `SELECT * FROM activities
-       WHERE type IN ('Run', 'TrailRun')
-       AND start_date >= $1
+       WHERE start_date >= $1
        ORDER BY start_date DESC`,
       [ninetyDaysAgo.toISOString()]
       );
@@ -561,7 +560,7 @@ export default async function CoachPage() {
           COUNT(*) as runs,
           SUM(distance_m) as total_distance
         FROM activities
-        WHERE type IN ('Run', 'TrailRun')
+        WHERE COALESCE(sport_type, type) IN ('Run', 'TrailRun', 'VirtualRun')
           AND start_date >= NOW() - INTERVAL '4 weeks'
         GROUP BY DATE_TRUNC('week', start_date)
         ORDER BY week_start DESC

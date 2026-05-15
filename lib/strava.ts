@@ -46,6 +46,7 @@ export interface StravaActivity {
   id: number;
   name: string;
   type: string;
+  sport_type?: string;
   start_date: string;
   start_date_local: string;
   distance: number; // metri
@@ -367,7 +368,8 @@ export async function getAuthenticatedStravaAthlete(accessToken: string): Promis
  * @returns boolean
  */
 export function isRunningActivity(activity: StravaActivity): boolean {
-  return activity.type === 'Run' || activity.type === 'TrailRun';
+  const sportType = activity.sport_type || activity.type;
+  return sportType === 'Run' || sportType === 'TrailRun' || sportType === 'VirtualRun';
 }
 
 /**
@@ -390,6 +392,7 @@ export function formatActivityForDB(activity: StravaActivity) {
     strava_id: activity.id.toString(),
     name: activity.name,
     type: activity.type,
+    sport_type: activity.sport_type || activity.type,
     start_date: activity.start_date,
     distance_m: activity.distance,
     moving_time_s: activity.moving_time,

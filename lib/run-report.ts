@@ -7,6 +7,7 @@ import { getCoachingRules } from '@/lib/coaching-rules';
 import { normalizeLanguage, type Language } from '@/lib/i18n';
 import { containsItalianText } from '@/lib/report-display';
 import { getRecoveryTimelineState } from '@/lib/recovery-timeline';
+import { isRunningActivity } from '@/lib/sport-classification';
 import {
   DBActivity,
   CoachReport,
@@ -19,7 +20,7 @@ export async function getActivitiesWithoutReport(): Promise<DBActivity[]> {
   const result = await query<DBActivity>(
     `SELECT a.*
      FROM activities a
-     WHERE a.type IN ('Run', 'TrailRun')
+     WHERE COALESCE(a.sport_type, a.type) IN ('Run', 'TrailRun', 'VirtualRun')
        AND NOT EXISTS (
          SELECT 1 FROM coach_reports cr WHERE cr.activity_id = a.id
        )
@@ -50,12 +51,17 @@ export async function processReportForActivity(
 ): Promise<{ report: CoachReport; telegramSent: boolean; notificationsSent: boolean; telegramEnabled: boolean }> {
   const telegramEnabled = isTelegramNotificationsEnabled();
   const sendTelegram = telegramEnabled && options.sendTelegram === true;
+
+  if (!isRunningActivity(activity)) {
+    throw new Error('Run report generation is only available for running activities');
+  }
+
   console.log(
     `[RUN-REPORT] Generazione report activity id=${activity.id} mode=${options.syncMode ?? 'n/a'} reason=${options.reason ?? 'n/a'} telegramEnabled=${telegramEnabled ? 'yes' : 'no'} telegram=${sendTelegram ? 'yes' : 'no'}`
   );
 
   const history90d = await getActivityHistory90d(activity.start_date);
-  const history = history90d.slice(0, 15);
+  const history = history90d.filter(isRunningActivity).slice(0, 15);
   const athleteSettings = await getAthleteSettings();
   const language = normalizeLanguage(athleteSettings?.language);
   const metrics = calculateCoachingMetrics(history90d, athleteSettings);
@@ -128,8 +134,7 @@ async function getActivityHistory90d(beforeDate: string): Promise<DBActivity[]> 
 
   const result = await query<DBActivity>(
     `SELECT * FROM activities
-     WHERE type IN ('Run', 'TrailRun')
-       AND start_date >= $1
+     WHERE start_date >= $1
        AND start_date < $2
      ORDER BY start_date DESC`,
     [ninetyDaysAgo.toISOString(), beforeDate]

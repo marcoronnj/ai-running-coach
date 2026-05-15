@@ -12,6 +12,7 @@ const SQL_STATEMENTS = [
       strava_id TEXT UNIQUE NOT NULL,
       name TEXT,
       type TEXT,
+      sport_type TEXT,
       start_date TIMESTAMPTZ,
       distance_m REAL,
       moving_time_s INTEGER,
@@ -24,6 +25,11 @@ const SQL_STATEMENTS = [
       raw_json JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+  `,
+
+  `
+    ALTER TABLE activities
+    ADD COLUMN IF NOT EXISTS sport_type TEXT;
   `,
 
   // Indice su strava_id per query veloce

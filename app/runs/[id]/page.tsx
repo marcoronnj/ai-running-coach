@@ -32,6 +32,7 @@ import { t, type Language } from '@/lib/i18n';
 import { Card, MetricTile, PageShell, SectionHeader, scoreTone } from '@/app/components/ui';
 import { containsItalianText } from '@/lib/report-display';
 import { getRecoveryTimelineState, type RecoveryTimelineItem } from '@/lib/recovery-timeline';
+import { getSportLoadProfile, isRunningActivity } from '@/lib/sport-classification';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ interface RunDetailData {
   average_heartrate?: number;
   max_heartrate?: number;
   type: string;
+  sport_type?: string;
   total_elevation_gain?: number;
   raw_json?: any;
   // Report coach
@@ -222,6 +224,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
                max_heartrate,
                total_elevation_gain,
                type,
+               sport_type,
                raw_json
         FROM activities
         WHERE id = $1 OR strava_id = $1
@@ -263,6 +266,10 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
     const rawJson = run.raw_json && typeof run.raw_json === 'string'
       ? JSON.parse(run.raw_json)
       : run.raw_json || {};
+
+    if (!isRunningActivity(run)) {
+      return <NonRunActivityState activity={run} language={language} />;
+    }
 
     console.log('[RUN_DETAIL][TIMEZONE]', {
       activityId: run.id,
@@ -455,6 +462,63 @@ function NoReportMessage({ language }: { language: Language }) {
         {language === 'en' ? 'AI analysis is not available yet. It will be generated on the next sync.' : 'Analisi AI non ancora disponibile. Verrà generata al prossimo sync.'}
       </p>
     </Card>
+  );
+}
+
+function NonRunActivityState({ activity, language }: { activity: RunDetailData; language: Language }) {
+  const profile = getSportLoadProfile(activity);
+  const isEnglish = language === 'en';
+
+  return (
+    <PageShell className="flex items-center justify-center">
+      <Card className="max-w-2xl">
+        <div className="mb-5 flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[rgba(54,252,225,0.2)] bg-[rgba(54,252,225,0.1)] text-accent-secondary">
+            <Activity size={24} strokeWidth={1.8} />
+          </div>
+          <div>
+            <p className="eyebrow mb-1">{isEnglish ? 'Non-running activity' : 'Attività non-running'}</p>
+            <h1 className="text-xl font-semibold text-app-text">{activity.name}</h1>
+            <p className="mt-1 text-sm text-app-muted">
+              {formatDateLocalized(activity.start_date, language)} • {formatTimeIT(activity.start_date)} • {activity.sport_type || activity.type}
+            </p>
+          </div>
+        </div>
+
+        <p className="mb-5 text-sm leading-relaxed text-neutral-200">
+          {isEnglish
+            ? 'This activity contributes to coach load, fatigue, readiness and recovery, but it does not generate a detailed run report.'
+            : 'Questa attività contribuisce al carico del coach, fatigue, readiness e recupero, ma non genera un report corsa dettagliato.'}
+        </p>
+
+        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+          <MetricTile label={isEnglish ? 'Load category' : 'Categoria carico'} value={profile.sportCategory} icon={Activity} />
+          <MetricTile label="Fatigue" value={profile.fatigueImpact.toFixed(2)} icon={Flame} tone="warning" />
+          <MetricTile label={isEnglish ? 'Muscular stress' : 'Stress muscolare'} value={profile.muscularStress.toFixed(2)} icon={Zap} tone="danger" />
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link
+            href="/"
+            className="pressable inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-accent-primary to-accent-secondary px-5 py-2.5 text-sm font-bold text-black"
+          >
+            <ArrowLeft size={16} strokeWidth={2} />
+            Dashboard
+          </Link>
+          {activity.strava_id && (
+            <a
+              href={`https://www.strava.com/activities/${activity.strava_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pressable inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-5 py-2.5 text-sm font-semibold text-app-text"
+            >
+              <ExternalLink size={16} strokeWidth={1.8} />
+              Strava
+            </a>
+          )}
+        </div>
+      </Card>
+    </PageShell>
   );
 }
 

@@ -4,6 +4,7 @@ import { CoachingMetrics } from './coaching-metrics';
 import { CoachingRules } from './coaching-rules';
 import { formatDateIT } from './date-utils';
 import { normalizeLanguage, outputLanguageName, type Language } from './i18n';
+import { getSportLoadProfile } from './sport-classification';
 import {
   getDailyOpenAIModel,
   getOpenAIClient,
@@ -23,6 +24,7 @@ export interface DBActivity {
   strava_id: string;
   name: string;
   type: string;
+  sport_type?: string;
   start_date: string;
   distance_m: number;
   moving_time_s: number;
@@ -100,6 +102,7 @@ export function buildCoachPrompt(
     return `${prefix}
 - ${isEnglish ? 'Date' : 'Data'}: ${date}
 - ${isEnglish ? 'Name' : 'Nome'}: ${activity.name}
+- ${isEnglish ? 'Sport' : 'Sport'}: ${activity.sport_type || activity.type}
 - ${isEnglish ? 'Distance' : 'Distanza'}: ${distance}
 - ${isEnglish ? 'Time' : 'Tempo'}: ${time}
 - ${isEnglish ? 'Average pace' : 'Pace medio'}: ${pace}/km
@@ -110,6 +113,7 @@ export function buildCoachPrompt(
 
   const newRunFormatted = formatActivity(newRun, true);
   const historyFormatted = history.slice(0, 10).map(activity => formatActivity(activity)).join('\n\n');
+  const loadProfile = getSportLoadProfile(newRun);
 
   // Costruisci il profilo atleta dinamico
   const buildAthleteProfile = (settings?: AthleteSettings): string => {
@@ -190,6 +194,11 @@ export function buildCoachPrompt(
 - Fatigue: ${metrics.fatigueLabel} (${metrics.fatigueScore}/100) - ${metrics.fatigueExplanation}
 - Consistency: ${metrics.consistencyLabel} (${metrics.consistencyScore}/100) - ${metrics.consistencyExplanation}
 - Overload Risk: ${metrics.overloadRisk} - ${metrics.overloadExplanation}
+- Total Training Load 7d: ${metrics.totalTrainingLoad7d}
+- Running Load 7d: ${metrics.runningLoad7d}
+- Cross-Training Load 7d: ${metrics.crossTrainingLoad7d}
+- Muscular Stress 7d: ${metrics.muscularStress7d}
+- Recovery Activities 7d: ${metrics.recoveryActivities7d}
 - ${isEnglish ? 'Suggested Focus' : 'Focus Consigliato'}: ${metrics.suggestedFocus}
 ${metrics.warnings && metrics.warnings.length > 0 ? `- ${isEnglish ? 'Warnings' : 'Avvertenze'}: ${metrics.warnings.join(', ')}` : ''}` : '';
 
@@ -217,6 +226,10 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? '
         importantNotes: 'IMPORTANT NOTES',
         coachingRules: [
           'You are a cautious, practical running coach',
+          'Veiro is running-first and multisport-aware: analyze only the new run as a run, but use non-running activities as load and recovery context',
+          'Never confuse workouts, racket sports, cycling, walking, yoga, or other sports with running',
+          'Mention non-running activities only as context for fatigue, readiness, recovery, overload, and next-run advice',
+          'Use the activity name/title to infer effort type and muscular stress',
           'Use the athlete profile data to personalize advice',
           'ALWAYS respect the coaching engine rules (do not suggest blocked workouts)',
           'Do not suggest more sessions than the maximum allowed',
@@ -253,6 +266,10 @@ ${rules.blockedWorkouts && rules.blockedWorkouts.length > 0 ? `- ${isEnglish ? '
         importantNotes: 'NOTE IMPORTANTI',
         coachingRules: [
           'Sei un running coach prudente e concreto',
+          'Veiro è running-first e multisport-aware: analizza solo la nuova corsa come corsa, ma usa le attività non-running come contesto di carico e recupero',
+          'Non confondere workout, sport di racchetta, bici, camminata, yoga o altri sport con la corsa',
+          'Cita le attività non-running solo come contesto per fatigue, readiness, recupero, overload e consigli per la prossima corsa',
+          'Usa il nome/titolo attività per capire tipo di sforzo e stress muscolare',
           'Usa i dati del profilo atleta per personalizzare consigli',
           'RISPETTA SEMPRE le regole del coaching engine (non proporre allenamenti bloccati)',
           'Non proporre più sedute del massimo consentito',
@@ -295,6 +312,12 @@ ${promptLabels.coachingRules.map((rule) => `- ${rule}`).join('\n')}
 
 ## ${promptLabels.newRun}
 ${newRunFormatted}
+
+## ${isEnglish ? 'RUNNING-FIRST MULTISPORT CONTEXT' : 'CONTESTO RUNNING-FIRST MULTISPORT'}
+- ${isEnglish ? 'This activity generates a full run report' : 'Questa attività genera report corsa completo'}: ${loadProfile.shouldGenerateRunReport ? 'yes' : 'no'}
+- ${isEnglish ? 'Load profile' : 'Profilo carico'}: ${loadProfile.shortDescription}
+- fatigueImpact=${loadProfile.fatigueImpact.toFixed(2)}, muscularStress=${loadProfile.muscularStress.toFixed(2)}, aerobicImpact=${loadProfile.aerobicImpact.toFixed(2)}, recoveryBonus=${loadProfile.recoveryBonus.toFixed(2)}, runningSpecificImpact=${loadProfile.runningSpecificImpact.toFixed(2)}
+- ${isEnglish ? 'Use non-running activities in metrics as fatigue/recovery context only. Do not call them runs.' : 'Usa le attività non-running nelle metriche solo come contesto fatigue/recupero. Non chiamarle corse.'}
 
 ## ${promptLabels.history}
 ${historyFormatted || promptLabels.noHistory}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivityByIdOrStravaId, processReportForActivity } from '@/lib/run-report';
 import { isTelegramNotificationsEnabled } from '@/lib/telegram';
+import { isRunningActivity } from '@/lib/sport-classification';
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +19,20 @@ export async function POST(
       return NextResponse.json(
         { ok: false, error: 'Run not found', message: `No activity found for id ${id}` },
         { status: 404 }
+      );
+    }
+
+    if (!isRunningActivity(activity)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Not a run',
+          message: 'This activity contributes to coach load, but does not generate a detailed run report.',
+          activityId: activity.id,
+          stravaId: activity.strava_id,
+          reportGenerated: false,
+        },
+        { status: 422 }
       );
     }
 

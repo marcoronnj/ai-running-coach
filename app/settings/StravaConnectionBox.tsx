@@ -53,10 +53,10 @@ export default function StravaConnectionBox({
       setMessage({
         type: 'success',
         text: newActivities === 1
-          ? (currentLanguage === 'en' ? '1 new run synced' : '1 nuova corsa sincronizzata')
+          ? (currentLanguage === 'en' ? '1 new activity synced' : '1 nuova attività sincronizzata')
           : newActivities > 1
-            ? (currentLanguage === 'en' ? `${newActivities} new runs synced` : `${newActivities} nuove corse sincronizzate`)
-            : (currentLanguage === 'en' ? 'No new runs' : 'Nessuna nuova corsa'),
+            ? (currentLanguage === 'en' ? `${newActivities} new activities synced` : `${newActivities} nuove attività sincronizzate`)
+            : (currentLanguage === 'en' ? 'No new activities' : 'Nessuna nuova attività'),
       });
       router.refresh();
       window.setTimeout(() => router.refresh(), 500);

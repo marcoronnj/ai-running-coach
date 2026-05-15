@@ -27,6 +27,13 @@ type TranslationKey =
   | 'dashboard.overloadRisk'
   | 'dashboard.updatedWithDynamicFatigue'
   | 'dashboard.latestActivity'
+  | 'dashboard.lastActivity'
+  | 'training.loadActivity'
+  | 'training.activeRecovery'
+  | 'training.crossTraining'
+  | 'training.intenseWorkout'
+  | 'training.muscularStress'
+  | 'training.nonRunningActivity'
   | 'dashboard.latestRun'
   | 'dashboard.aiAnalysisPending'
   | 'dashboard.distance'
@@ -141,6 +148,13 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'dashboard.overloadRisk': 'Rischio Overload',
     'dashboard.updatedWithDynamicFatigue': "Aggiornato con fatica dinamica e giorni dall'ultima corsa.",
     'dashboard.latestActivity': 'latest activity',
+    'dashboard.lastActivity': 'Ultima attività',
+    'training.loadActivity': 'Attività di carico',
+    'training.activeRecovery': 'Recupero attivo',
+    'training.crossTraining': 'Cross-training',
+    'training.intenseWorkout': 'Workout intenso',
+    'training.muscularStress': 'Stress muscolare',
+    'training.nonRunningActivity': 'Attività non-running',
     'dashboard.latestRun': 'Ultima corsa',
     'dashboard.aiAnalysisPending': 'Analisi AI in attesa di generazione.',
     'dashboard.distance': 'Distanza',
@@ -254,6 +268,13 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'dashboard.overloadRisk': 'Overload risk',
     'dashboard.updatedWithDynamicFatigue': 'Updated with dynamic fatigue and days since last run.',
     'dashboard.latestActivity': 'latest activity',
+    'dashboard.lastActivity': 'Last activity',
+    'training.loadActivity': 'Load activity',
+    'training.activeRecovery': 'Active recovery',
+    'training.crossTraining': 'Cross-training',
+    'training.intenseWorkout': 'Intense workout',
+    'training.muscularStress': 'Muscular stress',
+    'training.nonRunningActivity': 'Non-running activity',
     'dashboard.latestRun': 'Last run',
     'dashboard.aiAnalysisPending': 'AI analysis pending.',
     'dashboard.distance': 'Distance',

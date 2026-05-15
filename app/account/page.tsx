@@ -25,7 +25,7 @@ async function getAccountStats(): Promise<AccountStats> {
     }>(
       `SELECT COUNT(*) as runs_count, MAX(start_date) as latest_run_at
        FROM activities
-       WHERE type IN ('Run', 'TrailRun')`
+       WHERE COALESCE(sport_type, type) IN ('Run', 'TrailRun', 'VirtualRun')`
     );
 
     const latestSync = await queryOne<{

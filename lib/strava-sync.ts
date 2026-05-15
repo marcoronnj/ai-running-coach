@@ -1,6 +1,7 @@
 import { query } from '@/lib/db';
 import { type DBActivity } from '@/lib/coach';
 import { getActivitiesWithoutReport, processReportForActivity } from '@/lib/run-report';
+import { isRunningActivity } from '@/lib/sport-classification';
 import { isTelegramNotificationsEnabled } from '@/lib/telegram';
 import { formatDateTimeIT } from '@/lib/date-utils';
 import {
@@ -20,6 +21,7 @@ export interface StravaSyncPayload {
   warning?: string;
   activitiesChecked?: number;
   runningActivities?: number;
+  loadActivities?: number;
   newActivities: number;
   latestActivityId?: string;
   latestActivityName?: string;
@@ -77,34 +79,12 @@ export async function runStravaSync(
     const activities = await getRecentActivities(accessToken);
 
     const runningActivities = filterRunningActivities(activities);
-    console.log(`[SYNC] Corse trovate=${runningActivities.length} mode=${mode}`);
+    console.log(`[SYNC] Attività trovate=${activities.length} corse=${runningActivities.length} mode=${mode}`);
 
-    if (runningActivities.length === 0) {
-      const duration = formatDuration(startTime);
-      await logSyncSuccess('Nessuna corsa trovata nelle ultime 30 attività');
-
-      return {
-        payload: {
-          ok: true,
-          message: 'No new runs to sync',
-          mode,
-          activitiesChecked: activities.length,
-          runningActivities: 0,
-          newActivities: 0,
-          reportsGenerated: 0,
-          retryReportsProcessed: 0,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
-          duration,
-        },
-        status: 200,
-      };
-    }
-
-    console.log('[SYNC] Salvando nuove corse nel database...');
-    const newActivities = sortActivitiesByStartDateDesc(await saveNewActivities(runningActivities));
-    const latestNewActivity = newActivities[0];
+    console.log('[SYNC] Salvando nuove attività nel database...');
+    const newActivities = sortActivitiesByStartDateDesc(await saveNewActivities(activities));
+    const newRunningActivities = newActivities.filter(isRunningActivity);
+    const latestNewActivity = newRunningActivities[0];
 
     const activitiesWithoutReport = options.skipRetryMissingReports
       ? []
@@ -112,7 +92,7 @@ export async function runStravaSync(
           .filter(activity => !newActivities.some(newActivity => newActivity.id === activity.id))
           .slice(0, RETRY_MISSING_REPORT_LIMIT);
 
-    console.log(`[SYNC] Nuove attività=${newActivities.length} latest=${latestNewActivity?.id ?? 'none'} mode=${mode}`);
+    console.log(`[SYNC] Nuove attività=${newActivities.length} nuove corse=${newRunningActivities.length} latestRun=${latestNewActivity?.id ?? 'none'} mode=${mode}`);
     console.log(`[SYNC] Retry report mancanti selezionati=${activitiesWithoutReport.length} limit=${RETRY_MISSING_REPORT_LIMIT}`);
 
     if (newActivities.length === 0 && activitiesWithoutReport.length === 0) {
@@ -122,7 +102,7 @@ export async function runStravaSync(
       return {
         payload: {
           ok: true,
-          message: 'No new runs to sync and no missing reports to regenerate',
+          message: 'No new activities to sync and no missing run reports to regenerate',
           mode,
           activitiesChecked: activities.length,
           runningActivities: runningActivities.length,
@@ -147,6 +127,19 @@ export async function runStravaSync(
     let retryReportsProcessed = 0;
 
     for (const activity of newActivities) {
+      if (!isRunningActivity(activity)) {
+        processedActivities.push({
+          id: activity.id,
+          name: activity.name,
+          reportGenerated: false,
+          telegramSent: false,
+          notificationsSent: false,
+          telegramEnabled,
+        });
+        console.log(`[SYNC] Attività non-running importata senza report id=${activity.id} type=${activity.sport_type || activity.type}`);
+        continue;
+      }
+
       try {
         const shouldSendTelegram = telegramEnabled && latestNewActivity?.id === activity.id;
         console.log(
@@ -242,11 +235,12 @@ export async function runStravaSync(
     return {
       payload: {
         ok: true,
-        message: newActivities.length > 0 ? 'Sync completed' : 'No new runs',
+        message: newActivities.length > 0 ? 'Sync completed' : 'No new activities',
         mode,
         warning,
         activitiesChecked: activities.length,
         runningActivities: runningActivities.length,
+        loadActivities: activities.length,
         newActivities: newActivities.length,
         latestActivityId: latestNewActivity?.id,
         latestActivityName: latestNewActivity?.name,
@@ -318,10 +312,10 @@ async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivi
 
       const result = await query(
         `INSERT INTO activities
-         (id, strava_id, name, type, start_date, distance_m, moving_time_s,
+         (id, strava_id, name, type, sport_type, start_date, distance_m, moving_time_s,
           elapsed_time_s, average_speed, max_speed, average_heartrate,
           max_heartrate, total_elevation_gain, raw_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          ON CONFLICT (strava_id) DO NOTHING
          RETURNING *`,
         [
@@ -329,6 +323,7 @@ async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivi
           dbData.strava_id,
           dbData.name,
           dbData.type,
+          dbData.sport_type,
           dbData.start_date,
           dbData.distance_m,
           dbData.moving_time_s,

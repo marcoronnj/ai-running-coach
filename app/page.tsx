@@ -48,6 +48,7 @@ interface DashboardRun {
   average_speed: number;
   average_heartrate?: number;
   type: string;
+  sport_type?: string;
   created_at?: string;
   title?: string;
   summary?: string;
@@ -719,7 +720,7 @@ export default async function HomePage() {
           COUNT(*) as runs,
           SUM(distance_m) as total_distance
         FROM activities
-        WHERE type IN ('Run', 'TrailRun')
+        WHERE COALESCE(sport_type, type) IN ('Run', 'TrailRun', 'VirtualRun')
           AND start_date >= NOW() - INTERVAL '6 weeks'
         GROUP BY DATE_TRUNC('week', start_date)
         ORDER BY week_start DESC
@@ -739,8 +740,7 @@ export default async function HomePage() {
   const activityHistoryResult = await safeResult('home.activityHistory', async () => {
     const result = await query(`
       SELECT * FROM activities
-      WHERE type IN ('Run', 'TrailRun')
-        AND start_date >= NOW() - INTERVAL '90 days'
+      WHERE start_date >= NOW() - INTERVAL '90 days'
       ORDER BY start_date DESC
     `);
     return result.rows;
