@@ -180,6 +180,19 @@ h6 {
     transform: none;
     backface-visibility: hidden;
   }
+
+  .splash-veiro-logo {
+    display: block;
+    width: 132px;
+    height: auto;
+    background: transparent;
+    filter:
+      drop-shadow(0 0 18px rgba(54, 252, 225, 0.12))
+      drop-shadow(0 0 30px rgba(215, 255, 63, 0.07));
+    opacity: 0.96;
+    animation: splash-pulse 1.8s ease-in-out infinite;
+    backface-visibility: hidden;
+  }
 }
 
 @keyframes fade-in {
@@ -205,5 +218,18 @@ h6 {
 
   100% {
     transform: translateX(160%);
+  }
+}
+
+@keyframes splash-pulse {
+  0%,
+  100% {
+    opacity: 0.86;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-1px);
   }
 }

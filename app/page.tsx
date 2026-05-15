@@ -669,21 +669,45 @@ function TrendUpdatingCard({ language }: { language: Language }) {
 /**
  * Pagina principale della dashboard - Coach at a Glance
  */
+const HOME_DATA_TIMEOUT_MS = 2500;
+
+async function safeHomeResult<T>(
+  scope: string,
+  loader: () => Promise<T>,
+  fallback: T,
+  timeoutMs = HOME_DATA_TIMEOUT_MS
+) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<{ data: T; failed: boolean }>((resolve) => {
+    timeoutId = setTimeout(() => {
+      logServerError(`${scope}.timeout`, new Error(`Home data loader exceeded ${timeoutMs}ms`));
+      resolve({ data: fallback, failed: true });
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      safeResult(scope, loader, fallback),
+      timeout,
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 export default async function HomePage() {
-  const athleteSettingsResult = await safeResult('home.athleteSettings', getAthleteSettings, null);
-  const athleteSettings = athleteSettingsResult.data;
-  const language = normalizeLanguage(athleteSettings?.language);
-  const sessionResult = await safeResult('home.session', verifySession, null);
-  const session = sessionResult.data;
-  const stravaStatusResult = session
-    ? await safeResult('home.stravaStatus', () => getPublicStravaConnectionStatus(session.email), undefined)
-    : { data: undefined, failed: false };
-  const stravaStatus = stravaStatusResult.data;
-
-  const lastRunResult = await safeResult('home.latestRun', getLatestRunWithReport, null);
-  const lastRun = lastRunResult.data;
-
-  const weeklyTrendResult = await safeResult('home.weeklyTrend', async () => {
+  const athleteSettingsPromise = safeHomeResult('home.athleteSettings', getAthleteSettings, null);
+  const sessionPromise = safeResult('home.session', verifySession, null);
+  const stravaStatusPromise = sessionPromise.then((sessionResult) => {
+    const session = sessionResult.data;
+    return session
+      ? safeHomeResult('home.stravaStatus', () => getPublicStravaConnectionStatus(session.email), undefined)
+      : { data: undefined, failed: false };
+  });
+  const lastRunPromise = safeHomeResult('home.latestRun', getLatestRunWithReport, null);
+  const weeklyTrendPromise = safeHomeResult('home.weeklyTrend', async () => {
     const result = await query<WeeklyTrendItem>(`
       WITH weekly_stats AS (
         SELECT
@@ -706,9 +730,7 @@ export default async function HomePage() {
     `);
     return result.rows;
   }, [] as WeeklyTrendItem[]);
-  const weeklyTrend = weeklyTrendResult.data;
-
-  const activityHistoryResult = await safeResult('home.activityHistory', async () => {
+  const activityHistoryPromise = safeHomeResult('home.activityHistory', async () => {
     const result = await query(`
       SELECT * FROM activities
       WHERE start_date >= NOW() - INTERVAL '90 days'
@@ -716,6 +738,31 @@ export default async function HomePage() {
     `);
     return result.rows;
   }, []);
+
+  const [
+    athleteSettingsResult,
+    sessionResult,
+    stravaStatusResult,
+    lastRunResult,
+    weeklyTrendResult,
+    activityHistoryResult,
+  ] = await Promise.all([
+    athleteSettingsPromise,
+    sessionPromise,
+    stravaStatusPromise,
+    lastRunPromise,
+    weeklyTrendPromise,
+    activityHistoryPromise,
+  ]);
+
+  const athleteSettings = athleteSettingsResult.data;
+  const language = normalizeLanguage(athleteSettings?.language);
+  const stravaStatus = stravaStatusResult.data;
+
+  const lastRun = lastRunResult.data;
+
+  const weeklyTrend = weeklyTrendResult.data;
+
   const activityHistory = activityHistoryResult.data;
 
   let athleteMetrics: ReturnType<typeof calculateCoachingMetrics> | null = null;

@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
 export default function AppStartupLoader() {
@@ -33,16 +32,13 @@ export default function AppStartupLoader() {
       }`}
     >
       <section className="flex w-full max-w-xs flex-col items-center text-center">
-        <div className="splash-logo-wrapper mb-7">
-          <Image
-            src="/logo.svg"
-            alt="Veiro"
-            width={96}
-            height={36}
-            priority
-            className="splash-logo"
-          />
-        </div>
+        <img
+          src="/logo-veiro.svg"
+          alt="Veiro"
+          width={132}
+          height={50}
+          className="splash-veiro-logo mb-7"
+        />
 
         <div className="mb-3 h-px w-full overflow-hidden rounded-full bg-white/[0.08]">
           <div className="h-full w-2/3 animate-[loading-bar_1.25s_ease-in-out_infinite] rounded-full bg-gradient-to-r from-accent-primary via-accent-secondary to-accent-primary" />
