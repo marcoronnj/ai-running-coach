@@ -50,7 +50,7 @@ export async function getActivityByIdOrStravaId(id: string): Promise<DBActivity 
 export interface ProcessReportOptions {
   sendTelegram?: boolean;
   reason?: 'new-activity' | 'retry-missing' | 'manual-regenerate' | 'cron-regenerate';
-  syncMode?: 'manual' | 'cron';
+  syncMode?: 'manual' | 'cron' | 'webhook';
 }
 
 export async function processReportForActivity(

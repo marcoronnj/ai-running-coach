@@ -85,6 +85,18 @@ export async function getStravaConnection(userId: string): Promise<StravaConnect
   );
 }
 
+export async function getStravaConnectionByAthleteId(stravaAthleteId: string | number): Promise<StravaConnection | undefined> {
+  await ensureStravaConnectionsTable();
+
+  return queryOne<StravaConnection>(
+    `SELECT *
+     FROM strava_connections
+     WHERE strava_athlete_id = $1
+     LIMIT 1`,
+    [String(stravaAthleteId)]
+  );
+}
+
 export async function getPublicStravaConnectionStatus(userId: string): Promise<PublicStravaConnectionStatus> {
   const connection = await getStravaConnection(userId);
 

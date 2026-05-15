@@ -336,6 +336,42 @@ export async function getRecentActivities(
   }
 }
 
+export async function getActivityById(accessToken: string, activityId: string | number): Promise<StravaActivity> {
+  if (!accessToken) {
+    throw new Error('Access token is required');
+  }
+
+  if (!activityId) {
+    throw new Error('Activity id is required');
+  }
+
+  const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    console.error('[STRAVA] Activity detail fetch failed:', {
+      status: response.status,
+      body: errorData,
+      activityId: String(activityId),
+    });
+    throw new Error(`Strava activity fetch failed (${response.status})`);
+  }
+
+  const activity = (await response.json()) as StravaActivity;
+
+  if (!activity.id) {
+    throw new Error('Incomplete Strava activity response');
+  }
+
+  return activity;
+}
+
 export async function getAuthenticatedStravaAthlete(accessToken: string): Promise<StravaAthleteProfile> {
   if (!accessToken) {
     throw new Error('Access token is required');

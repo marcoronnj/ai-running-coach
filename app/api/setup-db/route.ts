@@ -29,7 +29,8 @@ const SQL_STATEMENTS = [
 
   `
     ALTER TABLE activities
-    ADD COLUMN IF NOT EXISTS sport_type TEXT;
+    ADD COLUMN IF NOT EXISTS sport_type TEXT,
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
   `,
 
   // Indice su strava_id per query veloce
@@ -115,6 +116,31 @@ const SQL_STATEMENTS = [
   `
     CREATE INDEX IF NOT EXISTS idx_sync_logs_created_at 
     ON sync_logs(created_at DESC);
+  `,
+
+  // Tabella eventi webhook Strava
+  `
+    CREATE TABLE IF NOT EXISTS webhook_events (
+      id SERIAL PRIMARY KEY,
+      object_type TEXT NOT NULL,
+      aspect_type TEXT NOT NULL,
+      object_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      received_at TIMESTAMPTZ DEFAULT NOW(),
+      processed_at TIMESTAMPTZ,
+      status TEXT DEFAULT 'received',
+      error TEXT
+    );
+  `,
+
+  `
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_received_at
+    ON webhook_events(received_at DESC);
+  `,
+
+  `
+    CREATE INDEX IF NOT EXISTS idx_webhook_events_object
+    ON webhook_events(object_type, object_id);
   `,
 
   // Tabella connessione OAuth Strava admin
@@ -268,8 +294,8 @@ export async function GET(request: NextRequest) {
       {
         ok: true,
         message: 'Database setup completed successfully',
-        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'strava_connections', 'athlete_settings'],
-        indicesCreated: 7,
+        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'webhook_events', 'strava_connections', 'athlete_settings'],
+        indicesCreated: 9,
       },
       { status: 200 }
     );

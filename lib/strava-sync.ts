@@ -11,7 +11,7 @@ import {
   type StravaActivity,
 } from '@/lib/strava';
 
-export type StravaSyncMode = 'manual' | 'cron';
+export type StravaSyncMode = 'manual' | 'cron' | 'webhook';
 
 export interface StravaSyncPayload {
   ok: boolean;
@@ -340,48 +340,10 @@ async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivi
 
   for (const activity of activities) {
     try {
-      const dbData = formatActivityForDB(activity);
+      const saved = await saveStravaActivity(activity, { updateExisting: false });
 
-      console.log('[SYNC][TIMEZONE]', {
-        stravaId: activity.id,
-        name: activity.name,
-        stravaStartDateUtc: activity.start_date,
-        stravaStartDateLocal: activity.start_date_local,
-        stravaTimezone: activity.timezone ?? null,
-        stravaUtcOffsetSeconds: activity.utc_offset ?? null,
-        dbStartDateUtc: dbData.start_date,
-        displayRome: formatDateTimeIT(dbData.start_date),
-      });
-
-      const result = await query(
-        `INSERT INTO activities
-         (id, strava_id, name, type, sport_type, start_date, distance_m, moving_time_s,
-          elapsed_time_s, average_speed, max_speed, average_heartrate,
-          max_heartrate, total_elevation_gain, raw_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-         ON CONFLICT (strava_id) DO NOTHING
-         RETURNING *`,
-        [
-          dbData.id,
-          dbData.strava_id,
-          dbData.name,
-          dbData.type,
-          dbData.sport_type,
-          dbData.start_date,
-          dbData.distance_m,
-          dbData.moving_time_s,
-          dbData.elapsed_time_s,
-          dbData.average_speed,
-          dbData.max_speed,
-          dbData.average_heartrate,
-          dbData.max_heartrate,
-          dbData.total_elevation_gain,
-          JSON.stringify(dbData.raw_json),
-        ]
-      );
-
-      if (result.rows.length > 0) {
-        newActivities.push(result.rows[0] as DBActivity);
+      if (saved.inserted) {
+        newActivities.push(saved.activity);
       }
     } catch (error) {
       console.error(`[SYNC] Errore salvando attività ${activity.name}:`, error);
@@ -389,6 +351,117 @@ async function saveNewActivities(activities: StravaActivity[]): Promise<DBActivi
   }
 
   return newActivities;
+}
+
+export async function saveStravaActivity(
+  activity: StravaActivity,
+  options: { updateExisting?: boolean } = {}
+): Promise<{ activity: DBActivity; inserted: boolean; updated: boolean }> {
+  const dbData = formatActivityForDB(activity);
+
+  console.log('[SYNC][TIMEZONE]', {
+    stravaId: activity.id,
+    name: activity.name,
+    stravaStartDateUtc: activity.start_date,
+    stravaStartDateLocal: activity.start_date_local,
+    stravaTimezone: activity.timezone ?? null,
+    stravaUtcOffsetSeconds: activity.utc_offset ?? null,
+    dbStartDateUtc: dbData.start_date,
+    displayRome: formatDateTimeIT(dbData.start_date),
+  });
+
+  if (!options.updateExisting) {
+    const result = await query<DBActivity>(
+      `INSERT INTO activities
+       (id, strava_id, name, type, sport_type, start_date, distance_m, moving_time_s,
+        elapsed_time_s, average_speed, max_speed, average_heartrate,
+        max_heartrate, total_elevation_gain, raw_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       ON CONFLICT (strava_id) DO NOTHING
+       RETURNING *`,
+      [
+        dbData.id,
+        dbData.strava_id,
+        dbData.name,
+        dbData.type,
+        dbData.sport_type,
+        dbData.start_date,
+        dbData.distance_m,
+        dbData.moving_time_s,
+        dbData.elapsed_time_s,
+        dbData.average_speed,
+        dbData.max_speed,
+        dbData.average_heartrate,
+        dbData.max_heartrate,
+        dbData.total_elevation_gain,
+        JSON.stringify(dbData.raw_json),
+      ]
+    );
+
+    if (result.rows[0]) {
+      return { activity: result.rows[0], inserted: true, updated: false };
+    }
+
+    const existing = await query<DBActivity>(
+      'SELECT * FROM activities WHERE strava_id = $1 LIMIT 1',
+      [dbData.strava_id]
+    );
+
+    if (!existing.rows[0]) {
+      throw new Error(`Activity ${dbData.strava_id} was not inserted and could not be found`);
+    }
+
+    return { activity: existing.rows[0], inserted: false, updated: false };
+  }
+
+  const result = await query<DBActivity>(
+    `INSERT INTO activities
+     (id, strava_id, name, type, sport_type, start_date, distance_m, moving_time_s,
+      elapsed_time_s, average_speed, max_speed, average_heartrate,
+      max_heartrate, total_elevation_gain, raw_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     ON CONFLICT (strava_id)
+     DO UPDATE SET
+       name = EXCLUDED.name,
+       type = EXCLUDED.type,
+       sport_type = EXCLUDED.sport_type,
+       start_date = EXCLUDED.start_date,
+       distance_m = EXCLUDED.distance_m,
+       moving_time_s = EXCLUDED.moving_time_s,
+       elapsed_time_s = EXCLUDED.elapsed_time_s,
+       average_speed = EXCLUDED.average_speed,
+       max_speed = EXCLUDED.max_speed,
+       average_heartrate = EXCLUDED.average_heartrate,
+       max_heartrate = EXCLUDED.max_heartrate,
+       total_elevation_gain = EXCLUDED.total_elevation_gain,
+       raw_json = EXCLUDED.raw_json
+     RETURNING *, (xmax = 0) AS inserted`,
+    [
+      dbData.id,
+      dbData.strava_id,
+      dbData.name,
+      dbData.type,
+      dbData.sport_type,
+      dbData.start_date,
+      dbData.distance_m,
+      dbData.moving_time_s,
+      dbData.elapsed_time_s,
+      dbData.average_speed,
+      dbData.max_speed,
+      dbData.average_heartrate,
+      dbData.max_heartrate,
+      dbData.total_elevation_gain,
+      JSON.stringify(dbData.raw_json),
+    ]
+  );
+
+  const row = result.rows[0] as DBActivity & { inserted?: boolean };
+
+  return {
+    activity: row,
+    inserted: row.inserted === true,
+    updated: row.inserted !== true,
+  };
 }
 
 async function logSyncSuccess(message: string): Promise<void> {
