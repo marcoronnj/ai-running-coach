@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { Activity } from 'lucide-react';
 import { getCurrentLanguage } from '@/lib/athlete-settings';
-import { t } from '@/lib/i18n';
+import { t, type Language } from '@/lib/i18n';
 import LoginForm from './LoginForm';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,17 @@ export default async function LoginPage({
   searchParams?: Promise<{ next?: string }> | { next?: string };
 }) {
   const params = searchParams ? await searchParams : {};
-  const language = await getCurrentLanguage();
+  let language: Language = 'it';
+
+  try {
+    language = await getCurrentLanguage();
+  } catch (error) {
+    console.error('[HOME PERF]', {
+      loginLanguage: 'fallback',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const nextPath = params.next?.startsWith('/') && !params.next.startsWith('//') ? params.next : '/';
 
   return (
