@@ -16,79 +16,18 @@ import {
   TrendingUp,
   UserCircle,
 } from 'lucide-react';
-import { query } from '@/lib/db';
-import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
-import type { AthleteSettings } from '@/lib/athlete-settings';
 import { verifySession } from '@/lib/auth';
-import { getCoachingRules } from '@/lib/coaching-rules';
-import { buildDynamicAthleteState, type DynamicAthleteState } from '@/lib/dynamic-athlete-state';
+import type { DynamicAthleteState } from '@/lib/dynamic-athlete-state';
 import { formatDateLocalized, formatDaysSinceLocalized, getTodayInAppTimezone } from '@/lib/date-utils';
 import { containsItalianText, getCoachReportExcerpt, hasCoachReport } from '@/lib/report-display';
 import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
-import { fallbackDynamicAthleteState, logServerError } from '@/lib/resilient-data';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
+import { getDashboardDataSafe, type DashboardRun, type WeeklyTrendItem } from '@/lib/dashboard-data';
 import { normalizeLanguage, t, type Language } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Interfacce per i dati della dashboard
- */
-interface DashboardRun {
-  id: string;
-  strava_id: string;
-  name: string;
-  start_date: string;
-  distance_m: number;
-  moving_time_s: number;
-  average_speed: number;
-  average_heartrate?: number;
-  type: string;
-  sport_type?: string;
-  created_at?: string;
-  title?: string;
-  summary?: string;
-  risk_level?: string;
-  next_48h?: string;
-  suggested_focus?: string;
-  coach_notes?: any;
-  full_report?: string;
-  weekly_plan?: any;
-  readiness_score?: number;
-  fatigue_score?: number;
-  consistency_score?: number;
-}
-
-interface WeeklyTrendItem {
-  week: number;
-  runs: number;
-  total_distance: number;
-}
-
-interface HomeDashboardData {
-  athleteSettings: AthleteSettings | null;
-  stravaStatus: PublicStravaConnectionStatus | undefined;
-  lastRun: DashboardRun | null;
-  weeklyTrend: WeeklyTrendItem[];
-  activityHistory: any[];
-}
-
-interface AthleteMetrics {
-  readinessScore?: number;
-  readinessLabel?: string;
-  readinessExplanation?: string;
-  fatigueScore?: number;
-  fatigueLabel?: string;
-  fatigueExplanation?: string;
-  consistencyScore?: number;
-  consistencyLabel?: string;
-  consistencyExplanation?: string;
-  overloadRisk?: string;
-  overloadExplanation?: string;
-  suggestedFocus?: string;
-}
 
 /**
  * Helper: Formatta chilometri
@@ -614,266 +553,22 @@ function EmptyState({ language }: { language: Language }) {
   );
 }
 
-function DashboardSoftFallback({ language }: { language: Language }) {
-  return (
-    <div className="space-y-5 sm:space-y-6">
-      <Card className="overflow-hidden">
-        <div className="h-3 w-28 rounded-full bg-white/[0.08]" />
-        <div className="mt-4 h-8 w-48 max-w-full rounded-full bg-white/[0.06]" />
-        <div className="mt-3 h-4 w-64 max-w-full rounded-full bg-white/[0.045]" />
-      </Card>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
-        <div className="space-y-5 lg:col-span-2">
-          <Card>
-            <div className="mb-4 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.04]" />
-              <div className="space-y-2">
-                <div className="h-3 w-24 rounded-full bg-white/[0.08]" />
-                <div className="h-5 w-40 rounded-full bg-white/[0.06]" />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="h-4 w-full rounded-full bg-white/[0.045]" />
-              <div className="h-4 w-11/12 rounded-full bg-white/[0.045]" />
-              <div className="h-4 w-3/4 rounded-full bg-white/[0.045]" />
-            </div>
-          </Card>
-
-          <div className="grid grid-cols-2 gap-3">
-            {[0, 1, 2, 3].map((item) => (
-              <div key={item} className="metric-card h-28 overflow-hidden p-3.5">
-                <div className="h-3 w-20 rounded-full bg-white/[0.08]" />
-                <div className="mt-4 h-6 w-24 rounded-full bg-white/[0.06]" />
-                <div className="mt-3 h-3 w-16 rounded-full bg-white/[0.045]" />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <MetricsPlaceholderCard language={language} />
-          <Card className="h-24">
-            <div className="h-4 w-32 rounded-full bg-white/[0.06]" />
-            <div className="mt-4 h-3 w-full rounded-full bg-white/[0.045]" />
-            <div className="mt-3 h-3 w-2/3 rounded-full bg-white/[0.045]" />
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function MetricsPlaceholderCard({ language }: { language: Language }) {
   return (
     <Card className="overflow-hidden">
       <SectionHeader eyebrow="body battery" title={t(language, 'dashboard.athleteStatus')} icon={Gauge} />
-      <div className="space-y-3">
-        {[0, 1, 2].map((item) => (
-          <div key={item} className="metric-card overflow-hidden p-3.5">
-            <div className="h-3 w-20 rounded-full bg-white/[0.08]" />
-            <div className="mt-3 h-4 w-36 rounded-full bg-white/[0.05]" />
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-              <div className="h-full w-1/2 animate-[loading-bar_1.5s_ease-in-out_infinite] rounded-full bg-white/[0.12]" />
-            </div>
-          </div>
-        ))}
+      <div className="metric-card p-3.5">
+        <div className="text-sm font-medium text-app-text">
+          {language === 'en' ? 'Athlete state updating' : 'Stato atleta in aggiornamento'}
+        </div>
+        <div className="mt-1 text-xs leading-snug text-app-muted">
+          {language === 'en'
+            ? 'The dashboard stays available while Veiro refreshes training signals.'
+            : 'La dashboard resta disponibile mentre Veiro aggiorna i segnali di allenamento.'}
+        </div>
       </div>
     </Card>
   );
-}
-
-/**
- * Pagina principale della dashboard - Coach at a Glance
- */
-const EMPTY_HOME_DASHBOARD: HomeDashboardData = {
-  athleteSettings: null,
-  stravaStatus: undefined,
-  lastRun: null,
-  weeklyTrend: [],
-  activityHistory: [],
-};
-
-const homeDashboardCache = new Map<string, { data: HomeDashboardData; updatedAt: number }>();
-const homeDashboardRefreshes = new Map<string, Promise<void>>();
-
-interface HomeDashboardRow {
-  athlete_settings: AthleteSettings | null;
-  strava_status: PublicStravaConnectionStatus | null;
-  latest_run: DashboardRun | null;
-  weekly_trend: WeeklyTrendItem[] | null;
-  activity_history: any[] | null;
-}
-
-async function getHomeDashboardFromDb(userId: string | null): Promise<HomeDashboardData> {
-  const dashboardQueryStart = Date.now();
-  const result = await query<HomeDashboardRow>(
-    `
-      WITH latest_run AS (
-        SELECT row_to_json(latest_activity) AS data
-        FROM (
-          SELECT a.id,
-                 a.strava_id,
-                 a.name,
-                 a.start_date,
-                 a.distance_m,
-                 a.moving_time_s,
-                 a.average_speed,
-                 a.average_heartrate,
-                 a.type,
-                 a.sport_type,
-                 a.created_at,
-                 cr.created_at AS report_created_at,
-                 cr.title,
-                 cr.summary,
-                 cr.risk_level,
-                 cr.next_48h,
-                 cr.suggested_focus,
-                 cr.coach_notes,
-                 cr.weekly_plan,
-                 cr.full_report,
-                 cr.readiness_score,
-                 cr.fatigue_score,
-                 cr.consistency_score
-          FROM activities a
-          LEFT JOIN LATERAL (
-            SELECT *
-            FROM coach_reports
-            WHERE activity_id = a.id OR activity_id = a.strava_id
-            ORDER BY created_at DESC
-            LIMIT 1
-          ) cr ON true
-          WHERE COALESCE(a.sport_type, a.type) IN ('Run', 'TrailRun', 'VirtualRun')
-          ORDER BY a.start_date DESC
-          LIMIT 1
-        ) latest_activity
-      ),
-      weekly_stats AS (
-        SELECT
-          DATE_TRUNC('week', start_date) AS week_start,
-          COUNT(*)::INTEGER AS runs,
-          COALESCE(SUM(distance_m), 0)::FLOAT AS total_distance
-        FROM activities
-        WHERE COALESCE(sport_type, type) IN ('Run', 'TrailRun', 'VirtualRun')
-          AND start_date >= NOW() - INTERVAL '6 weeks'
-        GROUP BY DATE_TRUNC('week', start_date)
-        ORDER BY week_start DESC
-        LIMIT 6
-      ),
-      weekly_trend AS (
-        SELECT COALESCE(
-          json_agg(
-            json_build_object(
-              'week', EXTRACT(WEEK FROM week_start)::INTEGER,
-              'runs', runs,
-              'total_distance', total_distance
-            )
-            ORDER BY week_start DESC
-          ),
-          '[]'::json
-        ) AS data
-        FROM weekly_stats
-      ),
-      activity_history AS (
-        SELECT COALESCE(json_agg(row_to_json(recent_activity) ORDER BY recent_activity.start_date DESC), '[]'::json) AS data
-        FROM (
-          SELECT *
-          FROM activities
-          WHERE start_date >= NOW() - INTERVAL '90 days'
-          ORDER BY start_date DESC
-        ) recent_activity
-      ),
-      athlete_settings_row AS (
-        SELECT row_to_json(athlete_settings) AS data
-        FROM athlete_settings
-        WHERE id = 'default'
-        LIMIT 1
-      ),
-      strava_connection_row AS (
-        SELECT json_build_object(
-          'connected', true,
-          'stravaAthleteId', strava_athlete_id,
-          'expiresAt', expires_at,
-          'updatedAt', updated_at,
-          'athlete', json_build_object(
-            'firstname', athlete_firstname,
-            'lastname', athlete_lastname,
-            'username', athlete_username,
-            'profile', athlete_profile,
-            'profileMedium', athlete_profile_medium
-          )
-        ) AS data
-        FROM strava_connections
-        WHERE user_id = $1
-        LIMIT 1
-      )
-      SELECT
-        (SELECT data FROM athlete_settings_row) AS athlete_settings,
-        COALESCE((SELECT data FROM strava_connection_row), json_build_object('connected', false)) AS strava_status,
-        (SELECT data FROM latest_run) AS latest_run,
-        (SELECT data FROM weekly_trend) AS weekly_trend,
-        (SELECT data FROM activity_history) AS activity_history
-    `,
-    [userId ?? '']
-  );
-
-  const row = result.rows[0];
-  console.log('[HOME PERF]', {
-    dashboardQuery: `${Date.now() - dashboardQueryStart}ms`,
-    latestRun: Boolean(row?.latest_run),
-    weeklyTrendRows: row?.weekly_trend?.length ?? 0,
-    activityRows: row?.activity_history?.length ?? 0,
-  });
-
-  return {
-    athleteSettings: row?.athlete_settings ?? null,
-    stravaStatus: row?.strava_status ?? { connected: false },
-    lastRun: row?.latest_run ?? null,
-    weeklyTrend: row?.weekly_trend ?? [],
-    activityHistory: row?.activity_history ?? [],
-  };
-}
-
-function refreshHomeDashboardCache(userId: string): Promise<void> {
-  const inFlight = homeDashboardRefreshes.get(userId);
-  if (inFlight) return inFlight;
-
-  const refresh = getHomeDashboardFromDb(userId)
-    .then((data) => {
-      homeDashboardCache.set(userId, { data, updatedAt: Date.now() });
-    })
-    .catch((error) => {
-      logServerError('home.backgroundDashboardDb', error);
-    })
-    .finally(() => {
-      homeDashboardRefreshes.delete(userId);
-    });
-
-  homeDashboardRefreshes.set(userId, refresh);
-  return refresh;
-}
-
-async function getHomeDashboardSnapshot(userId: string | null): Promise<{ data: HomeDashboardData; source: 'cache' | 'db'; failed: boolean }> {
-  const cacheKey = userId || 'anonymous';
-  const cached = homeDashboardCache.get(cacheKey);
-
-  if (cached) {
-    console.log('[HOME PERF]', {
-      dashboardSource: 'cache',
-      cacheAgeMs: Date.now() - cached.updatedAt,
-    });
-    void refreshHomeDashboardCache(cacheKey);
-    return { data: cached.data, source: 'cache', failed: false };
-  }
-
-  try {
-    const data = await getHomeDashboardFromDb(userId);
-    homeDashboardCache.set(cacheKey, { data, updatedAt: Date.now() });
-    return { data, source: 'db', failed: false };
-  } catch (error) {
-    logServerError('home.dashboardDb', error);
-    return { data: EMPTY_HOME_DASHBOARD, source: 'db', failed: true };
-  }
 }
 
 export default async function HomePage() {
@@ -883,73 +578,25 @@ export default async function HomePage() {
   console.log('[HOME PERF]', { session: `${Date.now() - sessionStart}ms` });
 
   const dashboardStart = Date.now();
-  const dashboardSnapshot = await getHomeDashboardSnapshot(session?.email ?? null);
-  const dashboard = dashboardSnapshot.data;
-  const dbFailed = dashboardSnapshot.failed;
+  const dashboard = await getDashboardDataSafe(session?.email ?? null);
   console.log('[HOME PERF]', {
     dashboardLoad: `${Date.now() - dashboardStart}ms`,
-    dashboardSource: dashboardSnapshot.source,
+    dashboardSource: dashboard.source,
+    timedOut: dashboard.timedOut,
+    errors: dashboard.errors.length,
   });
 
   const athleteSettings = dashboard.athleteSettings;
   const language = normalizeLanguage(athleteSettings?.language);
-  const stravaStatus = dashboard.stravaStatus;
-  const lastRun = dashboard.lastRun;
-  const weeklyTrend = dashboard.weeklyTrend;
-  const activityHistory = dashboard.activityHistory;
-
-  let athleteMetrics: ReturnType<typeof calculateCoachingMetrics> | null = null;
-  let coachingRules: ReturnType<typeof getCoachingRules> | null = null;
-  let metricsFailed = false;
-
-  if (activityHistory.length > 0) {
-    const metricsStart = Date.now();
-    try {
-      athleteMetrics = calculateCoachingMetrics(activityHistory, athleteSettings);
-      coachingRules = getCoachingRules(athleteMetrics, athleteSettings);
-      console.log('[HOME PERF]', { coach: `${Date.now() - metricsStart}ms` });
-    } catch (error) {
-      metricsFailed = true;
-      logServerError('home.coachingMetrics', error);
-    }
-  }
-
-  const latestReport = lastRun && hasCoachReport(lastRun)
-    ? {
-        title: lastRun?.title || 'Report Coach',
-        summary: lastRun.summary || '',
-        risk_level: (lastRun.risk_level || 'medio') as 'basso' | 'medio' | 'alto',
-        next_48h: lastRun.next_48h || '',
-        suggested_focus: lastRun.suggested_focus || '',
-        coach_notes: Array.isArray(lastRun.coach_notes) ? lastRun.coach_notes : [],
-        readiness_score: lastRun.readiness_score || 0,
-        fatigue_score: lastRun.fatigue_score || 0,
-        consistency_score: lastRun.consistency_score || 0,
-        weekly_plan: Array.isArray(lastRun.weekly_plan) ? lastRun.weekly_plan : [],
-        full_report: lastRun.full_report || '',
-      }
-    : null;
-
-  let dynamicAthleteState = fallbackDynamicAthleteState(language);
-
-  try {
-    dynamicAthleteState = buildDynamicAthleteState({
-      latestRun: lastRun,
-      latestReport,
-      recentRuns: activityHistory,
-      metrics: athleteMetrics,
-      rules: coachingRules,
-      language,
-    });
-  } catch (error) {
-    metricsFailed = true;
-    logServerError('home.dynamicAthleteState', error);
-  }
-
+  const stravaStatus = dashboard.stravaConnection;
+  const lastRun = dashboard.latestRun;
+  const weeklyTrend = dashboard.trend;
+  const athleteMetrics = dashboard.metrics;
+  const dynamicAthleteState = dashboard.dynamicAthleteState;
+  const metricsFailed = dashboard.errors.some((issue) => issue.section === 'metrics' || issue.section === 'dynamicAthleteState');
   const hasData = Boolean(lastRun) || weeklyTrend.length > 0;
   console.log('[HOME PERF]', {
     renderTotal: `${Date.now() - renderStart}ms`,
-    dbFailed,
     hasData,
   });
 
@@ -996,9 +643,7 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {dbFailed && !hasData ? (
-          <DashboardSoftFallback language={language} />
-        ) : !hasData ? (
+        {!hasData ? (
           <EmptyState language={language} />
         ) : (
             <div className="space-y-5 sm:space-y-6">
