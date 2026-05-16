@@ -118,6 +118,21 @@ const SQL_STATEMENTS = [
     ON sync_logs(created_at DESC);
   `,
 
+  // Snapshot persistente Home dashboard
+  `
+    CREATE TABLE IF NOT EXISTS dashboard_snapshots (
+      id TEXT PRIMARY KEY,
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `,
+
+  `
+    CREATE INDEX IF NOT EXISTS idx_dashboard_snapshots_updated_at
+    ON dashboard_snapshots(updated_at DESC);
+  `,
+
   // Tabella eventi webhook Strava
   `
     CREATE TABLE IF NOT EXISTS webhook_events (
@@ -294,8 +309,8 @@ export async function GET(request: NextRequest) {
       {
         ok: true,
         message: 'Database setup completed successfully',
-        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'webhook_events', 'strava_connections', 'athlete_settings'],
-        indicesCreated: 9,
+        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'dashboard_snapshots', 'webhook_events', 'strava_connections', 'athlete_settings'],
+        indicesCreated: 10,
       },
       { status: 200 }
     );

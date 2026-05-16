@@ -46,6 +46,8 @@ export interface HomeDashboardIssue {
 }
 
 export interface HomeDashboardData {
+  createdAt: string;
+  updatedAt: string;
   latestRun: DashboardRun | null;
   latestReport: any | null;
   recentRuns: any[];
@@ -60,11 +62,12 @@ export interface HomeDashboardData {
   dynamicAthleteState: DynamicAthleteState;
   errors: HomeDashboardIssue[];
   timedOut: string[];
-  source: 'cache' | 'db' | 'fallback';
+  source: 'cache' | 'db' | 'snapshot-db' | 'fallback';
 }
 
 const CRITICAL_TIMEOUT_MS = 2000;
 const SECONDARY_TIMEOUT_MS = 1500;
+const SNAPSHOT_TIMEOUT_MS = 500;
 const HOME_CACHE_TTL_MS = 30_000;
 const HOME_STALE_DASHBOARD_TTL_MS = 5 * 60_000;
 
@@ -105,7 +108,10 @@ async function homeQuery<T extends QueryResultRow>(
 }
 
 function emptyHomeDashboardData(language: Language = 'it'): HomeDashboardData {
+  const now = new Date().toISOString();
   return {
+    createdAt: now,
+    updatedAt: now,
     latestRun: null,
     latestReport: null,
     recentRuns: [],
@@ -122,6 +128,38 @@ function emptyHomeDashboardData(language: Language = 'it'): HomeDashboardData {
     timedOut: [],
     source: 'fallback',
   };
+}
+
+function withPromiseTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  let settled = false;
+  const guarded = promise
+    .then((value) => {
+      settled = true;
+      return value;
+    })
+    .catch((error) => {
+      settled = true;
+      throw error;
+    });
+
+  const timeout = new Promise<T>((resolve) => {
+    const timer = setTimeout(() => {
+      if (!settled) resolve(fallback);
+    }, timeoutMs);
+
+    guarded.then(
+      () => clearTimeout(timer),
+      () => clearTimeout(timer)
+    );
+  });
+
+  return Promise.race([guarded, timeout]);
+}
+
+export function isValidDashboardSnapshot(data: HomeDashboardData | null | undefined): data is HomeDashboardData {
+  if (!data) return false;
+  const hasActivitySignal = Boolean(data.latestRun) || (typeof data.activityCount === 'number' && data.activityCount > 0);
+  return Boolean(hasActivitySignal && data.athleteSettings && data.createdAt && data.updatedAt);
 }
 
 function toIssue(section: string, reason: 'error' | 'timeout', durationMs: number, error?: unknown): HomeDashboardIssue {
@@ -435,6 +473,7 @@ async function buildDynamicAthleteStateSafe({
 
 async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboardData> {
   const start = Date.now();
+  const now = new Date().toISOString();
   const issues: HomeDashboardIssue[] = [];
 
   const [
@@ -491,6 +530,8 @@ async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboard
   }
 
   return {
+    createdAt: now,
+    updatedAt: now,
     latestRun,
     latestReport,
     recentRuns,
@@ -511,16 +552,68 @@ async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboard
 
 function isReusableDashboardSnapshot(data: HomeDashboardData, ageMs: number): boolean {
   if (ageMs > HOME_STALE_DASHBOARD_TTL_MS) return false;
-  if (data.isTrueEmpty) return false;
-  return data.activityPresence === 'known' && (data.activityCount ?? 0) > 0;
+  return isValidDashboardSnapshot(data) && !data.isTrueEmpty;
 }
 
 function shouldStoreDashboardSnapshot(data: HomeDashboardData): boolean {
-  if (data.isTrueEmpty) return false;
-  if (data.activityPresence !== 'known' || (data.activityCount ?? 0) <= 0) return false;
+  if (!isValidDashboardSnapshot(data) || data.isTrueEmpty) return false;
 
   const criticalTimeouts = new Set(['activityCount', 'latestRun', 'activityHistory']);
   return !data.timedOut.some((section) => criticalTimeouts.has(section));
+}
+
+async function loadPersistedDashboardSnapshot(): Promise<HomeDashboardData | null> {
+  try {
+    const result = await homeQuery<{ payload: HomeDashboardData | null }>(
+      `
+        SELECT payload
+        FROM dashboard_snapshots
+        WHERE id = 'home'
+        LIMIT 1
+      `,
+      undefined,
+      SNAPSHOT_TIMEOUT_MS
+    );
+    const snapshot = result.rows[0]?.payload ?? null;
+
+    if (isValidDashboardSnapshot(snapshot)) {
+      console.log('[HOME SNAPSHOT] loaded from db');
+      return { ...snapshot, source: 'snapshot-db' };
+    }
+  } catch (error) {
+    logServerError('home.dashboardSnapshot.load', error);
+  }
+
+  return null;
+}
+
+async function savePersistedDashboardSnapshot(data: HomeDashboardData): Promise<void> {
+  if (!shouldStoreDashboardSnapshot(data)) return;
+
+  const now = new Date().toISOString();
+  const payload: HomeDashboardData = {
+    ...data,
+    createdAt: data.createdAt || now,
+    updatedAt: now,
+    source: 'snapshot-db',
+  };
+
+  try {
+    await homeQuery(
+      `
+        INSERT INTO dashboard_snapshots (id, payload, created_at, updated_at)
+        VALUES ('home', $1::jsonb, NOW(), NOW())
+        ON CONFLICT (id) DO UPDATE
+        SET payload = EXCLUDED.payload,
+            updated_at = NOW()
+      `,
+      [JSON.stringify(payload)],
+      SECONDARY_TIMEOUT_MS
+    );
+    console.log('[HOME SNAPSHOT] saved');
+  } catch (error) {
+    logServerError('home.dashboardSnapshot.save', error);
+  }
 }
 
 function refreshHomeDashboardCache(userId: string): Promise<void> {
@@ -531,6 +624,7 @@ function refreshHomeDashboardCache(userId: string): Promise<void> {
     .then((data) => {
       if (shouldStoreDashboardSnapshot(data)) {
         homeDashboardCache.set(userId, { data, updatedAt: Date.now() });
+        void savePersistedDashboardSnapshot(data);
       }
     })
     .catch((error) => {
@@ -562,11 +656,47 @@ export async function getDashboardDataSafe(userId: string | null): Promise<HomeD
     return { ...cached.data, source: 'cache' };
   }
 
+  const persistedSnapshotPromise = loadPersistedDashboardSnapshot();
+  const freshDashboardPromise = loadDashboardFromDb(userId);
+  const quickPersistedSnapshot = await withPromiseTimeout(persistedSnapshotPromise, SNAPSHOT_TIMEOUT_MS, null).catch(() => null);
+
+  if (quickPersistedSnapshot) {
+    console.log('[HOME SNAPSHOT] using persisted snapshot');
+    void freshDashboardPromise
+      .then((data) => {
+        if (shouldStoreDashboardSnapshot(data)) {
+          homeDashboardCache.set(cacheKey, { data, updatedAt: Date.now() });
+          void savePersistedDashboardSnapshot(data);
+          console.log('[HOME FRESH] loaded');
+        }
+      })
+      .catch((error) => {
+        logServerError('home.backgroundDashboardDb', error);
+      });
+    return quickPersistedSnapshot;
+  }
+
   try {
-    const data = await loadDashboardFromDb(userId);
+    const data = await freshDashboardPromise;
     if (shouldStoreDashboardSnapshot(data)) {
       homeDashboardCache.set(cacheKey, { data, updatedAt: Date.now() });
+      void savePersistedDashboardSnapshot(data);
+      console.log('[HOME FRESH] loaded');
+      return data;
     }
+
+    const persistedSnapshot = quickPersistedSnapshot ?? await persistedSnapshotPromise.catch(() => null);
+    if (persistedSnapshot) {
+      console.log('[HOME SNAPSHOT] using persisted snapshot');
+      return persistedSnapshot;
+    }
+
+    if (!isValidDashboardSnapshot(data)) {
+      console.log('[HOME SNAPSHOT] no snapshot available');
+    } else {
+      console.log('[HOME FRESH] loaded');
+    }
+
     return data;
   } catch (error) {
     logServerError('home.dashboardData', error);
@@ -574,6 +704,14 @@ export async function getDashboardDataSafe(userId: string | null): Promise<HomeD
       console.log('[HOME CACHE] using cached dashboard', { cacheAgeMs, reason: 'db-error' });
       return { ...cached.data, source: 'cache' };
     }
+
+    const persistedSnapshot = quickPersistedSnapshot ?? await persistedSnapshotPromise.catch(() => null);
+    if (persistedSnapshot) {
+      console.log('[HOME SNAPSHOT] using persisted snapshot');
+      return persistedSnapshot;
+    }
+
+    console.log('[HOME SNAPSHOT] no snapshot available');
     return emptyHomeDashboardData();
   }
 }

@@ -23,8 +23,9 @@ import { containsItalianText, getCoachReportExcerpt, hasCoachReport } from '@/li
 import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
+import DashboardSnapshotHydrator from '@/app/components/DashboardSnapshotHydrator';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
-import { getDashboardDataSafe, type DashboardRun, type WeeklyTrendItem } from '@/lib/dashboard-data';
+import { getDashboardDataSafe, isValidDashboardSnapshot, type DashboardRun, type WeeklyTrendItem } from '@/lib/dashboard-data';
 import { normalizeLanguage, t, type Language } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
@@ -648,8 +649,9 @@ export default async function HomePage() {
   const athleteMetrics = dashboard.metrics;
   const dynamicAthleteState = dashboard.dynamicAthleteState;
   const metricsFailed = dashboard.errors.some((issue) => issue.section === 'metrics' || issue.section === 'dynamicAthleteState');
-  const showTrueEmpty = dashboard.isTrueEmpty;
-  const showDashboard = Boolean(lastRun) || weeklyTrend.length > 0 || dashboard.source === 'cache';
+  const hasValidSnapshot = isValidDashboardSnapshot(dashboard);
+  const showTrueEmpty = dashboard.isTrueEmpty && !hasValidSnapshot;
+  const showDashboard = Boolean(lastRun) || weeklyTrend.length > 0 || dashboard.source === 'cache' || dashboard.source === 'snapshot-db' || hasValidSnapshot;
   console.log('[HOME PERF]', {
     renderTotal: `${Date.now() - renderStart}ms`,
     showDashboard,
@@ -702,10 +704,20 @@ export default async function HomePage() {
         </div>
 
         {showTrueEmpty ? (
-          <EmptyState language={language} />
+          <DashboardSnapshotHydrator
+            dashboardData={dashboard}
+            language={language}
+            fallback={<EmptyState language={language} />}
+          />
         ) : !showDashboard ? (
-          <DashboardRefreshingState language={language} />
+          <DashboardSnapshotHydrator
+            dashboardData={dashboard}
+            language={language}
+            fallback={<DashboardRefreshingState language={language} />}
+          />
         ) : (
+          <>
+            <DashboardSnapshotHydrator dashboardData={dashboard} language={language} />
             <div className="space-y-5 sm:space-y-6">
             {/* Hero Section */}
             <HeroSection lastRun={lastRun} language={language} />
@@ -732,6 +744,7 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
+          </>
         )}
       </PageShell>
     </PullToRefresh>
