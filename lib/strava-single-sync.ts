@@ -9,7 +9,6 @@ export interface SyncSingleStravaActivityOptions {
   userId: string;
   source: StravaSyncMode;
   generateReport?: boolean;
-  sendNotifications?: boolean;
   allowNonRun?: boolean;
 }
 
@@ -25,7 +24,6 @@ export interface SyncSingleStravaActivityResult {
   updated?: boolean;
   reportGenerated: boolean;
   reportSkippedReason?: string;
-  notificationsSent: boolean;
   error?: string;
 }
 
@@ -37,7 +35,6 @@ export async function syncSingleStravaActivity(
   const stravaId = String(activityId);
   const shouldGenerateReport = options.generateReport !== false;
   const allowNonRun = options.allowNonRun !== false;
-  const sendNotifications = options.sendNotifications === true;
 
   console.log(`[SINGLE SYNC] start source=${source} stravaId=${stravaId}`);
 
@@ -62,7 +59,6 @@ export async function syncSingleStravaActivity(
         updated: saved.updated,
         reportGenerated: false,
         reportSkippedReason: 'non-running-not-allowed',
-        notificationsSent: false,
       };
     }
 
@@ -80,7 +76,6 @@ export async function syncSingleStravaActivity(
         updated: saved.updated,
         reportGenerated: false,
         reportSkippedReason: 'non-running-load-only',
-        notificationsSent: false,
       };
     }
 
@@ -97,7 +92,6 @@ export async function syncSingleStravaActivity(
         updated: saved.updated,
         reportGenerated: false,
         reportSkippedReason: 'generate-report-disabled',
-        notificationsSent: false,
       };
     }
 
@@ -116,13 +110,11 @@ export async function syncSingleStravaActivity(
         updated: saved.updated,
         reportGenerated: false,
         reportSkippedReason: 'report-already-exists',
-        notificationsSent: false,
       };
     }
 
     try {
-      const reportResult = await processReportForActivity(dbActivity, {
-        sendTelegram: sendNotifications,
+      await processReportForActivity(dbActivity, {
         reason: 'new-activity',
         syncMode: source,
       });
@@ -138,7 +130,6 @@ export async function syncSingleStravaActivity(
         inserted: saved.inserted,
         updated: saved.updated,
         reportGenerated: true,
-        notificationsSent: reportResult.notificationsSent,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -156,7 +147,6 @@ export async function syncSingleStravaActivity(
         updated: saved.updated,
         reportGenerated: false,
         reportSkippedReason: 'report-generation-failed',
-        notificationsSent: false,
         error: message,
       };
     }
@@ -169,7 +159,6 @@ export async function syncSingleStravaActivity(
       source,
       stravaId,
       reportGenerated: false,
-      notificationsSent: false,
       error: message,
     };
   }

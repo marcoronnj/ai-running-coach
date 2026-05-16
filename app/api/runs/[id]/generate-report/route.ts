@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActivityByIdOrStravaId, processReportForActivity } from '@/lib/run-report';
-import { isTelegramNotificationsEnabled } from '@/lib/telegram';
 import { isRunningActivity } from '@/lib/sport-classification';
 
 export async function POST(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   const { id } = await params;
-  const telegramEnabled = isTelegramNotificationsEnabled();
-  const telegramRequested = request.nextUrl.searchParams.get('telegram') === 'true';
-  const sendTelegram = telegramEnabled && telegramRequested;
 
   try {
     const activity = await getActivityByIdOrStravaId(id);
@@ -36,8 +32,7 @@ export async function POST(
       );
     }
 
-    const { report, telegramSent, notificationsSent } = await processReportForActivity(activity, {
-      sendTelegram,
+    const { report } = await processReportForActivity(activity, {
       reason: 'manual-regenerate',
       syncMode: 'manual',
     });
@@ -49,10 +44,6 @@ export async function POST(
         activityId: activity.id,
         stravaId: activity.strava_id,
         reportGenerated: true,
-        telegramRequested,
-        telegramEnabled,
-        telegramSent,
-        notificationsSent,
         reportTitle: report.title,
       },
       { status: 200 }

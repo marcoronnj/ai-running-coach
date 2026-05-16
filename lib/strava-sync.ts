@@ -2,7 +2,6 @@ import { query } from '@/lib/db';
 import { type DBActivity } from '@/lib/coach';
 import { getActivitiesWithoutReport, processReportForActivity } from '@/lib/run-report';
 import { isRunningActivity } from '@/lib/sport-classification';
-import { isTelegramNotificationsEnabled } from '@/lib/telegram';
 import { formatDateTimeIT } from '@/lib/date-utils';
 import {
   filterRunningActivities,
@@ -26,9 +25,6 @@ export interface StravaSyncPayload {
   latestActivityId?: string;
   latestActivityName?: string;
   latestReportGenerated?: boolean;
-  telegramSent?: boolean;
-  notificationsSent?: boolean;
-  telegramEnabled?: boolean;
   pendingReports?: number;
   pendingReportsFound?: number;
   retryReportsProcessed?: number;
@@ -39,9 +35,6 @@ export interface StravaSyncPayload {
     id: string;
     name: string;
     reportGenerated: boolean;
-    telegramSent: boolean;
-    notificationsSent?: boolean;
-    telegramEnabled?: boolean;
     error?: string;
   }>;
   duration?: string;
@@ -72,7 +65,6 @@ export async function runStravaSync(
 
   try {
     console.log(`[SYNC] Inizio sincronizzazione Strava mode=${mode}`);
-    const telegramEnabled = isTelegramNotificationsEnabled();
     const perPage = options.perPage ?? (mode === 'manual' ? MANUAL_ACTIVITIES_PER_PAGE : CRON_ACTIVITIES_PER_PAGE);
     const retryLimit = options.skipRetryMissingReports
       ? 0
@@ -128,9 +120,6 @@ export async function runStravaSync(
           reportsGenerated: 0,
           retryReportsProcessed: 0,
           stravaCalls,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
           duration,
         },
         status: 200,
@@ -140,7 +129,6 @@ export async function runStravaSync(
     const processedActivities: NonNullable<StravaSyncPayload['processedActivities']> = [];
     const warnings: string[] = [];
     let latestReportGenerated = false;
-    let telegramSent = false;
     let retryReportsProcessed = 0;
     const reportStart = Date.now();
     let skippedNewRunReports = 0;
@@ -151,9 +139,6 @@ export async function runStravaSync(
           id: activity.id,
           name: activity.name,
           reportGenerated: false,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
         });
         console.log(`[SYNC] Attività non-running importata senza report id=${activity.id} type=${activity.sport_type || activity.type}`);
         continue;
@@ -165,42 +150,32 @@ export async function runStravaSync(
           id: activity.id,
           name: activity.name,
           reportGenerated: false,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
         });
         console.log(`[SYNC] Report nuova run rinviato nel manual sync id=${activity.id}`);
         continue;
       }
 
       try {
-        const shouldSendTelegram = telegramEnabled && latestNewActivity?.id === activity.id;
         console.log(
-          `[SYNC] Report nuova activity id=${activity.id} latest=${latestNewActivity?.id === activity.id ? 'yes' : 'no'} telegramEnabled=${telegramEnabled ? 'yes' : 'no'} telegram=${shouldSendTelegram ? 'yes' : 'no'}`
+          `[SYNC] Report nuova activity id=${activity.id} latest=${latestNewActivity?.id === activity.id ? 'yes' : 'no'}`
         );
 
-        const result = await processReportForActivity(activity, {
-          sendTelegram: shouldSendTelegram,
+        await processReportForActivity(activity, {
           reason: 'new-activity',
           syncMode: mode,
         });
-        const activityTelegramSent = result.telegramSent;
 
         if (latestNewActivity?.id === activity.id) {
           latestReportGenerated = true;
-          telegramSent = activityTelegramSent;
         }
 
         processedActivities.push({
           id: activity.id,
           name: activity.name,
           reportGenerated: true,
-          telegramSent: activityTelegramSent,
-          notificationsSent: activityTelegramSent,
-          telegramEnabled,
         });
 
-        console.log(`[SYNC] Report completato activity id=${activity.id} telegram=${activityTelegramSent ? 'yes' : 'no'}`);
+        console.log(`[SYNC] Report completato activity id=${activity.id}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[SYNC] Errore report nuova activity id=${activity.id}:`, errorMessage);
@@ -210,9 +185,6 @@ export async function runStravaSync(
           id: activity.id,
           name: activity.name,
           reportGenerated: false,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
           error: errorMessage,
         });
       }
@@ -223,10 +195,9 @@ export async function runStravaSync(
     const retryStart = Date.now();
     for (const activity of activitiesWithoutReport) {
       try {
-        console.log(`[SYNC] Retry report mancante activity id=${activity.id} telegram=no`);
+        console.log(`[SYNC] Retry report mancante activity id=${activity.id}`);
 
         await processReportForActivity(activity, {
-          sendTelegram: false,
           reason: 'retry-missing',
           syncMode: mode,
         });
@@ -236,9 +207,6 @@ export async function runStravaSync(
           id: activity.id,
           name: activity.name,
           reportGenerated: true,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -249,9 +217,6 @@ export async function runStravaSync(
           id: activity.id,
           name: activity.name,
           reportGenerated: false,
-          telegramSent: false,
-          notificationsSent: false,
-          telegramEnabled,
           error: errorMessage,
         });
       }
@@ -265,11 +230,11 @@ export async function runStravaSync(
     }
     const warning = warnings.length > 0 ? warnings.join(' | ') : undefined;
     await logSyncSuccess(
-      `mode=${mode} nuove=${newActivities.length} report=${reportsGenerated} retry=${retryReportsProcessed} telegram=${telegramSent ? 'yes' : 'no'} duration=${duration}`
+      `mode=${mode} nuove=${newActivities.length} report=${reportsGenerated} retry=${retryReportsProcessed} duration=${duration}`
     );
 
     console.log(
-      `[SYNC] Completato mode=${mode} new=${newActivities.length} latest=${latestNewActivity?.id ?? 'none'} reports=${reportsGenerated} retry=${retryReportsProcessed} telegram=${telegramSent ? 'yes' : 'no'} warnings=${warnings.length}`
+      `[SYNC] Completato mode=${mode} new=${newActivities.length} latest=${latestNewActivity?.id ?? 'none'} reports=${reportsGenerated} retry=${retryReportsProcessed} warnings=${warnings.length}`
     );
     console.log(`[SYNC][PERF] total duration=${Date.now() - startTime}ms mode=${mode} stravaCalls=${stravaCalls}`);
 
@@ -286,9 +251,6 @@ export async function runStravaSync(
         latestActivityId: latestNewActivity?.id,
         latestActivityName: latestNewActivity?.name,
         latestReportGenerated,
-        telegramSent,
-        notificationsSent: telegramSent,
-        telegramEnabled,
         pendingReportsFound: activitiesWithoutReport.length,
         retryReportsProcessed,
         stravaCalls,
@@ -313,9 +275,6 @@ export async function runStravaSync(
         message: errorMessage,
         mode,
         newActivities: 0,
-        telegramSent: false,
-        notificationsSent: false,
-        telegramEnabled: isTelegramNotificationsEnabled(),
         retryReportsProcessed: 0,
         stravaCalls: 0,
         duration,

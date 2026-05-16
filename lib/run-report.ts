@@ -1,19 +1,12 @@
 import { query } from '@/lib/db';
-import { getAppUrl } from '@/lib/app-url';
-import { isTelegramNotificationsEnabled, sendTelegramMessage } from '@/lib/telegram';
 import { getAthleteSettings } from '@/lib/athlete-settings';
 import { calculateCoachingMetrics } from '@/lib/coaching-metrics';
 import { getCoachingRules } from '@/lib/coaching-rules';
-import { normalizeLanguage, type Language } from '@/lib/i18n';
-import { containsItalianText } from '@/lib/report-display';
-import { getRecoveryTimelineState } from '@/lib/recovery-timeline';
 import { isRunningActivity } from '@/lib/sport-classification';
 import {
   DBActivity,
   CoachReport,
   generateCompleteCoachReport,
-  formatKm,
-  formatPace,
 } from '@/lib/coach';
 
 export async function getActivitiesWithoutReport(limit = 10): Promise<DBActivity[]> {
@@ -48,7 +41,6 @@ export async function getActivityByIdOrStravaId(id: string): Promise<DBActivity 
 }
 
 export interface ProcessReportOptions {
-  sendTelegram?: boolean;
   reason?: 'new-activity' | 'retry-missing' | 'manual-regenerate' | 'cron-regenerate';
   syncMode?: 'manual' | 'cron' | 'webhook';
 }
@@ -56,22 +48,18 @@ export interface ProcessReportOptions {
 export async function processReportForActivity(
   activity: DBActivity,
   options: ProcessReportOptions = {}
-): Promise<{ report: CoachReport; telegramSent: boolean; notificationsSent: boolean; telegramEnabled: boolean }> {
-  const telegramEnabled = isTelegramNotificationsEnabled();
-  const sendTelegram = telegramEnabled && options.sendTelegram === true;
-
+): Promise<{ report: CoachReport }> {
   if (!isRunningActivity(activity)) {
     throw new Error('Run report generation is only available for running activities');
   }
 
   console.log(
-    `[RUN-REPORT] Generazione report activity id=${activity.id} mode=${options.syncMode ?? 'n/a'} reason=${options.reason ?? 'n/a'} telegramEnabled=${telegramEnabled ? 'yes' : 'no'} telegram=${sendTelegram ? 'yes' : 'no'}`
+    `[RUN-REPORT] Generazione report activity id=${activity.id} mode=${options.syncMode ?? 'n/a'} reason=${options.reason ?? 'n/a'}`
   );
 
   const history90d = await getActivityHistory90d(activity.start_date);
   const history = history90d.filter(isRunningActivity).slice(0, 15);
   const athleteSettings = await getAthleteSettings();
-  const language = normalizeLanguage(athleteSettings?.language);
   const metrics = calculateCoachingMetrics(history90d, athleteSettings);
   const rules = getCoachingRules(metrics, athleteSettings);
   let report: CoachReport;
@@ -92,15 +80,7 @@ export async function processReportForActivity(
 
   await saveCoachReport(activity.id, report);
 
-  const telegramSent = sendTelegram
-    ? await sendTelegramNotification(activity, report, language)
-    : false;
-
-  if (!sendTelegram) {
-    console.log(`[RUN-REPORT] Telegram skipped for activity id=${activity.id} enabled=${telegramEnabled ? 'yes' : 'no'}`);
-  }
-
-  return { report, telegramSent, notificationsSent: telegramSent, telegramEnabled };
+  return { report };
 }
 
 async function saveCoachReport(activityId: string, report: CoachReport): Promise<void> {
@@ -149,78 +129,4 @@ async function getActivityHistory90d(beforeDate: string): Promise<DBActivity[]> 
   );
 
   return result.rows;
-}
-
-async function sendTelegramNotification(activity: DBActivity, report: CoachReport, language: Language): Promise<boolean> {
-  try {
-    const isEnglish = language === 'en';
-    const appUrl = getAppUrl();
-    const dashboardLink = `${appUrl}/runs/${activity.id}`;
-
-    const distance = formatKm(activity.distance_m);
-    const pace = formatPace(activity.average_speed);
-    const heartrate = activity.average_heartrate
-      ? ` • ${isEnglish ? 'HR' : 'FC'} ${activity.average_heartrate} bpm`
-      : '';
-    const activityName = isEnglish && containsItalianText(activity.name)
-      ? 'Run activity'
-      : activity.name;
-
-    const riskLevel = String(report.risk_level).toLowerCase();
-    const riskEmoji = {
-      basso: '🟢',
-      medio: '🟡',
-      alto: '🔴',
-    }[riskLevel as 'basso' | 'medio' | 'alto'] || '🟡';
-    const riskLabel = isEnglish
-      ? ({ basso: 'LOW', medio: 'MEDIUM', alto: 'HIGH' } as Record<string, string>)[riskLevel] ?? String(report.risk_level).toUpperCase()
-      : String(report.risk_level).toUpperCase();
-
-    const recoveryTimeline = getRecoveryTimelineState({
-      runDate: activity.start_date,
-      distanceMeters: activity.distance_m,
-      readinessScore: report.readiness_score,
-      fatigueScore: report.fatigue_score,
-      overloadRisk: report.risk_level,
-      focus: report.suggested_focus,
-      language,
-    });
-
-    const message = `
-🏃‍♂️ <b>${report.title}</b>
-
-📊 <b>${activityName}</b>
-📏 ${distance} • ⏱️ ${pace}${heartrate}
-
-� <b>${isEnglish ? 'Athlete Status' : 'Stato Atleta'}:</b>
-🎯 Readiness: ${report.readiness_score}/100
-😴 Fatigue: ${report.fatigue_score}/100
-📊 Consistency: ${report.consistency_score}/100
-
-🎯 <b>Focus:</b> ${report.suggested_focus}
-
-⚠️ <b>${isEnglish ? 'Risk' : 'Rischio'}:</b> ${riskEmoji} ${riskLabel}
-
-📝 <b>${isEnglish ? 'Summary' : 'Riepilogo'}:</b>
-${report.summary}
-
-⏰ <b>${isEnglish ? 'Next 48h' : 'Prossime 48h'}:</b>
-${recoveryTimeline.next48h}
-
-🔗 <a href="${dashboardLink}">${isEnglish ? 'View Full Report' : 'Vedi Report Completo'}</a>
-    `.trim();
-
-    const success = await sendTelegramMessage(message);
-
-    if (success) {
-      console.log(`[RUN-REPORT] 📱 Telegram inviato per: ${activity.name}`);
-    } else {
-      console.warn(`[RUN-REPORT] ⚠️ Telegram fallito per: ${activity.name}`);
-    }
-
-    return success;
-  } catch (error) {
-    console.error(`[RUN-REPORT] Errore Telegram per ${activity.name}:`, error);
-    return false;
-  }
 }

@@ -97,7 +97,6 @@ async function processStravaWebhookEvent(input: {
         userId: connection.user_id,
         source: 'webhook',
         generateReport: true,
-        sendNotifications: false,
         allowNonRun: true,
       });
 
@@ -110,7 +109,6 @@ async function processStravaWebhookEvent(input: {
         userId: connection.user_id,
         source: 'webhook',
         generateReport: true,
-        sendNotifications: false,
         allowNonRun: true,
       });
 

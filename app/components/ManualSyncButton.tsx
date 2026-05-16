@@ -17,7 +17,6 @@ interface ManualSyncResponse {
   reportsGenerated?: number;
   latestActivityId?: string;
   latestReportGenerated?: boolean;
-  telegramSent?: boolean;
   retryReportsProcessed?: number;
   duration?: string;
 }

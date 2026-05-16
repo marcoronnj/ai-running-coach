@@ -5,7 +5,7 @@ import { runStravaSync } from '@/lib/strava-sync';
 
 /**
  * API Route: GET /api/sync-strava
- * Sincronizza le attività Strava e genera report AI. Telegram è disabilitato salvo feature flag esplicito.
+ * Sincronizza le attività Strava e genera report AI.
  */
 export const maxDuration = 60;
 

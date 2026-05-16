@@ -235,18 +235,12 @@ Se OpenAI restituisce testo invece di JSON valido, viene creato un **fallback re
    import { generateCompleteCoachReport } from '@/lib/coach';
    ```
 
-2. **Integra con Telegram solo se abilitato:**
-   ```typescript
-   // Telegram è spento di default.
-   // Richiede ENABLE_TELEGRAM_NOTIFICATIONS=true.
-   ```
-
-3. **Dashboard web:**
+2. **Dashboard web:**
    ```typescript
    // Mostra report.title, report.summary, report.weekly_plan
    ```
 
-4. **Caching report:**
+3. **Caching report:**
    - Salva in DB per evitare rigenerazioni
    - TTL di 24h per report giornalieri
 
