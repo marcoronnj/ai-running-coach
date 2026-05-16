@@ -720,16 +720,16 @@ function RunSplitsSection({ splits, language }: { splits: any[]; language: Langu
   return (
     <Card>
       <SectionHeader eyebrow="splits" title={language === 'en' ? 'Splits' : 'Intertempi'} icon={LineChart} className="mb-3" />
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-black/10">
-        <div className="grid grid-cols-[2rem_2.8rem_minmax(3rem,1fr)_2.35rem_2rem] items-center gap-1 bg-white/[0.03] px-2.5 py-2 text-[0.62rem] font-bold uppercase leading-none tracking-[0.12em] text-app-muted sm:grid-cols-[2.4rem_3.4rem_minmax(5rem,1fr)_2.8rem_2.4rem] sm:px-3">
+      <div className="overflow-hidden rounded-xl bg-black/10">
+        <div className="grid grid-cols-[2rem_2.8rem_minmax(3rem,1fr)_2.35rem_2rem] items-center gap-1 border-b border-white/[0.08] bg-white/[0.03] px-2.5 py-2 text-[0.62rem] font-bold uppercase leading-none tracking-[0.12em] text-app-muted sm:grid-cols-[2.4rem_3.4rem_minmax(5rem,1fr)_2.8rem_2.4rem] sm:px-3">
           <div>KM</div>
           <div>{language === 'en' ? 'Pace' : 'Passo'}</div>
-          <div>{language === 'en' ? 'Bar' : 'Barra'}</div>
+          <div />
           <div>{language === 'en' ? 'Elev.' : 'D+'}</div>
           <div className="text-right">{language === 'en' ? 'HR' : 'FC'}</div>
         </div>
 
-        <div className="divide-y divide-white/10">
+        <div>
           {splits.map((split, index) => {
             const paceSeconds = getSplitPaceSeconds(split);
             const barWidth = getSplitBarWidth(paceSeconds, fastestPace, slowestPace);
@@ -741,11 +741,13 @@ function RunSplitsSection({ splits, language }: { splits: any[]; language: Langu
               >
                 <div className="font-semibold text-app-text">{formatSplitKm(split, index)}</div>
                 <div className="tabular-nums text-neutral-100">{formatSplitPace(split.average_speed)}</div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary shadow-[0_0_10px_rgba(54,252,225,0.18)]"
-                    style={{ width: `${barWidth}%` }}
-                  />
+                <div className="pr-2 sm:pr-3">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary shadow-[0_0_10px_rgba(54,252,225,0.18)]"
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
                 </div>
                 <div className="tabular-nums text-app-muted">{formatSplitElevation(split)}</div>
                 <div className="text-right tabular-nums text-neutral-200">{formatSplitHeartRate(split)}</div>
