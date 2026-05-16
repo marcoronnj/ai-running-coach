@@ -614,26 +614,53 @@ function EmptyState({ language }: { language: Language }) {
   );
 }
 
-function DashboardLoadErrorState({ language }: { language: Language }) {
+function DashboardSoftFallback({ language }: { language: Language }) {
   return (
-    <Card className="p-8 text-center sm:p-10">
-      <Image
-        src="/logo-veiro.svg"
-        alt="Veiro"
-        width={96}
-        height={36}
-        priority
-        className="mx-auto mb-5 block h-auto w-[5.6rem]"
-      />
-      <h2 className="mb-3 text-xl font-semibold text-app-text">
-        {language === 'en' ? 'Dashboard is reconnecting' : 'Dashboard in riconnessione'}
-      </h2>
-      <p className="mx-auto max-w-md text-sm leading-relaxed text-app-muted">
-        {language === 'en'
-          ? 'The local database did not answer in this request. Reopen or refresh once the connection is back.'
-          : 'Il database locale non ha risposto in questa richiesta. Riapri o aggiorna appena la connessione torna disponibile.'}
-      </p>
-    </Card>
+    <div className="space-y-5 sm:space-y-6">
+      <Card className="overflow-hidden">
+        <div className="h-3 w-28 rounded-full bg-white/[0.08]" />
+        <div className="mt-4 h-8 w-48 max-w-full rounded-full bg-white/[0.06]" />
+        <div className="mt-3 h-4 w-64 max-w-full rounded-full bg-white/[0.045]" />
+      </Card>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+        <div className="space-y-5 lg:col-span-2">
+          <Card>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl border border-white/10 bg-white/[0.04]" />
+              <div className="space-y-2">
+                <div className="h-3 w-24 rounded-full bg-white/[0.08]" />
+                <div className="h-5 w-40 rounded-full bg-white/[0.06]" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="h-4 w-full rounded-full bg-white/[0.045]" />
+              <div className="h-4 w-11/12 rounded-full bg-white/[0.045]" />
+              <div className="h-4 w-3/4 rounded-full bg-white/[0.045]" />
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="metric-card h-28 overflow-hidden p-3.5">
+                <div className="h-3 w-20 rounded-full bg-white/[0.08]" />
+                <div className="mt-4 h-6 w-24 rounded-full bg-white/[0.06]" />
+                <div className="mt-3 h-3 w-16 rounded-full bg-white/[0.045]" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <MetricsPlaceholderCard language={language} />
+          <Card className="h-24">
+            <div className="h-4 w-32 rounded-full bg-white/[0.06]" />
+            <div className="mt-4 h-3 w-full rounded-full bg-white/[0.045]" />
+            <div className="mt-3 h-3 w-2/3 rounded-full bg-white/[0.045]" />
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -970,7 +997,7 @@ export default async function HomePage() {
         </div>
 
         {dbFailed && !hasData ? (
-          <DashboardLoadErrorState language={language} />
+          <DashboardSoftFallback language={language} />
         ) : !hasData ? (
           <EmptyState language={language} />
         ) : (

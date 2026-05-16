@@ -81,6 +81,52 @@ function formatPace(speedMs: number): string {
   return `${minutes}:${seconds.toString().padStart(2, '0')}/km`;
 }
 
+function formatSplitPace(speedMs?: number): string {
+  if (!speedMs || speedMs <= 0) return 'N/A';
+  const totalSeconds = Math.round(1000 / speedMs);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function formatSplitKm(split: any, index: number): string {
+  if (typeof split.distance !== 'number' || !Number.isFinite(split.distance)) {
+    return `${index + 1}`;
+  }
+
+  const km = split.distance / 1000;
+  if (km >= 0.95 && km <= 1.05) {
+    return `${index + 1}`;
+  }
+
+  return km.toFixed(1);
+}
+
+function formatSplitElevation(split: any): string {
+  const elevation = split.elevation_difference ?? split.elevation_gain;
+  return typeof elevation === 'number' && Number.isFinite(elevation) ? `${Math.round(elevation)}m` : '–';
+}
+
+function formatSplitHeartRate(split: any): string {
+  return typeof split.average_heartrate === 'number' && Number.isFinite(split.average_heartrate)
+    ? `${Math.round(split.average_heartrate)}`
+    : '–';
+}
+
+function getSplitPaceSeconds(split: any): number | null {
+  return typeof split.average_speed === 'number' && split.average_speed > 0
+    ? 1000 / split.average_speed
+    : null;
+}
+
+function getSplitBarWidth(paceSeconds: number | null, fastestPace: number, slowestPace: number): number {
+  if (paceSeconds === null) return 20;
+  if (fastestPace === slowestPace) return 100;
+
+  const normalized = (slowestPace - paceSeconds) / (slowestPace - fastestPace);
+  return Math.max(20, Math.min(100, 20 + normalized * 80));
+}
+
 function formatSpeed(speedMs: number): string {
   if (!speedMs || speedMs <= 0) return 'N/A';
   return `${(speedMs * 3.6).toFixed(1)} km/h`;
@@ -665,39 +711,48 @@ function RunSplitsSection({ splits, language }: { splits: any[]; language: Langu
     return null;
   }
 
+  const splitPaces = splits
+    .map(getSplitPaceSeconds)
+    .filter((pace): pace is number => pace !== null);
+  const fastestPace = splitPaces.length > 0 ? Math.min(...splitPaces) : 0;
+  const slowestPace = splitPaces.length > 0 ? Math.max(...splitPaces) : 0;
+
   return (
     <Card>
-      <SectionHeader eyebrow="splits" title={language === 'en' ? 'Splits' : 'Intertempi'} icon={LineChart} />
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/10">
-        <table className="min-w-full text-left text-sm text-neutral-300">
-          <thead className="bg-white/[0.03] text-xs uppercase tracking-[0.14em] text-app-muted">
-            <tr>
-              <th className="px-4 py-3">Km</th>
-              <th className="px-4 py-3">{language === 'en' ? 'Pace' : 'Passo'}</th>
-              <th className="px-4 py-3">{language === 'en' ? 'Avg HR' : 'FC media'}</th>
-              <th className="px-4 py-3">{language === 'en' ? 'Elevation' : 'Dislivello'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {splits.map((split, index) => {
-              const km = typeof split.distance === 'number'
-                ? (split.distance / 1000).toFixed(1)
-                : `${index + 1}`;
-              const pace = split.average_speed ? formatPace(split.average_speed) : 'N/A';
-              const hr = split.average_heartrate ? `${Math.round(split.average_heartrate)} bpm` : '—';
-              const elev = split.elevation_difference ?? split.elevation_gain ?? '—';
+      <SectionHeader eyebrow="splits" title={language === 'en' ? 'Splits' : 'Intertempi'} icon={LineChart} className="mb-3" />
+      <div className="overflow-hidden rounded-xl border border-white/10 bg-black/10">
+        <div className="grid grid-cols-[2rem_2.8rem_minmax(3rem,1fr)_2.35rem_2rem] items-center gap-1 bg-white/[0.03] px-2.5 py-2 text-[0.62rem] font-bold uppercase leading-none tracking-[0.12em] text-app-muted sm:grid-cols-[2.4rem_3.4rem_minmax(5rem,1fr)_2.8rem_2.4rem] sm:px-3">
+          <div>KM</div>
+          <div>{language === 'en' ? 'Pace' : 'Passo'}</div>
+          <div>{language === 'en' ? 'Bar' : 'Barra'}</div>
+          <div>{language === 'en' ? 'Elev.' : 'D+'}</div>
+          <div className="text-right">{language === 'en' ? 'HR' : 'FC'}</div>
+        </div>
 
-              return (
-                <tr key={index} className="border-t border-white/10">
-                  <td className="px-4 py-3 text-app-text">{km}</td>
-                  <td className="px-4 py-3">{pace}</td>
-                  <td className="px-4 py-3">{hr}</td>
-                  <td className="px-4 py-3">{typeof elev === 'number' ? `${Math.round(elev)} m` : elev}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="divide-y divide-white/10">
+          {splits.map((split, index) => {
+            const paceSeconds = getSplitPaceSeconds(split);
+            const barWidth = getSplitBarWidth(paceSeconds, fastestPace, slowestPace);
+
+            return (
+              <div
+                key={index}
+                className="grid min-h-8 grid-cols-[2rem_2.8rem_minmax(3rem,1fr)_2.35rem_2rem] items-center gap-1 px-2.5 py-1.5 text-[0.72rem] font-medium leading-none text-neutral-300 sm:grid-cols-[2.4rem_3.4rem_minmax(5rem,1fr)_2.8rem_2.4rem] sm:px-3 sm:text-xs"
+              >
+                <div className="font-semibold text-app-text">{formatSplitKm(split, index)}</div>
+                <div className="tabular-nums text-neutral-100">{formatSplitPace(split.average_speed)}</div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary shadow-[0_0_10px_rgba(54,252,225,0.18)]"
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <div className="tabular-nums text-app-muted">{formatSplitElevation(split)}</div>
+                <div className="text-right tabular-nums text-neutral-200">{formatSplitHeartRate(split)}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </Card>
   );
