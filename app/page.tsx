@@ -187,7 +187,7 @@ function HeroSection({ lastRun, language }: { lastRun: DashboardRun | null | und
               ))}
             </span>
           ) : (
-            <span>{t(language, 'dashboard.noRunsSynced')}</span>
+            <span>{language === 'en' ? 'Dashboard updating' : 'Dashboard in aggiornamento'}</span>
           )}
         </div>
       </div>
@@ -553,6 +553,60 @@ function EmptyState({ language }: { language: Language }) {
   );
 }
 
+function DashboardRefreshingState({ language }: { language: Language }) {
+  const barClasses = 'h-3 rounded-full bg-white/[0.08]';
+
+  return (
+    <div className="space-y-5 sm:space-y-6" aria-busy="true">
+      <Card className="overflow-hidden border-[rgba(54,252,225,0.16)] bg-[linear-gradient(135deg,rgba(54,252,225,0.07),rgba(215,255,63,0.035)_42%,rgba(17,17,17,0.94))]">
+        <div className="animate-pulse space-y-4">
+          <div className="h-3 w-24 rounded-full bg-accent-secondary/20" />
+          <div className="h-7 w-44 rounded-full bg-white/[0.1]" />
+          <div className="h-4 w-64 max-w-full rounded-full bg-white/[0.07]" />
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6">
+        <div className="space-y-5 lg:col-span-2">
+          <Card>
+            <SectionHeader eyebrow={t(language, 'dashboard.coachLive')} title={t(language, 'dashboard.currentState')} icon={Brain} />
+            <div className="animate-pulse space-y-3">
+              <div className={`${barClasses} w-full`} />
+              <div className={`${barClasses} w-10/12`} />
+              <div className="mt-5 grid gap-3">
+                <div className="h-20 rounded-2xl bg-white/[0.045]" />
+                <div className="h-20 rounded-2xl bg-white/[0.035]" />
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="animate-pulse space-y-4">
+              <div className="h-3 w-28 rounded-full bg-accent-primary/20" />
+              <div className="h-6 w-52 max-w-full rounded-full bg-white/[0.1]" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-24 rounded-2xl bg-white/[0.045]" />
+                <div className="h-24 rounded-2xl bg-white/[0.045]" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-5">
+          <MetricsPlaceholderCard language={language} />
+          <Card>
+            <div className="animate-pulse space-y-3">
+              <div className="h-3 w-24 rounded-full bg-accent-secondary/20" />
+              <div className="h-16 rounded-2xl bg-white/[0.045]" />
+              <div className="h-16 rounded-2xl bg-white/[0.035]" />
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MetricsPlaceholderCard({ language }: { language: Language }) {
   return (
     <Card className="overflow-hidden">
@@ -594,10 +648,14 @@ export default async function HomePage() {
   const athleteMetrics = dashboard.metrics;
   const dynamicAthleteState = dashboard.dynamicAthleteState;
   const metricsFailed = dashboard.errors.some((issue) => issue.section === 'metrics' || issue.section === 'dynamicAthleteState');
-  const hasData = Boolean(lastRun) || weeklyTrend.length > 0;
+  const showTrueEmpty = dashboard.isTrueEmpty;
+  const showDashboard = Boolean(lastRun) || weeklyTrend.length > 0 || dashboard.source === 'cache';
   console.log('[HOME PERF]', {
     renderTotal: `${Date.now() - renderStart}ms`,
-    hasData,
+    showDashboard,
+    showTrueEmpty,
+    activityPresence: dashboard.activityPresence,
+    activityCount: dashboard.activityCount,
   });
 
   return (
@@ -643,8 +701,10 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {!hasData ? (
+        {showTrueEmpty ? (
           <EmptyState language={language} />
+        ) : !showDashboard ? (
+          <DashboardRefreshingState language={language} />
         ) : (
             <div className="space-y-5 sm:space-y-6">
             {/* Hero Section */}

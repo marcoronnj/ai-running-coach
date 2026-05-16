@@ -49,6 +49,9 @@ export interface HomeDashboardData {
   latestRun: DashboardRun | null;
   latestReport: any | null;
   recentRuns: any[];
+  activityCount: number | null;
+  activityPresence: 'known' | 'unknown';
+  isTrueEmpty: boolean;
   metrics: ReturnType<typeof calculateCoachingMetrics> | null;
   rules: ReturnType<typeof getCoachingRules> | null;
   athleteSettings: AthleteSettings | null;
@@ -63,6 +66,7 @@ export interface HomeDashboardData {
 const CRITICAL_TIMEOUT_MS = 2000;
 const SECONDARY_TIMEOUT_MS = 1500;
 const HOME_CACHE_TTL_MS = 30_000;
+const HOME_STALE_DASHBOARD_TTL_MS = 5 * 60_000;
 
 const EMPTY_STRAVA_STATUS: PublicStravaConnectionStatus = { connected: false };
 
@@ -105,6 +109,9 @@ function emptyHomeDashboardData(language: Language = 'it'): HomeDashboardData {
     latestRun: null,
     latestReport: null,
     recentRuns: [],
+    activityCount: null,
+    activityPresence: 'unknown',
+    isTrueEmpty: false,
     metrics: null,
     rules: null,
     athleteSettings: null,
@@ -162,6 +169,7 @@ async function withTimeout<T>({
       if (settled) return;
       const durationMs = Date.now() - start;
       issues.push(toIssue(label, 'timeout', durationMs));
+      console.log(`[HOME FALLBACK] ${label} timeout`);
       console.log(`[HOME PERF] ${label} timeout ${timeoutMs}ms`);
       resolve(fallback);
     }, timeoutMs);
@@ -271,6 +279,23 @@ async function getLatestRun(issues: HomeDashboardIssue[]): Promise<DashboardRun 
       undefined,
       CRITICAL_TIMEOUT_MS
     ).then((result) => result.rows[0]?.data ?? null),
+  });
+}
+
+async function getActivityCount(issues: HomeDashboardIssue[]): Promise<number | null> {
+  return withTimeout({
+    label: 'activityCount',
+    timeoutMs: CRITICAL_TIMEOUT_MS,
+    fallback: null,
+    issues,
+    promise: homeQuery<{ count: string }>(
+      `
+        SELECT COUNT(*)::TEXT AS count
+        FROM activities
+      `,
+      undefined,
+      CRITICAL_TIMEOUT_MS
+    ).then((result) => Number(result.rows[0]?.count ?? 0)),
   });
 }
 
@@ -416,12 +441,14 @@ async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboard
     athleteSettingsResult,
     stravaConnectionResult,
     latestRunResult,
+    activityCountResult,
     weeklyTrendResult,
     activityHistoryResult,
   ] = await Promise.allSettled([
     getAthleteSettings(issues),
     getStravaConnection(userId, issues),
     getLatestRun(issues),
+    getActivityCount(issues),
     getWeeklyTrend(issues),
     getActivityHistory(issues),
   ]);
@@ -429,8 +456,11 @@ async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboard
   const athleteSettings = athleteSettingsResult.status === 'fulfilled' ? athleteSettingsResult.value : null;
   const stravaConnection = stravaConnectionResult.status === 'fulfilled' ? stravaConnectionResult.value : EMPTY_STRAVA_STATUS;
   const latestRun = latestRunResult.status === 'fulfilled' ? latestRunResult.value : null;
+  const activityCount = activityCountResult.status === 'fulfilled' ? activityCountResult.value : null;
+  const activityPresence = activityCount === null ? 'unknown' : 'known';
   const trend = weeklyTrendResult.status === 'fulfilled' ? weeklyTrendResult.value : [];
   const recentRuns = activityHistoryResult.status === 'fulfilled' ? activityHistoryResult.value : [];
+  const isTrueEmpty = activityPresence === 'known' && activityCount === 0;
   const latestReport = getLatestReport(latestRun);
   const language = normalizeLanguage(athleteSettings?.language);
   const { metrics, rules } = await buildMetricsSafe(recentRuns, athleteSettings, issues);
@@ -448,15 +478,25 @@ async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboard
   console.log(`[HOME PERF] total ${Date.now() - start}ms`, {
     source: 'db',
     latestRun: Boolean(latestRun),
+    activityCount,
+    activityPresence,
+    isTrueEmpty,
     trendRows: trend.length,
     recentRows: recentRuns.length,
     issues: issues.length,
   });
 
+  if (isTrueEmpty) {
+    console.log('[HOME EMPTY] true no activities');
+  }
+
   return {
     latestRun,
     latestReport,
     recentRuns,
+    activityCount,
+    activityPresence,
+    isTrueEmpty,
     metrics,
     rules,
     athleteSettings,
@@ -469,13 +509,29 @@ async function loadDashboardFromDb(userId: string | null): Promise<HomeDashboard
   };
 }
 
+function isReusableDashboardSnapshot(data: HomeDashboardData, ageMs: number): boolean {
+  if (ageMs > HOME_STALE_DASHBOARD_TTL_MS) return false;
+  if (data.isTrueEmpty) return false;
+  return data.activityPresence === 'known' && (data.activityCount ?? 0) > 0;
+}
+
+function shouldStoreDashboardSnapshot(data: HomeDashboardData): boolean {
+  if (data.isTrueEmpty) return false;
+  if (data.activityPresence !== 'known' || (data.activityCount ?? 0) <= 0) return false;
+
+  const criticalTimeouts = new Set(['activityCount', 'latestRun', 'activityHistory']);
+  return !data.timedOut.some((section) => criticalTimeouts.has(section));
+}
+
 function refreshHomeDashboardCache(userId: string): Promise<void> {
   const inFlight = homeDashboardRefreshes.get(userId);
   if (inFlight) return inFlight;
 
   const refresh = loadDashboardFromDb(userId)
     .then((data) => {
-      homeDashboardCache.set(userId, { data, updatedAt: Date.now() });
+      if (shouldStoreDashboardSnapshot(data)) {
+        homeDashboardCache.set(userId, { data, updatedAt: Date.now() });
+      }
     })
     .catch((error) => {
       logServerError('home.backgroundDashboardDb', error);
@@ -494,11 +550,13 @@ export async function getDashboardDataSafe(userId: string | null): Promise<HomeD
   const cacheAgeMs = cached ? Date.now() - cached.updatedAt : null;
 
   if (cached && cacheAgeMs !== null && cacheAgeMs < HOME_CACHE_TTL_MS) {
+    console.log('[HOME CACHE] using cached dashboard', { cacheAgeMs, fresh: true });
     console.log('[HOME PERF] cache 0ms', { cacheAgeMs });
     return { ...cached.data, source: 'cache' };
   }
 
-  if (cached) {
+  if (cached && cacheAgeMs !== null && isReusableDashboardSnapshot(cached.data, cacheAgeMs)) {
+    console.log('[HOME CACHE] using cached dashboard', { cacheAgeMs, fresh: false });
     console.log('[HOME PERF] stale-cache 0ms', { cacheAgeMs });
     void refreshHomeDashboardCache(cacheKey);
     return { ...cached.data, source: 'cache' };
@@ -506,10 +564,16 @@ export async function getDashboardDataSafe(userId: string | null): Promise<HomeD
 
   try {
     const data = await loadDashboardFromDb(userId);
-    homeDashboardCache.set(cacheKey, { data, updatedAt: Date.now() });
+    if (shouldStoreDashboardSnapshot(data)) {
+      homeDashboardCache.set(cacheKey, { data, updatedAt: Date.now() });
+    }
     return data;
   } catch (error) {
     logServerError('home.dashboardData', error);
+    if (cached && cacheAgeMs !== null && isReusableDashboardSnapshot(cached.data, cacheAgeMs)) {
+      console.log('[HOME CACHE] using cached dashboard', { cacheAgeMs, reason: 'db-error' });
+      return { ...cached.data, source: 'cache' };
+    }
     return emptyHomeDashboardData();
   }
 }
