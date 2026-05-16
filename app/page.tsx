@@ -511,6 +511,40 @@ function WeeklyTrendCard({ trend, language }: { trend: WeeklyTrendItem[] | null;
   );
 }
 
+function TrendPlaceholderCard({ language }: { language: Language }) {
+  const bars = [72, 46, 88, 58];
+
+  return (
+    <Card>
+      <SectionHeader eyebrow="training load" title={t(language, 'dashboard.weeklyTrend')} icon={TrendingUp} />
+      <div className="metric-card p-3.5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium text-app-text">{t(language, 'dashboard.thisWeek')}</div>
+            <div className="text-xs text-app-muted">
+              {language === 'en' ? 'Latest available trend' : 'Ultimo trend disponibile'}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-semibold text-app-text">--</div>
+            <div className="text-xs text-app-muted">{language === 'en' ? 'Updating' : 'Aggiorno'}</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 items-end gap-2 opacity-70 blur-[0.2px]">
+          {bars.map((height, index) => (
+            <div key={index} className="flex h-16 items-end rounded-xl bg-white/[0.03] p-1">
+              <div
+                className="w-full rounded-lg bg-gradient-to-t from-accent-secondary/30 to-accent-primary/55"
+                style={{ height: `${height}%` }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /**
  * Componente Link Profilo Strava
  */
@@ -650,6 +684,7 @@ export default async function HomePage() {
   const dynamicAthleteState = dashboard.dynamicAthleteState;
   const metricsFailed = dashboard.errors.some((issue) => issue.section === 'metrics' || issue.section === 'dynamicAthleteState');
   const hasValidSnapshot = isValidDashboardSnapshot(dashboard);
+  const isCachedDashboard = hasValidSnapshot && dashboard.source !== 'db';
   const showTrueEmpty = dashboard.isTrueEmpty && !hasValidSnapshot;
   const showDashboard = Boolean(lastRun) || weeklyTrend.length > 0 || dashboard.source === 'cache' || dashboard.source === 'snapshot-db' || hasValidSnapshot;
   console.log('[HOME PERF]', {
@@ -739,6 +774,8 @@ export default async function HomePage() {
                 )}
                 {weeklyTrend.length > 0 ? (
                   <WeeklyTrendCard trend={weeklyTrend} language={language} />
+                ) : isCachedDashboard ? (
+                  <TrendPlaceholderCard language={language} />
                 ) : null}
                 <StravaProfileLink status={stravaStatus} language={language} />
               </div>
