@@ -118,7 +118,7 @@ export function MetricTile({
   progress?: number | null;
 }) {
   return (
-    <div className="metric-card pressable p-3.5">
+    <div className="metric-card pressable h-full p-3.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="eyebrow">{label}</p>
         {Icon ? <IconBox icon={Icon} tone={tone} /> : null}

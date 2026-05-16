@@ -9,10 +9,10 @@ export default function NotFound() {
           <Image
             src="/logo.svg"
             alt="Veiro"
-            width={96}
-            height={36}
+            width={77}
+            height={29}
             priority
-            className="mx-auto mb-4 block h-auto w-24"
+            className="mx-auto mb-4 block h-auto w-[4.8rem]"
           />
           <h1 className="mb-3 text-xl font-semibold tracking-tight text-app-text">
             Schermata non trovata

@@ -620,10 +620,10 @@ function DashboardLoadErrorState({ language }: { language: Language }) {
       <Image
         src="/logo-veiro.svg"
         alt="Veiro"
-        width={120}
-        height={45}
+        width={96}
+        height={36}
         priority
-        className="mx-auto mb-5 block h-auto w-28"
+        className="mx-auto mb-5 block h-auto w-[5.6rem]"
       />
       <h2 className="mb-3 text-xl font-semibold text-app-text">
         {language === 'en' ? 'Dashboard is reconnecting' : 'Dashboard in riconnessione'}
@@ -938,10 +938,10 @@ export default async function HomePage() {
                 <Image
                   src="/logo.svg"
                   alt="Veiro"
-                  width={80}
-                  height={30}
+                  width={64}
+                  height={24}
                   priority
-                  className="block h-6 w-auto sm:h-[30px]"
+                  className="block h-5 w-auto sm:h-6"
                 />
               </div>
             </div>

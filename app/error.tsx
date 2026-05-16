@@ -43,10 +43,10 @@ export default function Error({
           <Image
             src="/logo.svg"
             alt="Veiro"
-            width={80}
-            height={30}
+            width={64}
+            height={24}
             priority
-            className="mx-auto mb-3 block h-6 w-auto sm:h-[30px]"
+            className="mx-auto mb-3 block h-5 w-auto sm:h-6"
           />
           <h1 className="mb-3 text-xl font-semibold tracking-tight text-app-text">
             {title}

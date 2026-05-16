@@ -115,7 +115,7 @@ function contextualReportText(value: string | undefined, language: Language, fal
 }
 
 function localizedRunName(value: string, language: Language): string {
-  if (language === 'en' && containsItalianText(value)) return 'Run activity';
+  if (language === 'en' && containsItalianText(value)) return 'Activity';
   return value;
 }
 
@@ -480,7 +480,7 @@ function NonRunActivityState({ activity, language }: { activity: RunDetailData; 
             <p className="eyebrow mb-1">{isEnglish ? 'Non-running activity' : 'Attività non-running'}</p>
             <h1 className="text-xl font-semibold text-app-text">{activity.name}</h1>
             <p className="mt-1 text-sm text-app-muted">
-              {formatDateLocalized(activity.start_date, language)} • {formatTimeIT(activity.start_date)} • {activity.sport_type || activity.type}
+              {formatDateLocalized(activity.start_date, language)} • {formatTimeIT(activity.start_date)}
             </p>
           </div>
         </div>
@@ -541,58 +541,55 @@ function MetricsGrid({
   sufferScore?: number;
   averageWatts?: number;
 }) {
+  const metrics = [
+    { label: language === 'en' ? 'Distance' : 'Distanza', value: formatKm(run.distance_m), icon: MapPin, tone: 'lime' as const },
+    { label: t(language, 'run.duration'), value: formatPreciseDuration(run.moving_time_s), icon: Timer, tone: 'cyan' as const },
+    { label: language === 'en' ? 'Average pace' : 'Passo medio', value: formatPace(run.average_speed), icon: Footprints, tone: 'lime' as const },
+    { label: language === 'en' ? 'Avg HR' : 'FC media', value: run.average_heartrate ? `${Math.round(run.average_heartrate)} bpm` : 'N/A', icon: HeartPulse, tone: 'danger' as const },
+    averageCadence !== undefined
+      ? { label: t(language, 'run.averageCadence'), value: `${Math.round(averageCadence)} spm`, icon: Footprints, tone: 'neutral' as const }
+      : null,
+    averageWatts !== undefined
+      ? { label: t(language, 'run.averageWatts'), value: `${Math.round(averageWatts)} W`, icon: Battery, tone: 'lime' as const }
+      : null,
+    typeof run.total_elevation_gain === 'number'
+      ? { label: language === 'en' ? 'Elevation' : 'Dislivello', value: `${Math.round(run.total_elevation_gain)} m`, icon: Mountain, tone: 'neutral' as const }
+      : null,
+    maxSpeed
+      ? { label: t(language, 'run.maxSpeed'), value: formatSpeed(maxSpeed), icon: Gauge, tone: 'neutral' as const }
+      : null,
+    { label: language === 'en' ? 'Average speed' : 'Velocità media', value: formatSpeed(run.average_speed), icon: Zap, tone: 'cyan' as const },
+    run.max_heartrate
+      ? { label: language === 'en' ? 'Max HR' : 'FC max', value: `${Math.round(run.max_heartrate)} bpm`, icon: HeartPulse, tone: 'danger' as const }
+      : null,
+    calories !== undefined
+      ? { label: 'Calorie', value: `${Math.round(calories)} kcal`, icon: Flame, tone: 'warning' as const }
+      : null,
+    sufferScore !== undefined
+      ? { label: 'Suffer score', value: `${sufferScore}`, icon: Activity, tone: 'danger' as const }
+      : null,
+    elapsedTime !== undefined
+      ? { label: t(language, 'run.elapsedTime'), value: formatPreciseDuration(elapsedTime), icon: Clock, tone: 'neutral' as const }
+      : null,
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: string;
+    icon: LucideIcon;
+    tone: 'neutral' | 'lime' | 'cyan' | 'danger' | 'warning' | 'success';
+  }>;
+
   return (
     <Card>
       <SectionHeader eyebrow="run data" title={t(language, 'run.metrics')} icon={Gauge} className="mb-3" />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <MetricCard label={language === 'en' ? 'Distance' : 'Distanza'} value={formatKm(run.distance_m)} icon={MapPin} tone="lime" />
-        <MetricCard label={t(language, 'run.duration')} value={formatPreciseDuration(run.moving_time_s)} icon={Timer} tone="cyan" />
-        <MetricCard label={language === 'en' ? 'Average pace' : 'Passo medio'} value={formatPace(run.average_speed)} icon={Footprints} tone="lime" />
-        <MetricCard label={language === 'en' ? 'Average speed' : 'Velocità media'} value={formatSpeed(run.average_speed)} icon={Zap} tone="cyan" />
-        {run.average_heartrate && (
-          <MetricCard
-            label={language === 'en' ? 'Avg HR' : 'FC media'}
-            value={`${Math.round(run.average_heartrate)} bpm`}
-            icon={HeartPulse}
-            tone="danger"
-          />
-        )}
-        {run.max_heartrate && (
-          <MetricCard
-            label={language === 'en' ? 'Max HR' : 'FC max'}
-            value={`${Math.round(run.max_heartrate)} bpm`}
-            icon={HeartPulse}
-            tone="danger"
-          />
-        )}
-        {typeof run.total_elevation_gain === 'number' && (
-          <MetricCard
-            label={language === 'en' ? 'Elevation' : 'Dislivello'}
-            value={`${Math.round(run.total_elevation_gain)} m`}
-            icon={Mountain}
-          />
-        )}
-        {run.type && (
-          <MetricCard label={language === 'en' ? 'Type' : 'Tipo'} value={run.type} icon={Activity} />
-        )}
-        {maxSpeed && (
-          <MetricCard label={t(language, 'run.maxSpeed')} value={formatSpeed(maxSpeed)} icon={Gauge} />
-        )}
-        {averageCadence !== undefined && (
-          <MetricCard label={t(language, 'run.averageCadence')} value={`${Math.round(averageCadence)} spm`} icon={Footprints} />
-        )}
-        {calories !== undefined && (
-          <MetricCard label="Calorie" value={`${Math.round(calories)} kcal`} icon={Flame} tone="warning" />
-        )}
-        {sufferScore !== undefined && (
-          <MetricCard label="Suffer score" value={`${sufferScore}`} icon={Activity} tone="danger" />
-        )}
-        {averageWatts !== undefined && (
-          <MetricCard label={t(language, 'run.averageWatts')} value={`${Math.round(averageWatts)} W`} icon={Battery} tone="lime" />
-        )}
-        {elapsedTime !== undefined && (
-          <MetricCard label={t(language, 'run.elapsedTime')} value={formatPreciseDuration(elapsedTime)} icon={Clock} />
-        )}
+      <div className="grid grid-cols-2 gap-3">
+        {metrics.map((metric, index) => (
+          <div
+            key={`${metric.label}-${index}`}
+            className={metrics.length % 2 === 1 && index === metrics.length - 1 ? 'col-span-2' : undefined}
+          >
+            <MetricCard {...metric} />
+          </div>
+        ))}
       </div>
     </Card>
   );

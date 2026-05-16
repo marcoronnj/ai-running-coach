@@ -54,9 +54,9 @@ export default function GlobalError({
             <img
               src="/logo.svg"
               alt="Veiro"
-              width={96}
-              height={36}
-              style={{ display: 'block', width: '96px', height: 'auto', margin: '0 auto 18px' }}
+              width={77}
+              height={29}
+              style={{ display: 'block', width: '77px', height: 'auto', margin: '0 auto 18px' }}
             />
             <h1 style={{ margin: '0 0 10px', fontSize: '20px', lineHeight: 1.2 }}>
               Non siamo riusciti a caricare Veiro.

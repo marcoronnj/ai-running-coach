@@ -35,8 +35,8 @@ export default function AppStartupLoader() {
         <img
           src="/logo-veiro.svg"
           alt="Veiro"
-          width={132}
-          height={50}
+          width={66}
+          height={25}
           className="splash-veiro-logo mb-7"
         />
 

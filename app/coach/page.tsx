@@ -593,10 +593,10 @@ export default async function CoachPage() {
               <Image
                 src="/logo.svg"
                 alt="Veiro"
-                width={80}
-                height={30}
+                width={64}
+                height={24}
                 priority
-                className="block h-6 w-auto sm:h-[30px]"
+                className="block h-5 w-auto sm:h-6"
               />
               <p className="mt-1 text-sm text-app-muted">{t(language, 'coach.subtitle')}</p>
               {latestRun ? (
