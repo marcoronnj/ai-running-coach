@@ -732,3 +732,9 @@ export async function refreshDashboardDataFresh(userId: string | null): Promise<
 
   return freshData;
 }
+
+export function invalidateHomeDashboardCache(userId: string | null): void {
+  const cacheKey = userId || 'anonymous';
+  homeDashboardCache.delete(cacheKey);
+  homeDashboardRefreshes.delete(cacheKey);
+}

@@ -23,7 +23,7 @@ export async function GET() {
     const dashboard = await refreshDashboardDataFresh(session.email);
     const timestamp = new Date().toISOString();
 
-    console.log('[HOME LIVE] fresh endpoint loaded', {
+    console.log('[HOME AUTO REFRESH] fresh data loaded', {
       durationMs: Date.now() - startedAt,
       dashboardSource: dashboard.dashboardSource,
       latestRun: Boolean(dashboard.latestRun),
@@ -41,7 +41,7 @@ export async function GET() {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    console.error('[HOME LIVE] fresh endpoint failed', message);
+    console.error('[HOME AUTO REFRESH] fresh data failed', message);
 
     return NextResponse.json(
       {

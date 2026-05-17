@@ -24,6 +24,7 @@ import type { PublicStravaConnectionStatus } from '@/lib/strava-connection';
 import ManualSyncButton from '@/app/components/ManualSyncButton';
 import PullToRefresh from '@/app/components/PullToRefresh';
 import DashboardSnapshotHydrator from '@/app/components/DashboardSnapshotHydrator';
+import HomeAutoRefresh from '@/app/components/HomeAutoRefresh';
 import { Badge, Card, IconBox, MetricTile, PageShell, SectionHeader, cn, riskTone, scoreTone } from '@/app/components/ui';
 import { getDashboardDataSafe, isValidDashboardSnapshot, type DashboardRun, type WeeklyTrendItem } from '@/lib/dashboard-data';
 import { normalizeLanguage, t, type Language } from '@/lib/i18n';
@@ -738,6 +739,8 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
+
+        <HomeAutoRefresh language={language} />
 
         {showTrueEmpty ? (
           <DashboardSnapshotHydrator

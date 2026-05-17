@@ -1,31 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { Activity, Brain, CalendarDays, Footprints, Gauge, RotateCw, TrendingUp } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Activity, Brain, CalendarDays, Footprints, Gauge, TrendingUp } from 'lucide-react';
 import { Badge, Card, MetricTile, SectionHeader } from '@/app/components/ui';
 import type { HomeDashboardData, DashboardRun, WeeklyTrendItem } from '@/lib/dashboard-data';
 import type { Language } from '@/lib/i18n';
 
 const STORAGE_KEY = 'veiro:lastDashboardSnapshot';
-const LIVE_REFRESH_MAX_ATTEMPTS = 2;
-const LIVE_REFRESH_STOP_MS = 4_000;
-const LIVE_REFRESH_INITIAL_DELAY_MS = 550;
-const LIVE_REFRESH_RETRY_DELAY_MS = 2_500;
-
-function getDashboardSource(data: HomeDashboardData | null | undefined): HomeDashboardData['dashboardSource'] {
-  if (!data) return 'fallback';
-  if (data.dashboardSource) return data.dashboardSource;
-  if (data.source === 'db') return 'db';
-  if (data.source === 'snapshot-db' || data.source === 'cache') return 'snapshot-db';
-  if (data.source === 'local-snapshot') return 'local-snapshot';
-  return 'fallback';
-}
-
-function isFreshDashboard(data: HomeDashboardData | null | undefined) {
-  const source = getDashboardSource(data);
-  return source === 'fresh' || source === 'db';
-}
 
 function isValidSnapshot(data: HomeDashboardData | null | undefined): data is HomeDashboardData {
   if (!data) return false;
@@ -194,47 +175,6 @@ function ClientDashboardSnapshot({ dashboard, language }: { dashboard: HomeDashb
   );
 }
 
-function LiveRefreshPill({ language, isPending }: { language: Language; isPending: boolean }) {
-  return (
-    <div className="mb-3 flex justify-center sm:justify-start">
-      <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(54,252,225,0.2)] bg-black/35 px-3 py-1.5 text-xs font-semibold text-neutral-200 shadow-[0_10px_30px_rgba(0,0,0,0.2)] backdrop-blur-md transition-opacity duration-300">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary opacity-60" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-primary shadow-[0_0_12px_rgba(54,252,225,0.55)]" />
-        </span>
-        <span>{language === 'en' ? 'Live update...' : 'Aggiornamento live...'}</span>
-        {isPending ? <RotateCw size={12} strokeWidth={2} className="animate-spin text-accent-secondary" /> : null}
-      </div>
-    </div>
-  );
-}
-
-function LiveRefreshToast({
-  language,
-  onRefresh,
-  isPending,
-}: {
-  language: Language;
-  onRefresh: () => void;
-  isPending: boolean;
-}) {
-  return (
-    <div className="fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.75rem)] z-50 flex justify-center px-4">
-      <div className="fade-in flex max-w-[92vw] items-center gap-3 rounded-full border border-white/10 bg-black/75 px-3.5 py-2 text-xs font-medium text-neutral-200 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-md">
-        <span>{language === 'en' ? 'Live data not updated. Showing last sync.' : 'Dati live non aggiornati. Mostrando ultima sincronizzazione.'}</span>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="pressable inline-flex items-center gap-1.5 rounded-full border border-[rgba(54,252,225,0.22)] bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold text-app-text"
-        >
-          <RotateCw size={12} strokeWidth={2} className={isPending ? 'animate-spin text-accent-secondary' : 'text-accent-secondary'} />
-          <span>{language === 'en' ? 'Refresh' : 'Aggiorna'}</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function DashboardSnapshotHydrator({
   dashboardData,
   language,
@@ -244,51 +184,8 @@ export default function DashboardSnapshotHydrator({
   language: Language;
   fallback?: ReactNode;
 }) {
-  const router = useRouter();
   const [clientSnapshot, setClientSnapshot] = useState<HomeDashboardData | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const [showLiveRefresh, setShowLiveRefresh] = useState(false);
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const attemptsRef = useRef(0);
   const serverSnapshotIsValid = isValidSnapshot(dashboardData);
-  const serverDashboardIsFresh = isFreshDashboard(dashboardData);
-  const isServerCached = serverSnapshotIsValid && !serverDashboardIsFresh;
-  const shouldLiveRefresh = isServerCached || (!serverSnapshotIsValid && Boolean(clientSnapshot));
-
-  function clearLiveTimers() {
-    if (refreshTimer.current) clearTimeout(refreshTimer.current);
-    if (retryTimer.current) clearTimeout(retryTimer.current);
-    if (stopTimer.current) clearTimeout(stopTimer.current);
-    refreshTimer.current = null;
-    retryTimer.current = null;
-    stopTimer.current = null;
-  }
-
-  async function requestLiveRefresh(reason: 'initial' | 'retry' | 'manual') {
-    if (reason !== 'manual' && attemptsRef.current >= LIVE_REFRESH_MAX_ATTEMPTS) return;
-
-    attemptsRef.current += 1;
-
-    if (reason === 'retry') {
-      console.log('[HOME LIVE] second refresh fired');
-    } else {
-      console.log('[HOME LIVE] router.refresh fired');
-    }
-
-    try {
-      await fetch(`/api/dashboard/fresh?t=${Date.now()}`, {
-        method: 'GET',
-        cache: 'no-store',
-        credentials: 'same-origin',
-      });
-    } catch (error) {
-      console.warn('[HOME LIVE] fresh probe failed', error);
-    }
-
-    startTransition(() => router.refresh());
-  }
 
   useEffect(() => {
     if (serverSnapshotIsValid) {
@@ -319,55 +216,12 @@ export default function DashboardSnapshotHydrator({
     }
   }, [dashboardData, serverSnapshotIsValid]);
 
-  useEffect(() => {
-    if (serverDashboardIsFresh) {
-      console.log('[HOME LIVE] fresh data loaded');
-      setShowLiveRefresh(false);
-      attemptsRef.current = 0;
-      clearLiveTimers();
-      return;
-    }
-
-    if (!shouldLiveRefresh) {
-      setShowLiveRefresh(false);
-      clearLiveTimers();
-      return;
-    }
-
-    setShowLiveRefresh(true);
-    attemptsRef.current = 0;
-    console.log('[HOME LIVE] mount refresh scheduled');
-    refreshTimer.current = setTimeout(() => void requestLiveRefresh('initial'), LIVE_REFRESH_INITIAL_DELAY_MS);
-    retryTimer.current = setTimeout(() => {
-      if (isFreshDashboard(dashboardData)) return;
-      void requestLiveRefresh('retry');
-    }, LIVE_REFRESH_RETRY_DELAY_MS);
-    stopTimer.current = setTimeout(() => {
-      console.log('[HOME LIVE] stopped after timeout');
-      setShowLiveRefresh(false);
-    }, LIVE_REFRESH_STOP_MS);
-
-    return clearLiveTimers;
-  }, [dashboardData, serverDashboardIsFresh, shouldLiveRefresh]);
-
   if (serverSnapshotIsValid) {
-    return (
-      <>
-        {showLiveRefresh ? <LiveRefreshPill language={language} isPending={isPending} /> : null}
-      </>
-    );
+    return null;
   }
 
   if (clientSnapshot) {
-    return (
-      <>
-        {showLiveRefresh ? <LiveRefreshPill language={language} isPending={isPending} /> : null}
-        {!showLiveRefresh && attemptsRef.current >= LIVE_REFRESH_MAX_ATTEMPTS ? (
-          <LiveRefreshToast language={language} onRefresh={() => void requestLiveRefresh('manual')} isPending={isPending} />
-        ) : null}
-        <ClientDashboardSnapshot dashboard={clientSnapshot} language={language} />
-      </>
-    );
+    return <ClientDashboardSnapshot dashboard={clientSnapshot} language={language} />;
   }
 
   return <>{fallback}</>;
