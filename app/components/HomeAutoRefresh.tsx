@@ -2,24 +2,39 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { RotateCw } from 'lucide-react';
 import type { Language } from '@/lib/i18n';
 
 const AUTO_REFRESH_INITIAL_DELAY_MS = 500;
 const AUTO_REFRESH_RETRY_DELAY_MS = 2_000;
 const AUTO_REFRESH_STOP_MS = 4_000;
+const AUTO_REFRESH_EXIT_MS = 300;
 const AUTO_REFRESH_MAX_ATTEMPTS = 2;
 
-function AutoRefreshPill({ language, isPending }: { language: Language; isPending: boolean }) {
+function AutoRefreshPill({ language, visible }: { language: Language; visible: boolean }) {
   return (
-    <div className="mb-3 flex justify-center sm:justify-start">
-      <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(54,252,225,0.2)] bg-black/35 px-3 py-1.5 text-xs font-semibold text-neutral-200 shadow-[0_10px_30px_rgba(0,0,0,0.2)] backdrop-blur-md transition-opacity duration-300">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary opacity-60" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-primary shadow-[0_0_12px_rgba(54,252,225,0.55)]" />
+    <div
+      className="pointer-events-none fixed left-1/2 z-50"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}
+    >
+      <div
+        role="status"
+        aria-live="polite"
+        className={[
+          'pointer-events-auto inline-flex -translate-x-1/2 items-center gap-2 rounded-full',
+          'border border-[rgba(54,252,225,0.22)] bg-black/55 px-4 py-2',
+          'text-xs font-medium text-neutral-100 shadow-[0_18px_54px_rgba(0,0,0,0.32)] backdrop-blur-xl',
+          'transition-all duration-300 ease-out will-change-transform',
+          visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+        ].join(' ')}
+      >
+        <span className="relative flex h-2.5 w-2.5 shrink-0">
+          <span
+            className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-secondary opacity-45"
+            style={{ animationDuration: '2.4s' }}
+          />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent-primary shadow-[0_0_14px_rgba(54,252,225,0.6)]" />
         </span>
         <span>{language === 'en' ? 'Live update...' : 'Aggiornamento live...'}</span>
-        {isPending ? <RotateCw size={12} strokeWidth={2} className="animate-spin text-accent-secondary" /> : null}
       </div>
     </div>
   );
@@ -27,20 +42,31 @@ function AutoRefreshPill({ language, isPending }: { language: Language; isPendin
 
 export default function HomeAutoRefresh({ language }: { language: Language }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [refreshing, setRefreshing] = useState(false);
+  const [, startTransition] = useTransition();
+  const [renderPill, setRenderPill] = useState(false);
+  const [pillVisible, setPillVisible] = useState(false);
   const attemptsRef = useRef(0);
   const initialTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function clearTimers() {
     if (initialTimerRef.current) clearTimeout(initialTimerRef.current);
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
     initialTimerRef.current = null;
     retryTimerRef.current = null;
     stopTimerRef.current = null;
+    exitTimerRef.current = null;
+  }
+
+  function hidePill() {
+    setPillVisible(false);
+    exitTimerRef.current = setTimeout(() => {
+      setRenderPill(false);
+    }, AUTO_REFRESH_EXIT_MS);
   }
 
   async function fireRefresh(reason: 'initial' | 'retry') {
@@ -76,19 +102,20 @@ export default function HomeAutoRefresh({ language }: { language: Language }) {
   useEffect(() => {
     console.log('[HOME AUTO REFRESH] mounted');
     attemptsRef.current = 0;
-    setRefreshing(true);
+    setRenderPill(true);
+    requestAnimationFrame(() => setPillVisible(true));
 
     initialTimerRef.current = setTimeout(() => void fireRefresh('initial'), AUTO_REFRESH_INITIAL_DELAY_MS);
     retryTimerRef.current = setTimeout(() => void fireRefresh('retry'), AUTO_REFRESH_RETRY_DELAY_MS);
     stopTimerRef.current = setTimeout(() => {
       console.log('[HOME AUTO REFRESH] complete');
-      setRefreshing(false);
+      hidePill();
     }, AUTO_REFRESH_STOP_MS);
 
     return clearTimers;
   }, []);
 
-  if (!refreshing) return null;
+  if (!renderPill) return null;
 
-  return <AutoRefreshPill language={language} isPending={isPending} />;
+  return <AutoRefreshPill language={language} visible={pillVisible} />;
 }
