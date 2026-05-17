@@ -9,6 +9,7 @@ import { normalizeLanguage, t } from '@/lib/i18n';
 import DateOfBirthField from './DateOfBirthField';
 import SettingsSubmit from './SettingsSubmit';
 import StravaConnectionBox from './StravaConnectionBox';
+import PushNotificationManager from '@/app/components/PushNotificationManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -196,6 +197,8 @@ export default async function SettingsPage({
           {isAdmin && stravaStatus ? (
             <StravaConnectionBox status={stravaStatus} initialMessage={stravaMessage} language={language} />
           ) : null}
+
+          {isAdmin ? <PushNotificationManager language={language} /> : null}
 
           <div className="bg-neutral-900 rounded-3xl p-8 border border-neutral-800">
             <h2 className="text-2xl font-bold mb-2">{t(language, 'settings.language')}</h2>

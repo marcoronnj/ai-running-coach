@@ -3,6 +3,7 @@ import { getActivityById } from '@/lib/strava';
 import { getValidStravaAccessToken } from '@/lib/strava-connection';
 import { getActivitySportType, isRunningActivity } from '@/lib/sport-classification';
 import { getActivityByIdOrStravaId, processReportForActivity } from '@/lib/run-report';
+import { sendRunReportReadyNotification } from '@/lib/push-notifications';
 import { saveStravaActivity, type StravaSyncMode } from '@/lib/strava-sync';
 
 export interface SyncSingleStravaActivityOptions {
@@ -118,6 +119,10 @@ export async function syncSingleStravaActivity(
         reason: 'new-activity',
         syncMode: source,
       });
+
+      if (saved.inserted) {
+        void sendRunReportReadyNotification(dbActivity);
+      }
 
       return {
         ok: true,

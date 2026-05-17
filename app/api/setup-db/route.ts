@@ -69,6 +69,7 @@ const SQL_STATEMENTS = [
       overload_explanation TEXT,
       suggested_focus TEXT,
       coach_notes JSONB,
+      push_sent_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `,
@@ -87,7 +88,8 @@ const SQL_STATEMENTS = [
     ADD COLUMN IF NOT EXISTS consistency_explanation TEXT,
     ADD COLUMN IF NOT EXISTS overload_explanation TEXT,
     ADD COLUMN IF NOT EXISTS suggested_focus TEXT,
-    ADD COLUMN IF NOT EXISTS coach_notes JSONB;
+    ADD COLUMN IF NOT EXISTS coach_notes JSONB,
+    ADD COLUMN IF NOT EXISTS push_sent_at TIMESTAMPTZ;
   `,
 
   // Indice su activity_id per query join
@@ -100,6 +102,25 @@ const SQL_STATEMENTS = [
   `
     CREATE INDEX IF NOT EXISTS idx_coach_reports_created_at 
     ON coach_reports(created_at DESC);
+  `,
+
+  `
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT NULL,
+      enabled BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ NULL
+    );
+  `,
+
+  `
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_enabled
+    ON push_subscriptions(enabled);
   `,
 
   // Tabella sync_logs
@@ -309,8 +330,8 @@ export async function GET(request: NextRequest) {
       {
         ok: true,
         message: 'Database setup completed successfully',
-        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'dashboard_snapshots', 'webhook_events', 'strava_connections', 'athlete_settings'],
-        indicesCreated: 10,
+        tablesCreated: ['activities', 'coach_reports', 'sync_logs', 'dashboard_snapshots', 'webhook_events', 'strava_connections', 'athlete_settings', 'push_subscriptions'],
+        indicesCreated: 11,
       },
       { status: 200 }
     );

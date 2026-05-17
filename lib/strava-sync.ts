@@ -3,6 +3,7 @@ import { type DBActivity } from '@/lib/coach';
 import { getActivitiesWithoutReport, processReportForActivity } from '@/lib/run-report';
 import { isRunningActivity } from '@/lib/sport-classification';
 import { formatDateTimeIT } from '@/lib/date-utils';
+import { sendRunReportReadyNotification } from '@/lib/push-notifications';
 import {
   filterRunningActivities,
   formatActivityForDB,
@@ -164,6 +165,7 @@ export async function runStravaSync(
           reason: 'new-activity',
           syncMode: mode,
         });
+        void sendRunReportReadyNotification(activity);
 
         if (latestNewActivity?.id === activity.id) {
           latestReportGenerated = true;

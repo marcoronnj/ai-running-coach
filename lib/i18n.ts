@@ -87,6 +87,16 @@ type TranslationKey =
   | 'settings.injuries'
   | 'settings.profileSummary'
   | 'settings.avoidOverload'
+  | 'notifications.title'
+  | 'notifications.enable'
+  | 'notifications.disable'
+  | 'notifications.enabled'
+  | 'notifications.disabled'
+  | 'notifications.unsupported'
+  | 'notifications.denied'
+  | 'notifications.iosHelp'
+  | 'notifications.newRunAnalyzed'
+  | 'notifications.reportReadyBody'
   | 'account.eyebrow'
   | 'account.title'
   | 'account.subtitle'
@@ -212,6 +222,16 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'settings.injuries': 'Infortuni / Note fisiche',
     'settings.profileSummary': 'Sommario profilo',
     'settings.avoidOverload': 'Evita sovrallenamento e burnout',
+    'notifications.title': 'Notifiche',
+    'notifications.enable': 'Attiva notifiche',
+    'notifications.disable': 'Disattiva notifiche',
+    'notifications.enabled': 'Notifiche abilitate',
+    'notifications.disabled': 'Notifiche non abilitate',
+    'notifications.unsupported': 'Notifiche non supportate',
+    'notifications.denied': 'Permesso notifiche negato',
+    'notifications.iosHelp': 'Su iPhone le notifiche funzionano quando Veiro è installata nella schermata Home.',
+    'notifications.newRunAnalyzed': 'Nuova corsa analizzata',
+    'notifications.reportReadyBody': 'Il report della tua ultima attività è pronto.',
     'account.eyebrow': 'ACCOUNT',
     'account.title': 'Profilo app',
     'account.subtitle': 'Sessione privata e stato della tua app atleta.',
@@ -336,6 +356,16 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'settings.injuries': 'Injuries / physical notes',
     'settings.profileSummary': 'Profile summary',
     'settings.avoidOverload': 'Avoid overload and burnout',
+    'notifications.title': 'Notifications',
+    'notifications.enable': 'Enable notifications',
+    'notifications.disable': 'Disable notifications',
+    'notifications.enabled': 'Notifications enabled',
+    'notifications.disabled': 'Notifications not enabled',
+    'notifications.unsupported': 'Notifications not supported',
+    'notifications.denied': 'Notification permission denied',
+    'notifications.iosHelp': 'On iPhone, notifications work when Veiro is installed on the Home Screen.',
+    'notifications.newRunAnalyzed': 'New run analyzed',
+    'notifications.reportReadyBody': 'Your latest activity report is ready.',
     'account.eyebrow': 'ACCOUNT',
     'account.title': 'App profile',
     'account.subtitle': 'Private session and athlete app status.',
