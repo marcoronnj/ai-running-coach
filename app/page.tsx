@@ -671,6 +671,7 @@ export default async function HomePage() {
   console.log('[HOME PERF]', {
     dashboardLoad: `${Date.now() - dashboardStart}ms`,
     dashboardSource: dashboard.source,
+    dashboardFreshness: dashboard.dashboardSource,
     timedOut: dashboard.timedOut,
     errors: dashboard.errors.length,
   });

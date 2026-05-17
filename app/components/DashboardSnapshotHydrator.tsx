@@ -8,10 +8,24 @@ import type { HomeDashboardData, DashboardRun, WeeklyTrendItem } from '@/lib/das
 import type { Language } from '@/lib/i18n';
 
 const STORAGE_KEY = 'veiro:lastDashboardSnapshot';
-const LIVE_REFRESH_STARTED_KEY = 'veiro:homeLiveRefreshStartedAt';
-const LIVE_REFRESH_ATTEMPTS_KEY = 'veiro:homeLiveRefreshAttempts';
 const LIVE_REFRESH_MAX_ATTEMPTS = 2;
-const LIVE_REFRESH_FAIL_MS = 8_000;
+const LIVE_REFRESH_STOP_MS = 4_000;
+const LIVE_REFRESH_INITIAL_DELAY_MS = 550;
+const LIVE_REFRESH_RETRY_DELAY_MS = 2_500;
+
+function getDashboardSource(data: HomeDashboardData | null | undefined): HomeDashboardData['dashboardSource'] {
+  if (!data) return 'fallback';
+  if (data.dashboardSource) return data.dashboardSource;
+  if (data.source === 'db') return 'db';
+  if (data.source === 'snapshot-db' || data.source === 'cache') return 'snapshot-db';
+  if (data.source === 'local-snapshot') return 'local-snapshot';
+  return 'fallback';
+}
+
+function isFreshDashboard(data: HomeDashboardData | null | undefined) {
+  const source = getDashboardSource(data);
+  return source === 'fresh' || source === 'db';
+}
 
 function isValidSnapshot(data: HomeDashboardData | null | undefined): data is HomeDashboardData {
   if (!data) return false;
@@ -233,40 +247,47 @@ export default function DashboardSnapshotHydrator({
   const router = useRouter();
   const [clientSnapshot, setClientSnapshot] = useState<HomeDashboardData | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [liveFailed, setLiveFailed] = useState(false);
+  const [showLiveRefresh, setShowLiveRefresh] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const failTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attemptsRef = useRef(0);
   const serverSnapshotIsValid = isValidSnapshot(dashboardData);
-  const isServerCached = serverSnapshotIsValid && dashboardData.source !== 'db';
+  const serverDashboardIsFresh = isFreshDashboard(dashboardData);
+  const isServerCached = serverSnapshotIsValid && !serverDashboardIsFresh;
   const shouldLiveRefresh = isServerCached || (!serverSnapshotIsValid && Boolean(clientSnapshot));
 
   function clearLiveTimers() {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     if (retryTimer.current) clearTimeout(retryTimer.current);
-    if (failTimer.current) clearTimeout(failTimer.current);
+    if (stopTimer.current) clearTimeout(stopTimer.current);
     refreshTimer.current = null;
     retryTimer.current = null;
-    failTimer.current = null;
+    stopTimer.current = null;
   }
 
-  function requestLiveRefresh(manual = false) {
-    try {
-      const attempts = Number(sessionStorage.getItem(LIVE_REFRESH_ATTEMPTS_KEY) || '0');
-      if (!manual && attempts >= LIVE_REFRESH_MAX_ATTEMPTS) return;
+  async function requestLiveRefresh(reason: 'initial' | 'retry' | 'manual') {
+    if (reason !== 'manual' && attemptsRef.current >= LIVE_REFRESH_MAX_ATTEMPTS) return;
 
-      if (!sessionStorage.getItem(LIVE_REFRESH_STARTED_KEY)) {
-        sessionStorage.setItem(LIVE_REFRESH_STARTED_KEY, String(Date.now()));
-      }
-      sessionStorage.setItem(LIVE_REFRESH_ATTEMPTS_KEY, String(manual ? attempts + 1 : attempts + 1));
-    } catch {
-      // sessionStorage is only an anti-loop guard; refresh can still proceed without it.
+    attemptsRef.current += 1;
+
+    if (reason === 'retry') {
+      console.log('[HOME LIVE] second refresh fired');
+    } else {
+      console.log('[HOME LIVE] router.refresh fired');
     }
 
-    console.log('[HOME LIVE] refreshing');
-    startTransition(() => {
-      router.refresh();
-    });
+    try {
+      await fetch(`/api/dashboard/fresh?t=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+    } catch (error) {
+      console.warn('[HOME LIVE] fresh probe failed', error);
+    }
+
+    startTransition(() => router.refresh());
   }
 
   useEffect(() => {
@@ -289,7 +310,7 @@ export default function DashboardSnapshotHydrator({
       const parsed = raw ? JSON.parse(raw) as HomeDashboardData : null;
       if (isValidSnapshot(parsed)) {
         console.log('[HOME SNAPSHOT] loaded from localStorage');
-        setClientSnapshot({ ...parsed, source: 'fallback' });
+        setClientSnapshot({ ...parsed, source: 'local-snapshot', dashboardSource: 'local-snapshot' });
       } else {
         console.log('[HOME SNAPSHOT] no snapshot available');
       }
@@ -299,42 +320,40 @@ export default function DashboardSnapshotHydrator({
   }, [dashboardData, serverSnapshotIsValid]);
 
   useEffect(() => {
-    if (dashboardData.source === 'db') {
-      try {
-        if (sessionStorage.getItem(LIVE_REFRESH_STARTED_KEY)) {
-          console.log('[HOME LIVE] refreshed');
-          sessionStorage.removeItem(LIVE_REFRESH_STARTED_KEY);
-          sessionStorage.removeItem(LIVE_REFRESH_ATTEMPTS_KEY);
-        }
-      } catch {
-        // Ignore storage cleanup failures.
-      }
-      setLiveFailed(false);
+    if (serverDashboardIsFresh) {
+      console.log('[HOME LIVE] fresh data loaded');
+      setShowLiveRefresh(false);
+      attemptsRef.current = 0;
       clearLiveTimers();
       return;
     }
 
     if (!shouldLiveRefresh) {
+      setShowLiveRefresh(false);
       clearLiveTimers();
       return;
     }
 
-    setLiveFailed(false);
-    refreshTimer.current = setTimeout(() => requestLiveRefresh(), 550);
-    retryTimer.current = setTimeout(() => requestLiveRefresh(), 3_500);
-    failTimer.current = setTimeout(() => {
-      console.log('[HOME LIVE] failed using snapshot');
-      setLiveFailed(true);
-    }, LIVE_REFRESH_FAIL_MS);
+    setShowLiveRefresh(true);
+    attemptsRef.current = 0;
+    console.log('[HOME LIVE] mount refresh scheduled');
+    refreshTimer.current = setTimeout(() => void requestLiveRefresh('initial'), LIVE_REFRESH_INITIAL_DELAY_MS);
+    retryTimer.current = setTimeout(() => {
+      if (isFreshDashboard(dashboardData)) return;
+      void requestLiveRefresh('retry');
+    }, LIVE_REFRESH_RETRY_DELAY_MS);
+    stopTimer.current = setTimeout(() => {
+      console.log('[HOME LIVE] stopped after timeout');
+      setShowLiveRefresh(false);
+    }, LIVE_REFRESH_STOP_MS);
 
     return clearLiveTimers;
-  }, [dashboardData.source, shouldLiveRefresh]);
+  }, [dashboardData, serverDashboardIsFresh, shouldLiveRefresh]);
 
   if (serverSnapshotIsValid) {
     return (
       <>
-        {shouldLiveRefresh && !liveFailed ? <LiveRefreshPill language={language} isPending={isPending} /> : null}
-        {liveFailed ? <LiveRefreshToast language={language} onRefresh={() => requestLiveRefresh(true)} isPending={isPending} /> : null}
+        {showLiveRefresh ? <LiveRefreshPill language={language} isPending={isPending} /> : null}
       </>
     );
   }
@@ -342,8 +361,10 @@ export default function DashboardSnapshotHydrator({
   if (clientSnapshot) {
     return (
       <>
-        {!liveFailed ? <LiveRefreshPill language={language} isPending={isPending} /> : null}
-        {liveFailed ? <LiveRefreshToast language={language} onRefresh={() => requestLiveRefresh(true)} isPending={isPending} /> : null}
+        {showLiveRefresh ? <LiveRefreshPill language={language} isPending={isPending} /> : null}
+        {!showLiveRefresh && attemptsRef.current >= LIVE_REFRESH_MAX_ATTEMPTS ? (
+          <LiveRefreshToast language={language} onRefresh={() => void requestLiveRefresh('manual')} isPending={isPending} />
+        ) : null}
         <ClientDashboardSnapshot dashboard={clientSnapshot} language={language} />
       </>
     );
